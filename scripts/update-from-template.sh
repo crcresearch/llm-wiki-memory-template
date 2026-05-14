@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+#
+# update-from-template.sh — pull updates from the llm-wiki template repo into
+# an existing project, without touching project-specific content.
+#
+# Usage:
+#   ./scripts/update-from-template.sh [--dry-run] [--template-url=<url>]
+#
+# Flags:
+#   --dry-run        Print what would change without writing anything.
+#   --template-url   Override the template remote URL. Defaults to the
+#                    crcresearch/llm-wiki-template repo. Pass this only if
+#                    your org maintains a fork.
+#
+# What gets updated:
+#   ALWAYS_UPDATE (generic, shared content)
+#     llm-wiki.md
+#     wiki/init-wiki.sh
+#     wiki/agents/README.md
+#     scripts/instantiate.sh
+#     scripts/update-from-template.sh
+#     scripts/check-template-version.sh
+#     .gitignore
+#
+#   IF .claude/ EXISTS (Claude Code overlay active in this project)
+#     .claude/commands/wiki-{experiment,source,lint}.md    (substitute {{REPO_NAME}})
+#     .claude/skills/wiki-{experiment,source,lint}.md      (substitute {{REPO_NAME}})
+#     wiki/agents/claude-code/setup.sh
+#     wiki/agents/claude-code/README.md
+#     wiki/agents/claude-code/templates/*
+#
+#   IF .cursor/ EXISTS (Cursor overlay active in this project)
+#     .cursor/rules/wiki-{as-memory,experiment,source,lint}.mdc   (substitute {{REPO_NAME}})
+#     wiki/agents/cursor/setup.sh
+#     wiki/agents/cursor/README.md
+#     wiki/agents/cursor/templates/*
+#
+# What does NOT get touched (project-specific):
+#   CLAUDE.md
+#   README.md
+#   .cursorrules                              (project's own Cursor config)
+#   .claude/settings.json                     (project's permissions allowlist)
+#   .claude/settings.local.json               (per-user, gitignored)
+#   .claude/hooks/                            (per-machine, opt-in)
+#   wiki/<repo>.wiki/                         (separate git sub-repo)
+#   Any file under your project's source tree
+#
+# After each successful run, an entry is appended to .llm-wiki-template-log.md
+# at the repo root, recording the template commit SHA and the files changed.
+# Push: this script does NOT push. It stages changes locally (unless --dry-run).
+#
+
+set -euo pipefail
+
+DRY_RUN=false
+TEMPLATE_URL="git@github.com:crcresearch/llm-wiki-template.git"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dry-run)            DRY_RUN=true; shift ;;
+        --template-url=*)     TEMPLATE_URL="${1#*=}"; shift ;;
+        -h|--help)
+            sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) \
+    || { echo "Error: not in a git repository." >&2; exit 1; }
+REPO_NAME=$(basename "$REPO_ROOT")
+cd "$REPO_ROOT"
+
+# --- Ensure 'template' remote exists ---
+if ! git remote get-url template >/dev/null 2>&1; then
+    echo "Adding remote 'template' -> $TEMPLATE_URL"
+    git remote add template "$TEMPLATE_URL"
+fi
+
+echo "Fetching template@main ..."
+git fetch --quiet template main
+
+TEMPLATE_SHA=$(git rev-parse --short template/main)
+echo "Template HEAD: $TEMPLATE_SHA"
+
+# --- Build the file list ---
+ALWAYS_FILES=(
+    "llm-wiki.md"
+    "wiki/init-wiki.sh"
+    "wiki/agents/README.md"
+    "scripts/instantiate.sh"
+    "scripts/update-from-template.sh"
+    "scripts/check-template-version.sh"
+    ".gitignore"
+)
+
+CLAUDE_FILES=(
+    ".claude/commands/wiki-experiment.md"
+    ".claude/commands/wiki-source.md"
+    ".claude/commands/wiki-lint.md"
+    ".claude/skills/wiki-experiment.md"
+    ".claude/skills/wiki-source.md"
+    ".claude/skills/wiki-lint.md"
+    "wiki/agents/claude-code/setup.sh"
+    "wiki/agents/claude-code/README.md"
+    "wiki/agents/claude-code/templates/claude-md-snippet.md"
+    "wiki/agents/claude-code/templates/memory-seed.md"
+    "wiki/agents/claude-code/templates/session-start-hook.sh"
+)
+
+CURSOR_FILES=(
+    ".cursor/rules/wiki-as-memory.mdc"
+    ".cursor/rules/wiki-experiment.mdc"
+    ".cursor/rules/wiki-source.mdc"
+    ".cursor/rules/wiki-lint.mdc"
+    "wiki/agents/cursor/setup.sh"
+    "wiki/agents/cursor/README.md"
+)
+
+# Files where {{REPO_NAME}} must be substituted by $REPO_NAME after pulling
+# from template/main. These ship with literal {{REPO_NAME}} in the template
+# but were substituted at instantiate time in this project; the substitution
+# must be re-applied each time we pull.
+SUBSTITUTE_FILES=(
+    ".claude/commands/wiki-experiment.md"
+    ".claude/commands/wiki-source.md"
+    ".claude/commands/wiki-lint.md"
+    ".claude/skills/wiki-experiment.md"
+    ".claude/skills/wiki-source.md"
+    ".claude/skills/wiki-lint.md"
+    ".cursor/rules/wiki-as-memory.mdc"
+    ".cursor/rules/wiki-experiment.mdc"
+    ".cursor/rules/wiki-source.mdc"
+    ".cursor/rules/wiki-lint.mdc"
+)
+
+needs_substitution() {
+    local f="$1"
+    for s in "${SUBSTITUTE_FILES[@]}"; do
+        [[ "$f" == "$s" ]] && return 0
+    done
+    return 1
+}
+
+# Assemble the active file list based on which overlays are present.
+FILES=("${ALWAYS_FILES[@]}")
+if [[ -d "$REPO_ROOT/.claude" ]] || [[ -d "$REPO_ROOT/wiki/agents/claude-code" ]]; then
+    FILES+=("${CLAUDE_FILES[@]}")
+fi
+if [[ -d "$REPO_ROOT/.cursor" ]] || [[ -d "$REPO_ROOT/wiki/agents/cursor" ]]; then
+    FILES+=("${CURSOR_FILES[@]}")
+fi
+
+# --- Diff and apply ---
+CHANGED=()
+SKIPPED=()
+MISSING_IN_TEMPLATE=()
+
+for f in "${FILES[@]}"; do
+    # Does the file exist in template/main?
+    if ! git cat-file -e "template/main:$f" 2>/dev/null; then
+        MISSING_IN_TEMPLATE+=("$f")
+        continue
+    fi
+
+    # Get the template version, substituting {{REPO_NAME}} if needed.
+    TEMPLATE_CONTENT=$(git show "template/main:$f")
+    if needs_substitution "$f"; then
+        TEMPLATE_CONTENT=$(printf '%s' "$TEMPLATE_CONTENT" | sed "s|{{REPO_NAME}}|$REPO_NAME|g")
+    fi
+
+    # Compare to local.
+    if [[ -f "$f" ]]; then
+        LOCAL_HASH=$(sha256sum "$f" | awk '{print $1}')
+    else
+        LOCAL_HASH="<missing>"
+    fi
+    TEMPLATE_HASH=$(printf '%s' "$TEMPLATE_CONTENT" | sha256sum | awk '{print $1}')
+
+    if [[ "$LOCAL_HASH" == "$TEMPLATE_HASH" ]]; then
+        SKIPPED+=("$f")
+        continue
+    fi
+
+    CHANGED+=("$f")
+    if ! $DRY_RUN; then
+        mkdir -p "$(dirname "$f")"
+        printf '%s' "$TEMPLATE_CONTENT" > "$f"
+        # Preserve executable bit for shell scripts that should be executable.
+        case "$f" in
+            *.sh) chmod +x "$f" ;;
+        esac
+    fi
+done
+
+# --- Report ---
+echo ""
+echo "================ update-from-template ================"
+echo "Repo:     $REPO_ROOT"
+echo "Template: $TEMPLATE_URL @ $TEMPLATE_SHA"
+echo "Mode:     $($DRY_RUN && echo 'DRY RUN' || echo 'APPLIED')"
+echo "------------------------------------------------------"
+echo "Changed (${#CHANGED[@]}):"
+for f in "${CHANGED[@]}"; do echo "  + $f"; done
+echo ""
+echo "Skipped, identical to template (${#SKIPPED[@]}):"
+for f in "${SKIPPED[@]}"; do echo "  = $f"; done
+if [[ ${#MISSING_IN_TEMPLATE[@]} -gt 0 ]]; then
+    echo ""
+    echo "Not present in template/main (${#MISSING_IN_TEMPLATE[@]}):"
+    for f in "${MISSING_IN_TEMPLATE[@]}"; do echo "  ? $f"; done
+fi
+echo "======================================================"
+
+if $DRY_RUN; then
+    echo ""
+    echo "Dry run only. Re-run without --dry-run to apply."
+    exit 0
+fi
+
+if [[ ${#CHANGED[@]} -eq 0 ]]; then
+    echo ""
+    echo "Nothing to apply. Repo is in sync with template/main @ $TEMPLATE_SHA."
+    exit 0
+fi
+
+# --- Append log entry ---
+LOG_FILE="$REPO_ROOT/.llm-wiki-template-log.md"
+TODAY=$(date +%Y-%m-%d)
+{
+    [[ -f "$LOG_FILE" ]] || echo "# llm-wiki template sync log"
+    [[ -f "$LOG_FILE" ]] || echo ""
+    echo "## [$TODAY] pulled template @${TEMPLATE_SHA} - ${#CHANGED[@]} file(s) updated"
+    for f in "${CHANGED[@]}"; do echo "- $f"; done
+    echo ""
+} >> "$LOG_FILE"
+
+echo ""
+echo "Logged in .llm-wiki-template-log.md."
+echo ""
+echo "Next steps:"
+echo "  Review the changes:    git diff"
+echo "  Stage and commit:      git add -A && git commit -m \"chore: pull llm-wiki template @${TEMPLATE_SHA}\""
+echo "  (Do NOT push unless the team has reviewed.)"
