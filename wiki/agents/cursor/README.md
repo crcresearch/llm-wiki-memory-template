@@ -4,7 +4,7 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 
 > **⚠ Status: shipped but not yet validated in a live Cursor session.**
 >
-> The `.cursor/rules/*.mdc` format, `@`-mention invocation, and the `alwaysApply` / Agent Requested semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE. The Claude Code overlay (`wiki/agents/claude-code/`) has been exercised end-to-end on a project created from this template; this one has not.
+> Only the Claude Code overlay (`wiki/agents/claude-code/`) has been exercised end-to-end against a real agent. This overlay's `.cursor/rules/*.mdc` format, `@`-mention invocation, and `alwaysApply` / Agent Requested semantics are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 >
 > If you are the first to try the Cursor path, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) reporting:
 >
@@ -14,7 +14,7 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 > - Whether the agent honors the read/write/commit loop
 > - Anything that does not match this README's "First-session walkthrough" further down
 >
-> Honest reports of failures are at least as useful as confirmations. The README content is a hypothesis; your run is the test.
+> Honest reports of failures are at least as useful as confirmations. The README content here is a hypothesis; your run is the test.
 
 ## What's here
 

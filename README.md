@@ -2,13 +2,23 @@
 
 A template repository for the [llm-wiki pattern](https://github.com/tobi/llm-wiki), with optional overlays for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Cursor](https://docs.cursor.com/). The llm-wiki layer is agent-agnostic, so the same template also works in minimal mode for OpenCode, Pi, OpenInterpreter, or any agent you write yourself.
 
-## Status of the overlays
+## Status
 
-- **Claude Code overlay** — validated end-to-end. The slash commands `/wiki-experiment`, `/wiki-source`, `/wiki-lint`, the proactive read/write/commit loop, and the auto-commit step have all been exercised on a project created from this template. Production-ready for CRC use.
-- **Cursor overlay** — **shipped but not yet validated in a live Cursor session.** The `.cursor/rules/*.mdc` files, `wiki/agents/cursor/setup.sh`, and the fallback `.cursorrules.template` are present and structurally correct, but no one has run them against an actual Cursor IDE installation yet. The `.mdc` rule format and `@`-mention invocation are based on Cursor's documented conventions, not on observed behavior. **If you are the first to try the Cursor path, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) with what worked, what did not, and the Cursor version you used.** Honest reports of failures are at least as useful as confirmations.
-- **Minimal mode (`--agent=none`)** — works mechanically (wiki bootstrap + CLAUDE.md), but the proactive behavior depends on the agent you bring (OpenCode, Pi, your own) honoring the CLAUDE.md instructions. Untested with specific non-Claude-Code, non-Cursor agents.
+**Only the Claude Code path has been validated end-to-end.** The slash commands `/wiki-experiment`, `/wiki-source`, `/wiki-lint`, the proactive read/write/commit loop, and the auto-commit step have all been exercised on a project derived from this template. The Claude Code overlay is ready for CRC use.
 
-Feedback, bug reports, and PRs welcome on all three.
+**Every other path is shipped but unvalidated in a live session.** That includes:
+
+- The **Cursor overlay** (`.cursor/rules/*.mdc`, `wiki/agents/cursor/setup.sh`, `.cursorrules.template`). The `.mdc` rule format, `@`-mention invocation, and `alwaysApply` semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
+- The **minimal mode** (`--agent=none`). The wiki bootstrap and CLAUDE.md generation work mechanically, but the proactive behavior depends on whatever agent you bring (OpenCode, Pi, OpenInterpreter, your own) honoring the CLAUDE.md instructions. No specific non-Claude-Code agent has been verified yet.
+
+**If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) reporting:**
+
+- Which agent and which version (e.g. *Cursor 0.42*, *OpenCode build XYZ*, *Pi*)
+- Whether the agent picks up the configuration files this template installed (slash commands, rules, CLAUDE.md instructions)
+- Whether the read/write/commit loop is honored
+- Anything that does not match the walkthrough in the respective overlay README
+
+Honest reports of failures are at least as useful as confirmations. The non-Claude-Code paths are hypotheses until someone runs them.
 
 ## 1. What this template gives you
 
