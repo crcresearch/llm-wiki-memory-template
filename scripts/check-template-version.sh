@@ -46,11 +46,15 @@ ALWAYS_FILES=(
     "scripts/update-from-template.sh" "scripts/check-template-version.sh"
     ".gitignore"
 )
-# One-shot files (self-delete at end of bootstrap; not synced). Listed for
-# documentation only; see scripts/update-from-template.sh and
+# One-shot files (self-delete or consumed at end of bootstrap; not synced).
+# Listed for documentation only; see scripts/update-from-template.sh and
 # wiki/agents/README.md for the one-shot pattern.
 ONE_SHOT_FILES=(
     "scripts/instantiate.sh"
+    "CLAUDE.md.template"
+    "README.md.template"
+    ".claude/settings.json.template"
+    ".cursorrules.template"
 )
 CLAUDE_FILES=(
     ".claude/commands/wiki-experiment.md" ".claude/commands/wiki-source.md"
