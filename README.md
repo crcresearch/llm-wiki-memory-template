@@ -113,3 +113,21 @@ Each agent overlay lives in `wiki/agents/<agent>/` and follows a small contract 
 Improvements to the agent-agnostic parts (the llm-wiki pattern, `init-wiki.sh`, the schema, the scripts) are most valuable when they land here, in the template. Once merged, every project that runs `update-from-template.sh` will pick them up on the next sync.
 
 For project-specific customizations, edit your project's `CLAUDE.md`, README, or settings -- those never propagate.
+
+## 8. Quick reference
+
+```bash
+# First use (after "Use this template" -> Create repository -> clone locally):
+./scripts/instantiate.sh "My Project" --agent=claude-code
+
+# Periodic sync from the template (preview, then apply):
+./scripts/update-from-template.sh --dry-run
+./scripts/update-from-template.sh
+
+# Read-only drift check (CI-friendly):
+./scripts/check-template-version.sh
+
+# After any wiki edit, in the wiki sub-repo:
+git -C wiki/<repo-name>.wiki add <files>
+git -C wiki/<repo-name>.wiki commit -m "..."
+```
