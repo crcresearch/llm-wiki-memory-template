@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# instantiate.sh — first-use bootstrap for a project created from llm-wiki-template.
+# instantiate.sh — first-use bootstrap for a project created from llm-wiki-memory-template.
 #
 # Usage:
 #   ./scripts/instantiate.sh "<Project Name>" [--agent=<x>] [--description="..."] [--github-wiki]
@@ -210,10 +210,10 @@ else
                 TMP=$(mktemp -d) \
                 && cd "$TMP" \
                 && git init -b master -q \
-                && printf '# Home\n\nBootstrapped by llm-wiki-template/scripts/instantiate.sh.\n' > Home.md \
+                && printf '# Home\n\nBootstrapped by llm-wiki-memory-template/scripts/instantiate.sh.\n' > Home.md \
                 && git add Home.md \
                 && git \
-                    -c user.email=instantiate@llm-wiki-template \
+                    -c user.email=instantiate@llm-wiki-memory-template \
                     -c user.name="instantiate.sh" \
                     commit -m "Initialize wiki" -q \
                 && git push -q "$WIKI_PUSH_URL" master:master \
@@ -341,7 +341,7 @@ case "$AGENT" in
         ;;
 esac
 echo "  4. Stage and commit the generated files:"
-echo "       git add -A && git commit -m \"chore: instantiate from llm-wiki-template\""
+echo "       git add -A && git commit -m \"chore: instantiate from llm-wiki-memory-template\""
 echo "  5. Open your AI assistant in the project root and start working."
 echo "========================================================"
 

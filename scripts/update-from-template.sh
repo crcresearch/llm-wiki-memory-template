@@ -9,7 +9,7 @@
 # Flags:
 #   --dry-run        Print what would change without writing anything.
 #   --template-url   Override the template remote URL. Defaults to the
-#                    crcresearch/llm-wiki-template repo. Pass this only if
+#                    crcresearch/llm-wiki-memory-template repo. Pass this only if
 #                    your org maintains a fork.
 #
 # What gets updated:
@@ -55,7 +55,7 @@
 set -euo pipefail
 
 DRY_RUN=false
-TEMPLATE_URL="git@github.com:crcresearch/llm-wiki-template.git"
+TEMPLATE_URL="git@github.com:crcresearch/llm-wiki-memory-template.git"
 
 while [[ $# -gt 0 ]]; do
     case $1 in

@@ -6,7 +6,7 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 >
 > Only the Claude Code overlay (`wiki/agents/claude-code/`) has been exercised end-to-end against a real agent. This overlay's `.cursor/rules/*.mdc` format, `@`-mention invocation, and `alwaysApply` / Agent Requested semantics are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 >
-> If you are the first to try the Cursor path, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) reporting:
+> If you are the first to try the Cursor path, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) reporting:
 >
 > - Cursor version (Cursor → About)
 > - Whether `@wiki-experiment`, `@wiki-source`, `@wiki-lint` appear in the chat autocomplete

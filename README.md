@@ -1,4 +1,4 @@
-# llm-wiki-template
+# llm-wiki-memory-template
 
 A template repository for the [llm-wiki pattern](https://github.com/tobi/llm-wiki), with optional overlays for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Cursor](https://docs.cursor.com/). The llm-wiki layer is agent-agnostic, so the same template also works in minimal mode for OpenCode, Pi, OpenInterpreter, or any agent you write yourself.
 
@@ -11,7 +11,7 @@ A template repository for the [llm-wiki pattern](https://github.com/tobi/llm-wik
 - The **Cursor overlay** (`.cursor/rules/*.mdc`, `wiki/agents/cursor/setup.sh`, `.cursorrules.template`). The `.mdc` rule format, `@`-mention invocation, and `alwaysApply` semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 - The **minimal mode** (`--agent=none`). The wiki bootstrap and CLAUDE.md generation work mechanically, but the proactive behavior depends on whatever agent you bring (OpenCode, Pi, OpenInterpreter, your own) honoring the CLAUDE.md instructions. No specific non-Claude-Code agent has been verified yet.
 
-**If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) reporting:**
+**If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) reporting:**
 
 - Which agent and which version (e.g. *Cursor 0.42*, *OpenCode build XYZ*, *Pi*)
 - Whether the agent picks up the configuration files this template installed (slash commands, rules, CLAUDE.md instructions)
@@ -53,7 +53,7 @@ Use this path if the wiki should be browsable at `https://github.com/<owner>/<re
 3. **Commit and push** the generated files:
 
    ```bash
-   git add -A && git commit -m "chore: instantiate from llm-wiki-template"
+   git add -A && git commit -m "chore: instantiate from llm-wiki-memory-template"
    git push origin main
    git -C wiki/<repo-name>.wiki push -u origin master    # publish wiki seed pages
    ```
@@ -65,7 +65,7 @@ Use this path if you don't intend to publish the wiki, or you want to skip the o
 ```bash
 ./scripts/instantiate.sh "My Project Name" --agent=claude-code
 # (no --github-wiki flag)
-git add -A && git commit -m "chore: instantiate from llm-wiki-template"
+git add -A && git commit -m "chore: instantiate from llm-wiki-memory-template"
 git push origin main
 ```
 
@@ -120,7 +120,7 @@ To check drift without making any changes:
 ## 4. Layout
 
 ```
-llm-wiki-template/
+llm-wiki-memory-template/
   README.md                      this file
   CLAUDE.md.template             skeleton with {{PLACEHOLDERS}}
   llm-wiki.md                    the underlying pattern (read first)

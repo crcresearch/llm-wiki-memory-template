@@ -16,7 +16,7 @@ agent can still benefit from the pattern by reading `CLAUDE.md` and
 following the procedure manually. **Likewise unvalidated against any
 specific non-Claude-Code agent.**
 
-If you try any path other than Claude Code, please [open an issue](https://github.com/crcresearch/llm-wiki-template/issues/new) with what worked, what did not, and the agent + version you used. The non-Claude-Code paths are hypotheses until someone runs them.
+If you try any path other than Claude Code, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) with what worked, what did not, and the agent + version you used. The non-Claude-Code paths are hypotheses until someone runs them.
 
 ## The contract every overlay should honor
 

@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-TEMPLATE_URL="git@github.com:crcresearch/llm-wiki-template.git"
+TEMPLATE_URL="git@github.com:crcresearch/llm-wiki-memory-template.git"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
