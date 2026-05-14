@@ -18,8 +18,14 @@
 #   --description=   One-sentence description of the project. Substituted for
 #                    {{DESCRIPTION}} in CLAUDE.md.template. If omitted, CLAUDE.md
 #                    is left with a placeholder you can edit by hand.
-#   --github-wiki    Pass --github to wiki/init-wiki.sh (clone the GitHub Wiki repo
-#                    of the project instead of init'ing a local one).
+#   --github-wiki    Use the GitHub Wiki of the project's main repo as the
+#                    wiki sub-repo backend (instead of init'ing a local-only
+#                    wiki). If the Wiki is not yet initialized on GitHub,
+#                    this script bootstraps it automatically with a seed
+#                    Home.md pushed directly to <repo>.wiki.git, so no
+#                    UI step is required. Requires `origin` to be set on
+#                    the main repo and `gh` (optional, defensive) for the
+#                    has_wiki=true PATCH.
 #
 # Idempotent failure mode: if CLAUDE.md already exists at the repo root, this
 # script exits immediately. Templates are one-shot.
@@ -132,6 +138,68 @@ if [[ -d "$REPO_ROOT/wiki/${REPO_NAME}.wiki" ]]; then
     echo "Wiki sub-repo already present at wiki/${REPO_NAME}.wiki/, skipping init-wiki.sh"
 else
     if $GITHUB_WIKI; then
+        # --- Pre-step: ensure the GitHub Wiki is initialized ---
+        # The GitHub Wiki at <repo>.wiki.git is materialized only after a first
+        # page is created. Without that, `git clone <repo>.wiki.git` (which
+        # init-wiki.sh --github relies on) fails. To avoid forcing the user
+        # through the GitHub UI, this block:
+        #   1. Derives <repo>.wiki.git from the main repo's origin URL.
+        #   2. Checks if the wiki remote is already initialized.
+        #   3. If not, pushes a one-commit seed (Home.md) directly to it.
+        #      init-wiki.sh will then patch its namespaced files on top.
+
+        ORIGIN_URL=$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null || true)
+        if [[ -z "$ORIGIN_URL" ]]; then
+            echo "Error: --github-wiki requires a git remote 'origin' on the main repo." >&2
+            echo "       Push the project repo to GitHub first, then re-run." >&2
+            exit 1
+        fi
+        case "$ORIGIN_URL" in
+            *.git) WIKI_REMOTE_URL="${ORIGIN_URL%.git}.wiki.git" ;;
+            *)     WIKI_REMOTE_URL="${ORIGIN_URL}.wiki.git" ;;
+        esac
+
+        if ! git ls-remote "$WIKI_REMOTE_URL" >/dev/null 2>&1; then
+            echo "GitHub Wiki not initialized yet at $WIKI_REMOTE_URL"
+            echo "Bootstrapping with a seed Home.md via direct push ..."
+
+            # Best-effort: ensure has_wiki=true on the main repo (idempotent;
+            # default is already true, so this is just defensive).
+            if command -v gh >/dev/null 2>&1; then
+                REPO_SLUG=$(echo "$ORIGIN_URL" | sed -E 's|.*[:/]([^/:]+/[^/]+?)(\.git)?$|\1|')
+                gh api "repos/$REPO_SLUG" -X PATCH -F has_wiki=true >/dev/null 2>&1 || true
+            fi
+
+            if ! (
+                set -e
+                TMP=$(mktemp -d)
+                cd "$TMP"
+                # GitHub Wikis use master, not main.
+                git init -b master -q
+                printf '# Home\n\nBootstrapped by llm-wiki-template/scripts/instantiate.sh.\n' > Home.md
+                git add Home.md
+                git \
+                    -c user.email=instantiate@llm-wiki-template \
+                    -c user.name="instantiate.sh" \
+                    commit -m "Initialize wiki" -q
+                git push -q "$WIKI_REMOTE_URL" master:master
+                cd /
+                rm -rf "$TMP"
+            ); then
+                # URL the user can open to bootstrap manually.
+                WIKI_UI_URL=$(echo "$ORIGIN_URL" \
+                    | sed -E 's|git@github.com:|https://github.com/|; s|\.git$||')/wiki
+                echo "" >&2
+                echo "Wiki bootstrap via direct push failed." >&2
+                echo "Most likely cause: org policy disables Wikis on private repos." >&2
+                echo "" >&2
+                echo "Fallback: open $WIKI_UI_URL in a browser," >&2
+                echo "click \"Create the first page\", save, then re-run this script." >&2
+                exit 1
+            fi
+            echo "Wiki bootstrapped at $WIKI_REMOTE_URL"
+        fi
+
         "$REPO_ROOT/wiki/init-wiki.sh" --github
     else
         "$REPO_ROOT/wiki/init-wiki.sh"
