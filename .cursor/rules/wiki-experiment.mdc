@@ -1,0 +1,38 @@
+---
+description: File experiment results to the wiki (Ingest from SCHEMA). Invoke when a run has finished and produced metrics, ablations, or comparisons worth keeping as durable project memory.
+alwaysApply: false
+---
+
+# Wiki: file an experiment result
+
+An experiment run has produced results worth remembering. File them to the wiki so future sessions can build on them rather than re-deriving.
+
+## What to capture
+
+Identify the experiment from the conversation or ask the user:
+
+- Which experiment / variant ran
+- Configuration (parameters, seeds, dataset, scale)
+- Headline metrics (per hop count where applicable)
+- What changed vs. the previous run
+- What was surprising or worth flagging
+- Path to the experiment's `results/` directory
+
+## Procedure (defer to SCHEMA for the full Ingest)
+
+1. Read existing wiki pages for this experiment first (benchmark page, headline results page, comparison pages, concept pages whose claims the result bears on). Integrate, do not duplicate.
+2. Create or update an experiment-results page with proper frontmatter (`type: synthesis` or `entity`; `up:` to the benchmark page; typed edges `supports:` / `criticizes:` / `extends:` when relevant).
+3. Honest reporting: bad results, contradicted claims, and worsened metrics get filed truthfully. Never report accuracy from projections, only from real script outputs.
+4. Update concept pages whose claims this result bears on. If a result contradicts a wiki claim, update or flag the affected page.
+5. Fix cross-references in both directions on every affected page.
+6. Update `index_{{REPO_NAME}}.md` with one-line descriptions.
+7. Append a `## [YYYY-MM-DD] update | Experiment name` entry to `log_{{REPO_NAME}}.md` with 2 to 5 bullets.
+8. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+   ```
+   git -C wiki/{{REPO_NAME}}.wiki add <files>
+   git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"
+   ```
+
+A single write-up typically touches 5 to 15 pages.
+
+After filing, tell the user which pages were created or updated, summarize the headline result in one sentence, and confirm the commit hash.
