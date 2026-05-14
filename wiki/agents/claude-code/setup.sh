@@ -8,10 +8,14 @@
 # parallel directories under wiki/agents/.
 #
 # Usage:
-#   ./wiki/agents/claude-code/setup.sh                 # base: CLAUDE.md + verify commands & skills
-#   ./wiki/agents/claude-code/setup.sh --hook          # + SessionStart hook
-#   ./wiki/agents/claude-code/setup.sh --seed-memory   # + personal memory seed
-#   ./wiki/agents/claude-code/setup.sh --all           # everything
+#   ./wiki/agents/claude-code/setup.sh                       # base: CLAUDE.md + verify commands & skills
+#   ./wiki/agents/claude-code/setup.sh --hook                # + SessionStart hook
+#   ./wiki/agents/claude-code/setup.sh --seed-memory         # + personal memory seed
+#   ./wiki/agents/claude-code/setup.sh --posttooluse-hook    # + PostToolUse advisory hook
+#                                                            #   (fires after Write; nudges
+#                                                            #    agent through verification-gate
+#                                                            #    criteria; advisory, does not block)
+#   ./wiki/agents/claude-code/setup.sh --all                 # everything
 #
 # Idempotent: safe to re-run. Auto-detects what is already in place.
 #
@@ -55,12 +59,14 @@ set -euo pipefail
 # --- Parse arguments ---
 WITH_HOOK=false
 WITH_SEED_MEMORY=false
+WITH_POSTTOOLUSE_HOOK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --hook) WITH_HOOK=true; shift ;;
         --seed-memory) WITH_SEED_MEMORY=true; shift ;;
-        --all) WITH_HOOK=true; WITH_SEED_MEMORY=true; shift ;;
+        --posttooluse-hook) WITH_POSTTOOLUSE_HOOK=true; shift ;;
+        --all) WITH_HOOK=true; WITH_SEED_MEMORY=true; WITH_POSTTOOLUSE_HOOK=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -204,6 +210,51 @@ JSONEOF
         REPORT+=(".claude/settings.json: merged SessionStart hook (via jq)")
     else
         REPORT+=(".claude/settings.json: exists but SessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST")
+    fi
+fi
+
+# --- PostToolUse advisory hook (--posttooluse-hook) ---
+# Fires after every Write tool use. If the write target is under wiki/<repo>.wiki/,
+# the prompt nudges the agent to verify corpus tagging, projection marking,
+# back-references, and log/index updates per wiki/agents/verification-gate.md.
+# Advisory ("do not block"), so a misfire does not stop work.
+if $WITH_POSTTOOLUSE_HOOK; then
+    POSTTOOLUSE_PROMPT="Check what was just written. If the target path is under wiki/${REPO_NAME}.wiki/*.md: did every numerical claim include its corpus / dataset / scope tag? Was every projection or estimate marked as such (not measured)? Are the back-references bidirectional with any pages this one links to? Did you also append a log_${REPO_NAME}.md entry and update index_${REPO_NAME}.md in the same session? If any answer is no, surface that briefly. Defer to wiki/agents/verification-gate.md for the canonical criteria list. This is advisory — do not block."
+
+    if [[ ! -f "$SETTINGS_JSON" ]]; then
+        cat > "$SETTINGS_JSON" <<JSONEOF
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          { "type": "prompt", "prompt": "${POSTTOOLUSE_PROMPT}" }
+        ]
+      }
+    ]
+  }
+}
+JSONEOF
+        REPORT+=(".claude/settings.json: created with PostToolUse advisory hook")
+    elif grep -qF '"PostToolUse"' "$SETTINGS_JSON" && grep -qF 'verification-gate.md' "$SETTINGS_JSON"; then
+        REPORT+=(".claude/settings.json: PostToolUse advisory hook already registered (skipped)")
+    elif command -v jq >/dev/null 2>&1; then
+        TMP=$(mktemp)
+        jq --arg p "$POSTTOOLUSE_PROMPT" '. + {
+          "hooks": (
+            (.hooks // {}) + {
+              "PostToolUse": (
+                (.hooks.PostToolUse // []) + [
+                  {"matcher": "Write", "hooks": [{"type": "prompt", "prompt": $p}]}
+                ]
+              )
+            }
+          )
+        }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
+        REPORT+=(".claude/settings.json: merged PostToolUse advisory hook (via jq)")
+    else
+        REPORT+=(".claude/settings.json: exists but PostToolUse advisory hook not registered, and jq not found. Manual edit needed.")
     fi
 fi
 

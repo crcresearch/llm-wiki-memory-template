@@ -29,7 +29,8 @@ Follow the Ingest procedure defined in `wiki/{{REPO_NAME}}.wiki/SCHEMA_{{REPO_NA
 7. Update `index_{{REPO_NAME}}.md` with one-line descriptions of new pages in the right category.
 8. Append a `## [YYYY-MM-DD] update | Experiment name` entry to `log_{{REPO_NAME}}.md` with 2 to 5 bullets.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
-10. Stage changed files by name, commit in the wiki's own git repo with a descriptive message. Do not push unless the user requests.
+10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. The gate catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries — the failure modes the discipline-gates Universal Rationalizations table enumerates.
+11. Stage changed files by name, commit in the wiki's own git repo with a descriptive message. Do not push unless the user requests.
 
 A single experiment write-up typically touches 5 to 15 pages.
 

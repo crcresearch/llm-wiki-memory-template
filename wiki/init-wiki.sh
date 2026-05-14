@@ -291,6 +291,34 @@ tags: [topic-a, topic-b]
 - Link concepts on first mention within a page
 - Bidirectional: if A links to B, B should link back to A
 
+## Edges as Interface Operations
+
+A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
+
+| Edge | What it licenses the agent to do |
+|---|---|
+| \`extends:\` | Inherit semantic context from the parent. Treat the parent's claims as background assumptions for the current page. |
+| \`supports:\` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| \`criticizes:\` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| \`source:\` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| \`up:\` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| \`related:\` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+Practical implications:
+
+- Different edge types license different retrievals. The KG pipeline (\`scripts/kg/\`) consumes these typed edges to build a SPARQL-queryable graph; the typing is what makes structural queries useful.
+- Edge types have domain and range. \`extends:\` points at a concept or theory; \`source:\` points at an external resource. Violating the domain/range breaks the operation.
+- Populate edge fields with the most specific type you can justify. Treat \`related:\` as a fallback. Over time, \`related:\` uses should become rarer as the edge vocabulary fits the work.
+
+## Topology vs Content (when to use the KG)
+
+Two distinct retrieval shapes, each suited to a different question:
+
+- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via the SPARQL endpoint set up by \`scripts/kg/build-graph.sh\`.
+- **Content questions** — *what does this page actually say*. Definitions, prose claims, specific numbers, source quotations. Use a direct file read or grep.
+
+The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.
+
 ## Operations
 
 ### Ingest (new work completed)
@@ -412,6 +440,36 @@ Also check during lint:
         sed -i '' 's/wrapped in an HTML comment so it renders cleanly on GitHub wikis/standard YAML frontmatter/' "$SCHEMA_FILE" 2>/dev/null || \
         sed -i 's/wrapped in an HTML comment so it renders cleanly on GitHub wikis/standard YAML frontmatter/' "$SCHEMA_FILE"
         UPDATED_SECTIONS+=("Switched from HTML-comment to standard frontmatter")
+    fi
+
+    # Add Edges as Interface Operations section if missing
+    if append_section_if_missing "$SCHEMA_FILE" "## Edges as Interface Operations" '## Edges as Interface Operations
+
+A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
+
+| Edge | What it licenses the agent to do |
+|---|---|
+| `extends:` | Inherit semantic context from the parent. Treat the parents claims as background assumptions for the current page. |
+| `supports:` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| `criticizes:` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| `source:` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| `up:` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| `related:` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+Populate edge fields with the most specific type you can justify. Treat `related:` as a fallback. Over time, `related:` uses should become rarer as the edge vocabulary fits the work.'; then
+        UPDATED_SECTIONS+=("Edges as Interface Operations")
+    fi
+
+    # Add Topology vs Content section if missing
+    if append_section_if_missing "$SCHEMA_FILE" "## Topology vs Content" '## Topology vs Content (when to use the KG)
+
+Two distinct retrieval shapes, each suited to a different question:
+
+- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via the SPARQL endpoint set up by `scripts/kg/build-graph.sh`.
+- **Content questions** — *what does this page actually say*. Definitions, prose claims, specific numbers, source quotations. Use a direct file read or grep.
+
+The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.'; then
+        UPDATED_SECTIONS+=("Topology vs Content")
     fi
 
     if [[ ${#UPDATED_SECTIONS[@]} -gt 0 ]]; then
