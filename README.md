@@ -11,21 +11,58 @@ A template repository for the [llm-wiki pattern](https://github.com/tobi/llm-wik
 
 ## 2. Create a new project from this template
 
-On GitHub, click **"Use this template" -> "Create a new repository"**, choose a name (e.g. `data-platform-notes`), then clone the new repo locally and run:
+On GitHub, click **"Use this template" → "Create a new repository"**, choose a name (e.g. `data-platform-notes`), then clone the new repo locally. The next step depends on whether you want the wiki published as the project's GitHub Wiki or kept local-only.
+
+### Path A: GitHub Wiki backend (recommended for sharing)
+
+Use this path if the wiki should be browsable at `https://github.com/<owner>/<repo>/wiki` and pushable as a separate git remote. There is **one mandatory one-time UI step** before running `instantiate.sh`:
+
+1. **Activate the GitHub Wiki** for the new repo (one-time):
+   - Open `https://github.com/<owner>/<repo>/wiki` in a browser.
+   - Click **"Create the first page"**.
+   - Title: `Home`. Content: anything (this seed page is overwritten by `init-wiki.sh`). Save.
+
+   *Why this is necessary:* GitHub creates `<repo>.wiki.git` lazily — it does not exist as a clonable/pushable git repo until the first page is created through the UI. Until then, every clone or push returns 404 *Repository not found*. This is GitHub's architecture; no API call, gh command, or git push can substitute for the UI click. **`instantiate.sh` will tell you to do this if you skip it**, but it costs less to do it now.
+
+2. **Run instantiate** (one-time, the script self-deletes at the end):
+
+   ```bash
+   ./scripts/instantiate.sh "My Project Name" --agent=claude-code --github-wiki
+   ```
+
+   Other agent options: `--agent=cursor`, `--agent=all`, `--agent=none`.
+
+3. **Commit and push** the generated files:
+
+   ```bash
+   git add -A && git commit -m "chore: instantiate from llm-wiki-template"
+   git push origin main
+   git -C wiki/<repo-name>.wiki push -u origin master    # publish wiki seed pages
+   ```
+
+### Path B: local-only wiki (no UI step required)
+
+Use this path if you don't intend to publish the wiki, or you want to skip the one-time UI step:
 
 ```bash
 ./scripts/instantiate.sh "My Project Name" --agent=claude-code
-# other options: --agent=cursor, --agent=all, --agent=none
+# (no --github-wiki flag)
+git add -A && git commit -m "chore: instantiate from llm-wiki-template"
+git push origin main
 ```
 
-`instantiate.sh`:
+The wiki lives inside the project at `wiki/<repo-name>.wiki/` as a separate git repo with no remote. You can attach a remote and switch to Path B later (see `wiki/agents/README.md` for the procedure).
+
+### What `instantiate.sh` does (either path)
 
 1. Substitutes placeholders in `CLAUDE.md.template` (`{{PROJECT_NAME}}`, `{{REPO_NAME}}`, `{{DESCRIPTION}}`, `{{AGENT_NOTE}}`) and writes `CLAUDE.md`.
-2. Runs `wiki/init-wiki.sh` to bootstrap the wiki sub-repository at `wiki/<repo-name>.wiki/`. Use `--github-wiki` if your project will host the wiki on GitHub's Wiki feature.
-3. Runs the chosen overlay's `setup.sh` (Claude Code, Cursor, or both). Deletes the unused overlay directories.
-4. Prints a checklist of files for you to edit by hand: the description and conventions in `CLAUDE.md`, the project `README.md`, etc.
+2. Runs `wiki/init-wiki.sh` to bootstrap the wiki sub-repository at `wiki/<repo-name>.wiki/`. With `--github-wiki`, this clones the GitHub Wiki; without, it inits a local-only repo.
+3. Strips the upstream `init-wiki.sh`'s `### Knowledge Graph` subsection from `CLAUDE.md` when the project does not ship a `scripts/kg/` directory (most projects).
+4. Substitutes `{{REPO_NAME}}` in shipped `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, and `.claude/settings.json.template` files; renames `.claude/settings.json.template` to `.claude/settings.json`.
+5. Runs the chosen overlay's `setup.sh` (Claude Code, Cursor, or both). Deletes the unused overlay directories so the project ships only what it uses.
+6. **Self-deletes** at the end of a successful run. `instantiate.sh` is a one-shot bootstrap script; after a project is instantiated, the file does not exist in it.
 
-If you pick `--agent=none`, only step 1 and 2 run. The minimal install leaves `.claude/`, `.cursor/`, and `wiki/agents/` populated but inert; you can activate (or remove) them later.
+If you pick `--agent=none`, only steps 1–3 (and the self-delete) run. The minimal install leaves `wiki/agents/` populated but inert; you can later add a custom agent overlay following the pattern documented in `wiki/agents/README.md`.
 
 ## 3. Pull updates from this template into an existing project
 
@@ -118,7 +155,12 @@ For project-specific customizations, edit your project's `CLAUDE.md`, README, or
 
 ```bash
 # First use (after "Use this template" -> Create repository -> clone locally):
+#   Local-only wiki (no UI step):
 ./scripts/instantiate.sh "My Project" --agent=claude-code
+
+#   GitHub Wiki backend (UI step required ONCE before this command:
+#     open https://github.com/<owner>/<repo>/wiki -> Create the first page -> save)
+./scripts/instantiate.sh "My Project" --agent=claude-code --github-wiki
 
 # Periodic sync from the template (preview, then apply):
 ./scripts/update-from-template.sh --dry-run
@@ -130,4 +172,7 @@ For project-specific customizations, edit your project's `CLAUDE.md`, README, or
 # After any wiki edit, in the wiki sub-repo:
 git -C wiki/<repo-name>.wiki add <files>
 git -C wiki/<repo-name>.wiki commit -m "..."
+
+# Publish wiki to GitHub (only when using --github-wiki backend):
+git -C wiki/<repo-name>.wiki push origin master
 ```

@@ -184,6 +184,7 @@ update on the next Option A reset.
 ## Prerequisites
 
 - The wiki must exist at `wiki/<repo>.wiki/SCHEMA_<repo>.md`. If missing, `setup.sh` errors out and tells you to run `./wiki/init-wiki.sh` first (use `--github` to clone the wiki from a `<main-repo>.wiki.git` remote).
+- **GitHub Wiki backend, one-time UI step:** if you plan to back the wiki with the project's GitHub Wiki (passing `--github-wiki` to `scripts/instantiate.sh`, or `--github` to `wiki/init-wiki.sh` directly), GitHub requires the first Wiki page to be created through the UI before `<repo>.wiki.git` becomes a clonable/pushable repository. Open `https://github.com/<owner>/<repo>/wiki`, click *"Create the first page"* (title `Home`, any content), save. One-time per project. See the root `README.md` of the template, section "Path A", for the full bootstrap order.
 - Both the slash commands at `.claude/commands/wiki-*.md` and the model-side skills at `.claude/skills/wiki-*.md` ship with this repository on the overlay branch. If either set is missing, the bootstrap is incomplete; pull the latest changes.
 - `jq` is required to merge the SessionStart hook into an existing `.claude/settings.json`. Without `jq`, `setup.sh --hook` falls back to a manual-edit instruction.
 
