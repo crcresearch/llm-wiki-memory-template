@@ -159,9 +159,22 @@ else
             *)     WIKI_REMOTE_URL="${ORIGIN_URL}.wiki.git" ;;
         esac
 
-        if ! git ls-remote "$WIKI_REMOTE_URL" >/dev/null 2>&1; then
+        # For the seed push, prefer SSH over HTTPS. HTTPS push to GitHub
+        # requires a stored credential (PAT or credential helper); SSH uses
+        # the key the user already has registered (and that gh requires
+        # for the main repo). Convert https://github.com/... -> git@github.com:...
+        case "$WIKI_REMOTE_URL" in
+            https://github.com/*)
+                WIKI_PUSH_URL="git@github.com:${WIKI_REMOTE_URL#https://github.com/}"
+                ;;
+            *)
+                WIKI_PUSH_URL="$WIKI_REMOTE_URL"
+                ;;
+        esac
+
+        if ! git ls-remote "$WIKI_PUSH_URL" >/dev/null 2>&1; then
             echo "GitHub Wiki not initialized yet at $WIKI_REMOTE_URL"
-            echo "Bootstrapping with a seed Home.md via direct push ..."
+            echo "Bootstrapping with a seed Home.md via direct push (over SSH) ..."
 
             # Best-effort: ensure has_wiki=true on the main repo (idempotent;
             # default is already true, so this is just defensive).
@@ -175,7 +188,7 @@ else
                 gh api "repos/$REPO_SLUG" -X PATCH -F has_wiki=true >/dev/null 2>&1 || true
             fi
 
-            if ! (
+            if (
                 set -e
                 TMP=$(mktemp -d)
                 cd "$TMP"
@@ -187,10 +200,12 @@ else
                     -c user.email=instantiate@llm-wiki-template \
                     -c user.name="instantiate.sh" \
                     commit -m "Initialize wiki" -q
-                git push -q "$WIKI_REMOTE_URL" master:master
+                git push -q "$WIKI_PUSH_URL" master:master
                 cd /
                 rm -rf "$TMP"
             ); then
+                echo "Wiki bootstrapped at $WIKI_PUSH_URL"
+            else
                 # URL the user can open to bootstrap manually.
                 # Bash parameter expansion (portable; avoids sed -E variants).
                 WIKI_UI_URL="${ORIGIN_URL%.git}"
@@ -198,13 +213,14 @@ else
                 WIKI_UI_URL="${WIKI_UI_URL}/wiki"
                 echo "" >&2
                 echo "Wiki bootstrap via direct push failed." >&2
-                echo "Most likely cause: org policy disables Wikis on private repos." >&2
+                echo "Common causes:" >&2
+                echo "  - SSH key not registered for github.com (try: ssh -T git@github.com)" >&2
+                echo "  - Org policy disables Wikis on private repos" >&2
                 echo "" >&2
                 echo "Fallback: open $WIKI_UI_URL in a browser," >&2
                 echo "click \"Create the first page\", save, then re-run this script." >&2
                 exit 1
             fi
-            echo "Wiki bootstrapped at $WIKI_REMOTE_URL"
         fi
 
         "$REPO_ROOT/wiki/init-wiki.sh" --github
