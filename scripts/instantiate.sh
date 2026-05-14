@@ -138,6 +138,27 @@ else
     fi
 fi
 
+# --- Strip the Knowledge Graph subsection from CLAUDE.md if this project
+#     does not ship the scripts/kg/ pipeline that the subsection references.
+#     init-wiki.sh appends "### Knowledge Graph" pointing at scripts/kg/build-graph.sh
+#     and a Fuseki SPARQL endpoint; on a fresh template-derived project those
+#     don't exist, so the subsection is a dead reference.
+if [[ ! -d "$REPO_ROOT/scripts/kg" ]] && grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
+    python3 - "$CLAUDE_MD" <<'PYEOF'
+import sys, pathlib, re
+p = pathlib.Path(sys.argv[1])
+text = p.read_text()
+# Match "### Knowledge Graph" up to the next "##" heading or EOF.
+# (?ms) = multiline + dotall. The next-heading lookahead protects sibling sections.
+pattern = re.compile(r"(?ms)^### Knowledge Graph\b.*?(?=^## |\Z)")
+new = pattern.sub("", text)
+# Collapse the trailing blank lines left behind by the removal.
+new = new.rstrip() + "\n"
+p.write_text(new)
+PYEOF
+    echo "Stripped Knowledge Graph subsection from CLAUDE.md (no scripts/kg/ in this project)"
+fi
+
 # --- Activate the chosen agent overlay(s) and prune the others ---
 keep_claude_code=false
 keep_cursor=false
