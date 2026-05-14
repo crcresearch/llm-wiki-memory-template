@@ -165,8 +165,13 @@ else
 
             # Best-effort: ensure has_wiki=true on the main repo (idempotent;
             # default is already true, so this is just defensive).
+            # Extract OWNER/REPO from ORIGIN_URL with bash parameter expansion
+            # (portable across GNU and BSD sed; sed -E with +? was not).
             if command -v gh >/dev/null 2>&1; then
-                REPO_SLUG=$(echo "$ORIGIN_URL" | sed -E 's|.*[:/]([^/:]+/[^/]+?)(\.git)?$|\1|')
+                REPO_SLUG="${ORIGIN_URL%.git}"
+                REPO_SLUG="${REPO_SLUG#git@github.com:}"
+                REPO_SLUG="${REPO_SLUG#https://github.com/}"
+                REPO_SLUG="${REPO_SLUG#http://github.com/}"
                 gh api "repos/$REPO_SLUG" -X PATCH -F has_wiki=true >/dev/null 2>&1 || true
             fi
 
@@ -187,8 +192,10 @@ else
                 rm -rf "$TMP"
             ); then
                 # URL the user can open to bootstrap manually.
-                WIKI_UI_URL=$(echo "$ORIGIN_URL" \
-                    | sed -E 's|git@github.com:|https://github.com/|; s|\.git$||')/wiki
+                # Bash parameter expansion (portable; avoids sed -E variants).
+                WIKI_UI_URL="${ORIGIN_URL%.git}"
+                WIKI_UI_URL="${WIKI_UI_URL/git@github.com:/https://github.com/}"
+                WIKI_UI_URL="${WIKI_UI_URL}/wiki"
                 echo "" >&2
                 echo "Wiki bootstrap via direct push failed." >&2
                 echo "Most likely cause: org policy disables Wikis on private repos." >&2
