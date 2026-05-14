@@ -43,8 +43,14 @@ TEMPLATE_SHA=$(git rev-parse --short template/main)
 # than sourced so each script remains standalone).
 ALWAYS_FILES=(
     "llm-wiki.md" "wiki/init-wiki.sh" "wiki/agents/README.md"
-    "scripts/instantiate.sh" "scripts/update-from-template.sh"
-    "scripts/check-template-version.sh" ".gitignore"
+    "scripts/update-from-template.sh" "scripts/check-template-version.sh"
+    ".gitignore"
+)
+# One-shot files (self-delete at end of bootstrap; not synced). Listed for
+# documentation only; see scripts/update-from-template.sh and
+# wiki/agents/README.md for the one-shot pattern.
+ONE_SHOT_FILES=(
+    "scripts/instantiate.sh"
 )
 CLAUDE_FILES=(
     ".claude/commands/wiki-experiment.md" ".claude/commands/wiki-source.md"

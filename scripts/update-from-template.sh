@@ -17,10 +17,12 @@
 #     llm-wiki.md
 #     wiki/init-wiki.sh
 #     wiki/agents/README.md
-#     scripts/instantiate.sh
 #     scripts/update-from-template.sh
 #     scripts/check-template-version.sh
 #     .gitignore
+#
+#   NEVER SYNCED (one-shot, self-deleting; see wiki/agents/README.md)
+#     scripts/instantiate.sh   - removed by the script itself at end of run
 #
 #   IF .claude/ EXISTS (Claude Code overlay active in this project)
 #     .claude/commands/wiki-{experiment,source,lint}.md    (substitute {{REPO_NAME}})
@@ -89,10 +91,16 @@ ALWAYS_FILES=(
     "llm-wiki.md"
     "wiki/init-wiki.sh"
     "wiki/agents/README.md"
-    "scripts/instantiate.sh"
     "scripts/update-from-template.sh"
     "scripts/check-template-version.sh"
     ".gitignore"
+)
+
+# One-shot files are deliberately excluded from sync. They self-delete at
+# the end of their (single) run, so they do not exist in the project after
+# bootstrap. Listing them here is for documentation only.
+ONE_SHOT_FILES=(
+    "scripts/instantiate.sh"
 )
 
 CLAUDE_FILES=(

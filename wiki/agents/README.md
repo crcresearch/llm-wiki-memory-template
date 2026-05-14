@@ -91,3 +91,38 @@ quirks into it would couple the core to whatever assistants are in
 fashion at any given moment. Keeping each agent in its own
 `wiki/agents/<agent>/` makes the boundary explicit and lets us add or
 remove overlays without disturbing the core.
+
+## One-shot files (the `instantiate.sh` pattern)
+
+Some scripts in the template are **one-shot**: they exist only to
+bootstrap a new project, and they delete themselves at the end of
+their (single) successful run. Today the canonical example is
+`scripts/instantiate.sh`. After a project is created from the
+template and `instantiate.sh` runs, the script removes itself with
+`rm -f "$0"`, so it does not exist in the project repo.
+
+The sync scripts treat one-shot files specially:
+
+- `scripts/update-from-template.sh` and
+  `scripts/check-template-version.sh` **do not include one-shot files
+  in their file lists.** A `ONE_SHOT_FILES` array in each of those
+  scripts documents the convention but is not used to sync.
+- Result: a project derived from the template never shows drift on a
+  one-shot file, because the file is intentionally absent.
+
+If you add a new one-shot script in the future (for example, a
+`scripts/setup-secrets.sh` that asks the user for credentials once
+and then is no longer needed), follow the same pattern:
+
+1. Have the script call `rm -f "$0"` at the end of a successful run,
+   with a brief explanation echoed to the user.
+2. Add the script's path to the `ONE_SHOT_FILES` array in both
+   `scripts/update-from-template.sh` and
+   `scripts/check-template-version.sh`. Do **not** add it to
+   `ALWAYS_FILES`.
+3. Document the script in this README so future maintainers know it
+   is one-shot.
+
+The canonical version of a one-shot script lives only in the template
+repo. Projects derived from the template carry it only transiently,
+during the bootstrap run.

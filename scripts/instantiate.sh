@@ -230,3 +230,18 @@ echo "  4. Stage and commit the generated files:"
 echo "       git add -A && git commit -m \"chore: instantiate from llm-wiki-template\""
 echo "  5. Open your AI assistant in the project root and start working."
 echo "========================================================"
+
+# --- Self-delete (one-shot pattern) ---
+# instantiate.sh exists only to bootstrap a new project. After a successful
+# run, remove it from the project so:
+#   1. It cannot be re-executed accidentally (CLAUDE.md would already exist,
+#      and the guard at the top of this script would refuse anyway, but the
+#      cleaner outcome is "the file is not there").
+#   2. update-from-template.sh and check-template-version.sh do not have to
+#      special-case its presence (it is excluded from their sync lists).
+# The canonical version of this script lives in the template repo. To
+# re-instantiate, clone the template again.
+echo ""
+echo "(instantiate.sh is one-shot. Removing it from the project."
+echo " The canonical version lives in the template repo.)"
+rm -f "$0"
