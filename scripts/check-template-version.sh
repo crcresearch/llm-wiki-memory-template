@@ -95,11 +95,15 @@ for f in "${FILES[@]}"; do
     if ! git cat-file -e "template/main:$f" 2>/dev/null; then
         NOT_IN_TEMPLATE+=("$f"); continue
     fi
-    TEMPLATE_CONTENT=$(git show "template/main:$f")
+    # Materialize via temp file so the trailing newline survives the hash.
+    TEMPLATE_TMP=$(mktemp)
+    git show "template/main:$f" > "$TEMPLATE_TMP"
     if needs_substitution "$f"; then
-        TEMPLATE_CONTENT=$(printf '%s' "$TEMPLATE_CONTENT" | sed "s|{{REPO_NAME}}|$REPO_NAME|g")
+        sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$TEMPLATE_TMP"
+        rm -f "${TEMPLATE_TMP}.bak"
     fi
-    TEMPLATE_HASH=$(printf '%s' "$TEMPLATE_CONTENT" | sha256sum | awk '{print $1}')
+    TEMPLATE_HASH=$(sha256sum "$TEMPLATE_TMP" | awk '{print $1}')
+    rm -f "$TEMPLATE_TMP"
 
     if [[ ! -f "$f" ]]; then
         LOCAL_MISSING+=("$f"); continue
@@ -129,10 +133,14 @@ else
 fi
 echo "--------------------------------------------------------"
 echo "In sync (${#IN_SYNC[@]}):"
-for f in "${IN_SYNC[@]}"; do echo "  = $f"; done
+if [[ ${#IN_SYNC[@]} -gt 0 ]]; then
+    for f in "${IN_SYNC[@]}"; do echo "  = $f"; done
+fi
 echo ""
 echo "Out of date (${#OUT_OF_DATE[@]}):"
-for f in "${OUT_OF_DATE[@]}"; do echo "  ! $f"; done
+if [[ ${#OUT_OF_DATE[@]} -gt 0 ]]; then
+    for f in "${OUT_OF_DATE[@]}"; do echo "  ! $f"; done
+fi
 if [[ ${#LOCAL_MISSING[@]} -gt 0 ]]; then
     echo ""
     echo "Missing locally (${#LOCAL_MISSING[@]}):"

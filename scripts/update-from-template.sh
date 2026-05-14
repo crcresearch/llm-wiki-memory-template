@@ -164,33 +164,41 @@ for f in "${FILES[@]}"; do
         continue
     fi
 
-    # Get the template version, substituting {{REPO_NAME}} if needed.
-    TEMPLATE_CONTENT=$(git show "template/main:$f")
+    # Materialize the template version to a temp file so the byte-exact
+    # comparison preserves trailing newlines. Using a bash variable + sha256sum
+    # via pipe would strip the trailing \n and produce false "changed" reports.
+    TEMPLATE_TMP=$(mktemp)
+    git show "template/main:$f" > "$TEMPLATE_TMP"
     if needs_substitution "$f"; then
-        TEMPLATE_CONTENT=$(printf '%s' "$TEMPLATE_CONTENT" | sed "s|{{REPO_NAME}}|$REPO_NAME|g")
+        # GNU sed: -i without backup. macOS sed needs -i ''. Use a portable
+        # form via the .bak suffix and clean up after.
+        sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$TEMPLATE_TMP"
+        rm -f "${TEMPLATE_TMP}.bak"
     fi
 
-    # Compare to local.
+    TEMPLATE_HASH=$(sha256sum "$TEMPLATE_TMP" | awk '{print $1}')
     if [[ -f "$f" ]]; then
         LOCAL_HASH=$(sha256sum "$f" | awk '{print $1}')
     else
         LOCAL_HASH="<missing>"
     fi
-    TEMPLATE_HASH=$(printf '%s' "$TEMPLATE_CONTENT" | sha256sum | awk '{print $1}')
 
     if [[ "$LOCAL_HASH" == "$TEMPLATE_HASH" ]]; then
         SKIPPED+=("$f")
+        rm -f "$TEMPLATE_TMP"
         continue
     fi
 
     CHANGED+=("$f")
     if ! $DRY_RUN; then
         mkdir -p "$(dirname "$f")"
-        printf '%s' "$TEMPLATE_CONTENT" > "$f"
+        mv "$TEMPLATE_TMP" "$f"
         # Preserve executable bit for shell scripts that should be executable.
         case "$f" in
             *.sh) chmod +x "$f" ;;
         esac
+    else
+        rm -f "$TEMPLATE_TMP"
     fi
 done
 
@@ -202,10 +210,14 @@ echo "Template: $TEMPLATE_URL @ $TEMPLATE_SHA"
 echo "Mode:     $($DRY_RUN && echo 'DRY RUN' || echo 'APPLIED')"
 echo "------------------------------------------------------"
 echo "Changed (${#CHANGED[@]}):"
-for f in "${CHANGED[@]}"; do echo "  + $f"; done
+if [[ ${#CHANGED[@]} -gt 0 ]]; then
+    for f in "${CHANGED[@]}"; do echo "  + $f"; done
+fi
 echo ""
 echo "Skipped, identical to template (${#SKIPPED[@]}):"
-for f in "${SKIPPED[@]}"; do echo "  = $f"; done
+if [[ ${#SKIPPED[@]} -gt 0 ]]; then
+    for f in "${SKIPPED[@]}"; do echo "  = $f"; done
+fi
 if [[ ${#MISSING_IN_TEMPLATE[@]} -gt 0 ]]; then
     echo ""
     echo "Not present in template/main (${#MISSING_IN_TEMPLATE[@]}):"
