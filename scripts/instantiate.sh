@@ -199,18 +199,13 @@ else
             *)     WIKI_REMOTE_URL="${ORIGIN_URL}.wiki.git" ;;
         esac
 
-        # For the seed push, prefer SSH over HTTPS. HTTPS push to GitHub
-        # requires a stored credential (PAT or credential helper); SSH uses
-        # the key the user already has registered (and that gh requires
-        # for the main repo). Convert https://github.com/... -> git@github.com:...
-        case "$WIKI_REMOTE_URL" in
-            https://github.com/*)
-                WIKI_PUSH_URL="git@github.com:${WIKI_REMOTE_URL#https://github.com/}"
-                ;;
-            *)
-                WIKI_PUSH_URL="$WIKI_REMOTE_URL"
-                ;;
-        esac
+        # Use the main repo's own origin protocol for the seed push, so it
+        # reuses whatever auth already cloned the main repo: an SSH key if
+        # origin is SSH, or gh's HTTPS credential helper if origin is HTTPS
+        # (which is what `gh repo create --clone` sets up). An earlier
+        # version forced an HTTPS-to-SSH conversion here, which broke users
+        # who clone over HTTPS via gh and have no SSH key configured.
+        WIKI_PUSH_URL="$WIKI_REMOTE_URL"
 
         if ! git ls-remote "$WIKI_PUSH_URL" >/dev/null 2>&1; then
             echo "GitHub Wiki not initialized yet at $WIKI_REMOTE_URL"
