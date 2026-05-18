@@ -96,11 +96,17 @@ ALWAYS_FILES=(
     ".gitignore"
 )
 
-# One-shot files are deliberately excluded from sync. They self-delete at
-# the end of their (single) run, so they do not exist in the project after
-# bootstrap. Listing them here is for documentation only.
+# One-shot files are deliberately excluded from sync. They are either
+# self-deleting scripts (run once, remove themselves) or one-shot template
+# files consumed and removed by instantiate.sh during bootstrap. After
+# bootstrap they do not exist in the derived project. Listed here for
+# documentation only; the sync logic does not iterate over this array.
 ONE_SHOT_FILES=(
     "scripts/instantiate.sh"
+    "CLAUDE.md.template"
+    "README.md.template"
+    ".claude/settings.json.template"
+    ".cursorrules.template"
 )
 
 CLAUDE_FILES=(

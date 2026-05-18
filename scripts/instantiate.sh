@@ -83,6 +83,23 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 REPO_NAME=$(basename "$REPO_ROOT")
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 CLAUDE_MD_TEMPLATE="$REPO_ROOT/CLAUDE.md.template"
+README_MD="$REPO_ROOT/README.md"
+README_MD_TEMPLATE="$REPO_ROOT/README.md.template"
+
+# Derive OWNER (GitHub org or user) from the origin URL, so the generated
+# README's clone commands use the real owner instead of a literal <owner>
+# placeholder. Falls back to a literal "<owner>" if origin is not set yet
+# (e.g. the user cloned somewhere private and has not pushed).
+ORIGIN_URL=$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null || true)
+if [[ -n "$ORIGIN_URL" ]]; then
+    OWNER_REPO="${ORIGIN_URL%.git}"
+    OWNER_REPO="${OWNER_REPO#git@github.com:}"
+    OWNER_REPO="${OWNER_REPO#https://github.com/}"
+    OWNER_REPO="${OWNER_REPO#http://github.com/}"
+    OWNER="${OWNER_REPO%%/*}"
+else
+    OWNER="<owner>"
+fi
 
 if [[ -f "$CLAUDE_MD" ]]; then
     echo "Error: CLAUDE.md already exists at $CLAUDE_MD" >&2
@@ -140,6 +157,22 @@ rm -f "$CLAUDE_MD_TEMPLATE"
 
 echo "Wrote CLAUDE.md (PROJECT_NAME=$PROJECT_NAME, REPO_NAME=$REPO_NAME, agent=$AGENT)"
 
+# --- Substitute placeholders in README.md.template -> README.md ---
+# Overwrites the README that arrived from the template repo (which describes
+# the template itself, not your new project). The new README is a starting
+# point with three suggested sections: usage of LLM wiki memory, quick-start
+# for collaborators, pointer back to the template. Edit it freely.
+if [[ -f "$README_MD_TEMPLATE" ]]; then
+    sed \
+        -e "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" \
+        -e "s|{{REPO_NAME}}|$REPO_NAME|g" \
+        -e "s|{{OWNER}}|$OWNER|g" \
+        -e "s|{{DESCRIPTION}}|${DESCRIPTION:-<one-sentence description, edit me>}|g" \
+        "$README_MD_TEMPLATE" > "$README_MD"
+    rm -f "$README_MD_TEMPLATE"
+    echo "Wrote README.md (project-specific; the template's own README was replaced)"
+fi
+
 # --- Bootstrap the wiki ---
 if [[ -d "$REPO_ROOT/wiki/${REPO_NAME}.wiki" ]]; then
     echo "Wiki sub-repo already present at wiki/${REPO_NAME}.wiki/, skipping init-wiki.sh"
@@ -166,18 +199,13 @@ else
             *)     WIKI_REMOTE_URL="${ORIGIN_URL}.wiki.git" ;;
         esac
 
-        # For the seed push, prefer SSH over HTTPS. HTTPS push to GitHub
-        # requires a stored credential (PAT or credential helper); SSH uses
-        # the key the user already has registered (and that gh requires
-        # for the main repo). Convert https://github.com/... -> git@github.com:...
-        case "$WIKI_REMOTE_URL" in
-            https://github.com/*)
-                WIKI_PUSH_URL="git@github.com:${WIKI_REMOTE_URL#https://github.com/}"
-                ;;
-            *)
-                WIKI_PUSH_URL="$WIKI_REMOTE_URL"
-                ;;
-        esac
+        # Use the main repo's own origin protocol for the seed push, so it
+        # reuses whatever auth already cloned the main repo: an SSH key if
+        # origin is SSH, or gh's HTTPS credential helper if origin is HTTPS
+        # (which is what `gh repo create --clone` sets up). An earlier
+        # version forced an HTTPS-to-SSH conversion here, which broke users
+        # who clone over HTTPS via gh and have no SSH key configured.
+        WIKI_PUSH_URL="$WIKI_REMOTE_URL"
 
         if ! git ls-remote "$WIKI_PUSH_URL" >/dev/null 2>&1; then
             echo "GitHub Wiki not initialized yet at $WIKI_REMOTE_URL"
