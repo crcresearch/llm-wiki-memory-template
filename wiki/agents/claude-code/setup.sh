@@ -214,30 +214,39 @@ JSONEOF
 fi
 
 # --- PostToolUse advisory hook (--posttooluse-hook) ---
-# Fires after every Write or Edit tool use. If the target is under
-# wiki/<repo>.wiki/, the prompt nudges the agent to verify corpus tagging,
-# projection marking, back-references, and log/index updates per
-# wiki/agents/verification-gate.md.
-# Advisory ("do not block"), so a misfire does not stop work.
+# Installs a command hook that fires after every Write or Edit. When the
+# written file is a wiki page, the hook script prints a reminder to run
+# the Verification Gate before committing. It is a command hook on
+# purpose: exit 0 makes it purely advisory (the action proceeds, stdout
+# becomes context). A prompt hook cannot be advisory (sandboxed, allow or
+# block only), and an earlier prompt-hook version wrongly stopped the
+# agent mid-ingest. The script reminds; the agent runs the actual gate.
 if $WITH_POSTTOOLUSE_HOOK; then
-    POSTTOOLUSE_PROMPT="Check what was just written. If the target path is under wiki/${REPO_NAME}.wiki/*.md: did every numerical claim include its corpus / dataset / scope tag? Was every projection or estimate marked as such (not measured)? Are the back-references bidirectional with any pages this one links to? Did you also append a log_${REPO_NAME}.md entry and update index_${REPO_NAME}.md in the same session? If any answer is no, surface that briefly. Defer to wiki/agents/verification-gate.md for the canonical criteria list. This is advisory — do not block."
+    PTU_HOOK_TEMPLATE="$TEMPLATES_DIR/posttooluse-hook.sh"
+    PTU_HOOK_DEST="$HOOKS_DIR/posttooluse-hook.sh"
 
-    # Both the create-from-scratch and the merge-into-existing cases go
-    # through jq, so the prompt string is JSON-escaped correctly either way.
-    # A hand-built heredoc would break if the prompt ever gained a double
-    # quote. jq is already required by the settings.json merge paths and is
-    # documented as a prerequisite.
-    if [[ -f "$SETTINGS_JSON" ]] && grep -qF '"PostToolUse"' "$SETTINGS_JSON" && grep -qF 'verification-gate.md' "$SETTINGS_JSON"; then
+    mkdir -p "$HOOKS_DIR"
+
+    if [[ -f "$PTU_HOOK_DEST" ]]; then
+        REPORT+=(".claude/hooks/posttooluse-hook.sh: already present (not overwritten)")
+    else
+        sed "s/\${REPO_NAME}/$REPO_NAME/g" "$PTU_HOOK_TEMPLATE" > "$PTU_HOOK_DEST"
+        chmod +x "$PTU_HOOK_DEST"
+        REPORT+=(".claude/hooks/posttooluse-hook.sh: installed")
+    fi
+
+    # Register the hook in settings.json: matcher Write|Edit, type command.
+    if [[ -f "$SETTINGS_JSON" ]] && grep -qF '"posttooluse-hook.sh"' "$SETTINGS_JSON"; then
         REPORT+=(".claude/settings.json: PostToolUse advisory hook already registered (skipped)")
     elif command -v jq >/dev/null 2>&1; then
         TMP=$(mktemp)
         if [[ -f "$SETTINGS_JSON" ]]; then
-            jq --arg p "$POSTTOOLUSE_PROMPT" '. + {
+            jq '. + {
               "hooks": (
                 (.hooks // {}) + {
                   "PostToolUse": (
                     (.hooks.PostToolUse // []) + [
-                      {"matcher": "Write|Edit", "hooks": [{"type": "prompt", "prompt": $p}]}
+                      {"matcher": "Write|Edit", "hooks": [{"type": "command", "command": ".claude/hooks/posttooluse-hook.sh"}]}
                     ]
                   )
                 }
@@ -245,17 +254,17 @@ if $WITH_POSTTOOLUSE_HOOK; then
             }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
             REPORT+=(".claude/settings.json: merged PostToolUse advisory hook (via jq)")
         else
-            jq -n --arg p "$POSTTOOLUSE_PROMPT" '{
+            jq -n '{
               "hooks": {
                 "PostToolUse": [
-                  {"matcher": "Write|Edit", "hooks": [{"type": "prompt", "prompt": $p}]}
+                  {"matcher": "Write|Edit", "hooks": [{"type": "command", "command": ".claude/hooks/posttooluse-hook.sh"}]}
                 ]
               }
             }' > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
             REPORT+=(".claude/settings.json: created with PostToolUse advisory hook (via jq)")
         fi
     else
-        REPORT+=(".claude/settings.json: PostToolUse advisory hook not registered, and jq not found. Manual edit needed.")
+        REPORT+=(".claude/settings.json: exists but PostToolUse advisory hook not registered, and jq not found. Manual edit needed: see $PTU_HOOK_DEST")
     fi
 fi
 
