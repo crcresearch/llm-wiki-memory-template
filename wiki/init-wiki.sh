@@ -213,6 +213,16 @@ LOGEOF
 fi
 
 # --- SCHEMA: create or update ---
+#
+# MAINTENANCE NOTE: the SCHEMA content is intentionally written in two
+# places. Create mode (the SCHEMAEOF heredoc just below) writes the whole
+# SCHEMA from scratch. Update mode (the `else` branch further down) adds
+# only the sections an older wiki is missing, one append_section_if_missing
+# call per section. A section that should reach existing wikis therefore
+# has TWO copies: one in the heredoc, one in an append call. They must be
+# kept byte-identical. This applies to "Frontmatter", "Edges as Interface
+# Operations", "Topology vs Content", and "Log Entry Attribution". If you
+# edit a section's wording, edit both copies.
 if [[ "$MODE" == "create" ]]; then
     cat > "$WIKI_DIR/${SCHEMA_NS}.md" << SCHEMAEOF
 ---
@@ -411,7 +421,10 @@ Update this schema as the project's needs change. It's a living document.
 SCHEMAEOF
 
 else
-    # Update mode — add missing sections to existing SCHEMA
+    # Update mode — add missing sections to existing SCHEMA.
+    # Each append_section_if_missing call below mirrors a section of the
+    # create-mode heredoc above; keep the two copies byte-identical (see
+    # the MAINTENANCE NOTE at the "SCHEMA: create or update" marker).
     # Find the schema file (namespaced or bare)
     if [[ -f "$WIKI_DIR/${SCHEMA_NS}.md" ]]; then
         SCHEMA_FILE="$WIKI_DIR/${SCHEMA_NS}.md"
