@@ -35,7 +35,8 @@ Follow the Ingest procedure in `wiki/{{REPO_NAME}}.wiki/SCHEMA_{{REPO_NAME}}.md`
 7. Update `index_{{REPO_NAME}}.md` under the "Source summaries" category.
 8. Append a `## [YYYY-MM-DD] ingest | Source title` entry to `log_{{REPO_NAME}}.md` with 2 to 5 bullets.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
-10. Stage changed files by name, commit in the wiki's own git repo with a descriptive message. Do not push unless the user requests.
+10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. The gate catches projection-as-fact, missing corpus tags, missing back-references, and missing log/index entries.
+11. Stage changed files by name, commit in the wiki's own git repo with a descriptive message. Do not push unless the user requests.
 
 A typical source ingest touches 5 to 15 pages.
 

@@ -20,7 +20,7 @@ When context about this project would help an answer, read the wiki first.
 When significant work produces something a future session would benefit from knowing, write it to the wiki. Triggers:
 
 - New external source (paper, design doc, article) enters the project -> `@wiki-source`.
-- An experiment finishes a run -> `@wiki-experiment`. Capture configuration, headline metrics (per hop count where applicable), what changed, what was surprising. Honest reporting: bad results filed truthfully. Never report accuracy from projections, only from real script outputs.
+- An experiment finishes a run -> `@wiki-experiment`. Capture configuration, headline metrics (per hop count where applicable), what changed, what was surprising. Honest reporting: bad results filed truthfully. Never report accuracy from projections, only from real script outputs. The canonical "Universal Rationalizations (Always Wrong)" table lives at `wiki/agents/discipline-gates.md`; before committing any wiki write, run the Verification Gate at `wiki/agents/verification-gate.md`.
 - An architecture / parameter / methodology decision is made -> record it with the reason.
 - A reusable synthesis emerges from a question -> file it.
 - A finding contradicts or supersedes a wiki claim -> update the affected pages.

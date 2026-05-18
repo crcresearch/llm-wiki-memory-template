@@ -27,7 +27,8 @@ Identify the experiment from the conversation or ask the user:
 5. Fix cross-references in both directions on every affected page.
 6. Update `index_{{REPO_NAME}}.md` with one-line descriptions.
 7. Append a `## [YYYY-MM-DD] update | Experiment name` entry to `log_{{REPO_NAME}}.md` with 2 to 5 bullets.
-8. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+8. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass.
+9. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
    ```
    git -C wiki/{{REPO_NAME}}.wiki add <files>
    git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"

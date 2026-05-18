@@ -15,7 +15,8 @@ Full procedure: see `.claude/skills/wiki-source.md` and `wiki/{{REPO_NAME}}.wiki
 7. Update `index_{{REPO_NAME}}.md` under "Source summaries".
 8. Append a `## [YYYY-MM-DD] ingest | Source title` entry to `log_{{REPO_NAME}}.md`.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
-10. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. It catches projection-as-fact, missing corpus tags, missing back-references, and missing log/index entries.
+11. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
     ```
     git -C wiki/{{REPO_NAME}}.wiki add <files-by-name>
     git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"

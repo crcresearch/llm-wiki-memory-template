@@ -8,10 +8,14 @@
 # parallel directories under wiki/agents/.
 #
 # Usage:
-#   ./wiki/agents/claude-code/setup.sh                 # base: CLAUDE.md + verify commands & skills
-#   ./wiki/agents/claude-code/setup.sh --hook          # + SessionStart hook
-#   ./wiki/agents/claude-code/setup.sh --seed-memory   # + personal memory seed
-#   ./wiki/agents/claude-code/setup.sh --all           # everything
+#   ./wiki/agents/claude-code/setup.sh                       # base: CLAUDE.md + verify commands & skills
+#   ./wiki/agents/claude-code/setup.sh --hook                # + SessionStart hook
+#   ./wiki/agents/claude-code/setup.sh --seed-memory         # + personal memory seed
+#   ./wiki/agents/claude-code/setup.sh --posttooluse-hook    # + PostToolUse advisory hook
+#                                                            #   (fires after Write; nudges
+#                                                            #    agent through verification-gate
+#                                                            #    criteria; advisory, does not block)
+#   ./wiki/agents/claude-code/setup.sh --all                 # everything
 #
 # Idempotent: safe to re-run. Auto-detects what is already in place.
 #
@@ -55,12 +59,14 @@ set -euo pipefail
 # --- Parse arguments ---
 WITH_HOOK=false
 WITH_SEED_MEMORY=false
+WITH_POSTTOOLUSE_HOOK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --hook) WITH_HOOK=true; shift ;;
         --seed-memory) WITH_SEED_MEMORY=true; shift ;;
-        --all) WITH_HOOK=true; WITH_SEED_MEMORY=true; shift ;;
+        --posttooluse-hook) WITH_POSTTOOLUSE_HOOK=true; shift ;;
+        --all) WITH_HOOK=true; WITH_SEED_MEMORY=true; WITH_POSTTOOLUSE_HOOK=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -204,6 +210,61 @@ JSONEOF
         REPORT+=(".claude/settings.json: merged SessionStart hook (via jq)")
     else
         REPORT+=(".claude/settings.json: exists but SessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST")
+    fi
+fi
+
+# --- PostToolUse advisory hook (--posttooluse-hook) ---
+# Installs a command hook that fires after every Write or Edit. When the
+# written file is a wiki page, the hook script prints a reminder to run
+# the Verification Gate before committing. It is a command hook on
+# purpose: exit 0 makes it purely advisory (the action proceeds, stdout
+# becomes context). A prompt hook cannot be advisory (sandboxed, allow or
+# block only), and an earlier prompt-hook version wrongly stopped the
+# agent mid-ingest. The script reminds; the agent runs the actual gate.
+if $WITH_POSTTOOLUSE_HOOK; then
+    PTU_HOOK_TEMPLATE="$TEMPLATES_DIR/posttooluse-hook.sh"
+    PTU_HOOK_DEST="$HOOKS_DIR/posttooluse-hook.sh"
+
+    mkdir -p "$HOOKS_DIR"
+
+    if [[ -f "$PTU_HOOK_DEST" ]]; then
+        REPORT+=(".claude/hooks/posttooluse-hook.sh: already present (not overwritten)")
+    else
+        sed "s/\${REPO_NAME}/$REPO_NAME/g" "$PTU_HOOK_TEMPLATE" > "$PTU_HOOK_DEST"
+        chmod +x "$PTU_HOOK_DEST"
+        REPORT+=(".claude/hooks/posttooluse-hook.sh: installed")
+    fi
+
+    # Register the hook in settings.json: matcher Write|Edit, type command.
+    if [[ -f "$SETTINGS_JSON" ]] && grep -qF '"posttooluse-hook.sh"' "$SETTINGS_JSON"; then
+        REPORT+=(".claude/settings.json: PostToolUse advisory hook already registered (skipped)")
+    elif command -v jq >/dev/null 2>&1; then
+        TMP=$(mktemp)
+        if [[ -f "$SETTINGS_JSON" ]]; then
+            jq '. + {
+              "hooks": (
+                (.hooks // {}) + {
+                  "PostToolUse": (
+                    (.hooks.PostToolUse // []) + [
+                      {"matcher": "Write|Edit", "hooks": [{"type": "command", "command": ".claude/hooks/posttooluse-hook.sh"}]}
+                    ]
+                  )
+                }
+              )
+            }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
+            REPORT+=(".claude/settings.json: merged PostToolUse advisory hook (via jq)")
+        else
+            jq -n '{
+              "hooks": {
+                "PostToolUse": [
+                  {"matcher": "Write|Edit", "hooks": [{"type": "command", "command": ".claude/hooks/posttooluse-hook.sh"}]}
+                ]
+              }
+            }' > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
+            REPORT+=(".claude/settings.json: created with PostToolUse advisory hook (via jq)")
+        fi
+    else
+        REPORT+=(".claude/settings.json: exists but PostToolUse advisory hook not registered, and jq not found. Manual edit needed: see $PTU_HOOK_DEST")
     fi
 fi
 

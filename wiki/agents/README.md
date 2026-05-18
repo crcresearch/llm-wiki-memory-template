@@ -18,6 +18,15 @@ specific non-Claude-Code agent.**
 
 If you try any path other than Claude Code, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) with what worked, what did not, and the agent + version you used. The non-Claude-Code paths are hypotheses until someone runs them.
 
+## Cross-agent shared files
+
+Two files in this directory are agent-agnostic and consumed by *every* overlay via reference, not by copying. Updating them once propagates the change to Claude Code, Cursor, and any future overlay.
+
+- [discipline-gates.md](discipline-gates.md) — "Universal Rationalizations (Always Wrong)" table, the three gate types (Design / Verification / Sequential), and the Skill Dependency Chain. Codifies cross-skill enforcement.
+- [verification-gate.md](verification-gate.md) — Canonical pre-commit criteria list referenced by every ingest skill. Catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries before a wiki commit lands.
+
+When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., CLAUDE.md for Claude Code, `.cursor/rules/*.mdc` for Cursor); do not copy their content. DRY from day one.
+
 ## The contract every overlay should honor
 
 An agent overlay under `wiki/agents/<agent>/` is expected to provide:
