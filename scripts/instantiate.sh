@@ -78,6 +78,14 @@ case "$AGENT" in
     *) echo "Error: --agent must be one of: none, claude-code, cursor, all" >&2; exit 1 ;;
 esac
 
+# Forward the agent identity to init-wiki.sh so the "create" log entry is
+# attributed (- by: <user> via <agent>). Only a single concrete agent is
+# forwarded; "none" and "all" leave the entry's by: line human-only.
+INIT_AGENT_ARGS=()
+case "$AGENT" in
+    claude-code|cursor) INIT_AGENT_ARGS=(--agent "$AGENT") ;;
+esac
+
 # --- Detect project layout ---
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 REPO_NAME=$(basename "$REPO_ROOT")
@@ -274,9 +282,9 @@ else
             fi
         fi
 
-        "$REPO_ROOT/wiki/init-wiki.sh" --github
+        "$REPO_ROOT/wiki/init-wiki.sh" --github "${INIT_AGENT_ARGS[@]}"
     else
-        "$REPO_ROOT/wiki/init-wiki.sh"
+        "$REPO_ROOT/wiki/init-wiki.sh" "${INIT_AGENT_ARGS[@]}"
     fi
 fi
 
