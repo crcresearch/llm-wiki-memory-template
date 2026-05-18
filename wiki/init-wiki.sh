@@ -37,6 +37,8 @@
 # Flags:
 #   --name "Display Name"   custom project name (default: repo name)
 #   --github                clone an existing GitHub wiki instead of init'ing locally
+#   --agent "name"          coding assistant running this (e.g. claude-code,
+#                           cursor); recorded in the create log entry's by: line
 # ──────────────────────────────────────────────────────────────────────────────
 #
 
@@ -45,11 +47,13 @@ set -euo pipefail
 # --- Parse arguments ---
 PROJECT_NAME=""
 USE_GITHUB=false
+WIKI_AGENT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --name) PROJECT_NAME="$2"; shift 2 ;;
         --github) USE_GITHUB=true; shift ;;
+        --agent) WIKI_AGENT="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -64,6 +68,17 @@ REPO_NAME=$(basename "$REPO_ROOT")
 
 if [[ -z "$PROJECT_NAME" ]]; then
     PROJECT_NAME="$REPO_NAME"
+fi
+
+# --- Attribution: who is performing this operation ---
+# The human is read from git config (never invented). The agent is whatever
+# the caller passed via --agent. See the Log Entry Attribution section of the
+# generated SCHEMA for the convention.
+WIKI_USER=$(git config user.name 2>/dev/null || echo "unknown")
+if [[ -n "$WIKI_AGENT" ]]; then
+    BY_LINE="- by: ${WIKI_USER} via ${WIKI_AGENT}"
+else
+    BY_LINE="- by: ${WIKI_USER}"
 fi
 
 WIKI_DIR="$REPO_ROOT/wiki/${REPO_NAME}.wiki"
@@ -191,12 +206,23 @@ up: "[[${HOME_NS}]]"
 Chronological record of wiki activity.
 
 ## [$(date +%Y-%m-%d)] create | Wiki initialized
+${BY_LINE}
 - Created wiki structure with namespaced navigation files
 - Ready for first ingest
 LOGEOF
 fi
 
 # --- SCHEMA: create or update ---
+#
+# MAINTENANCE NOTE: the SCHEMA content is intentionally written in two
+# places. Create mode (the SCHEMAEOF heredoc just below) writes the whole
+# SCHEMA from scratch. Update mode (the `else` branch further down) adds
+# only the sections an older wiki is missing, one append_section_if_missing
+# call per section. A section that should reach existing wikis therefore
+# has TWO copies: one in the heredoc, one in an append call. They must be
+# kept byte-identical. This applies to "Frontmatter", "Edges as Interface
+# Operations", "Topology vs Content", and "Log Entry Attribution". If you
+# edit a section's wording, edit both copies.
 if [[ "$MODE" == "create" ]]; then
     cat > "$WIKI_DIR/${SCHEMA_NS}.md" << SCHEMAEOF
 ---
@@ -276,8 +302,9 @@ tags: [topic-a, topic-b]
 ### ${LOG_NS}.md
 - Append-only chronological record
 - Format: \`## [YYYY-MM-DD] verb | Subject\` (verbs: ingest, query, lint, update, create)
-- 2-5 bullet points per entry
-- **Append on every operation**
+- The first bullet of every entry is the \`- by:\` attribution line (see Log Entry Attribution)
+- Then 2-5 bullet points describing the operation
+- **Append on every operation**, and commit each entry on its own (see Log Entry Attribution)
 
 ### Home.md
 - GitHub wiki redirect only — do not edit
@@ -318,6 +345,23 @@ Two distinct retrieval shapes, each suited to a different question:
 - **Content questions** — *what does this page actually say*. Definitions, prose claims, specific numbers, source quotations. Use a direct file read or grep.
 
 The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.
+
+## Log Entry Attribution
+
+The wiki is a shared memory across a team. Every log entry records who performed the operation, so provenance is answerable on the page itself and not only through \`git blame\`.
+
+**The \`by:\` field.** The first bullet of every \`${LOG_NS}.md\` entry is an attribution line:
+
+\`\`\`
+- by: <human> via <agent>
+\`\`\`
+
+- \`<human>\` is the value of \`git config user.name\` in the wiki repo at the time of the operation. Read it; do not invent it. If it does not match the identity that commits the entry, that is a bug to fix, not a value to guess.
+- \`<agent>\` is the coding assistant the operation ran under, for example \`claude-code\` or \`cursor\`.
+
+**One commit per log entry.** Never bundle multiple log operations into a single commit. Each append to \`${LOG_NS}.md\` is committed on its own: commit the page and index changes first, then the log entry as its own commit. This keeps \`git blame\` on the log file a faithful per-entry record, one entry mapping to one commit and one author.
+
+**Two records, one source of truth.** The \`by:\` field is the human-readable copy; git history is the verifiable record. They should always agree. If they disagree, trust git and correct the field.
 
 ## Operations
 
@@ -377,7 +421,10 @@ Update this schema as the project's needs change. It's a living document.
 SCHEMAEOF
 
 else
-    # Update mode — add missing sections to existing SCHEMA
+    # Update mode — add missing sections to existing SCHEMA.
+    # Each append_section_if_missing call below mirrors a section of the
+    # create-mode heredoc above; keep the two copies byte-identical (see
+    # the MAINTENANCE NOTE at the "SCHEMA: create or update" marker).
     # Find the schema file (namespaced or bare)
     if [[ -f "$WIKI_DIR/${SCHEMA_NS}.md" ]]; then
         SCHEMA_FILE="$WIKI_DIR/${SCHEMA_NS}.md"
@@ -470,6 +517,26 @@ Two distinct retrieval shapes, each suited to a different question:
 
 The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.'; then
         UPDATED_SECTIONS+=("Topology vs Content")
+    fi
+
+    # Add Log Entry Attribution section if missing
+    if append_section_if_missing "$SCHEMA_FILE" "## Log Entry Attribution" "## Log Entry Attribution
+
+The wiki is a shared memory across a team. Every log entry records who performed the operation, so provenance is answerable on the page itself and not only through \`git blame\`.
+
+**The \`by:\` field.** The first bullet of every \`${LOG_NS}.md\` entry is an attribution line:
+
+\`\`\`
+- by: <human> via <agent>
+\`\`\`
+
+- \`<human>\` is the value of \`git config user.name\` in the wiki repo at the time of the operation. Read it; do not invent it. If it does not match the identity that commits the entry, that is a bug to fix, not a value to guess.
+- \`<agent>\` is the coding assistant the operation ran under, for example \`claude-code\` or \`cursor\`.
+
+**One commit per log entry.** Never bundle multiple log operations into a single commit. Each append to \`${LOG_NS}.md\` is committed on its own: commit the page and index changes first, then the log entry as its own commit. This keeps \`git blame\` on the log file a faithful per-entry record, one entry mapping to one commit and one author.
+
+**Two records, one source of truth.** The \`by:\` field is the human-readable copy; git history is the verifiable record. They should always agree. If they disagree, trust git and correct the field."; then
+        UPDATED_SECTIONS+=("Log Entry Attribution")
     fi
 
     if [[ ${#UPDATED_SECTIONS[@]} -gt 0 ]]; then

@@ -29,11 +29,13 @@ Walk the wiki directory and report on each, with affected pages and a proposed f
 3. Scan systematically, collect findings.
 4. Report findings to the user grouped by check type, with one or two example pages per finding.
 5. Ask which findings to fix in this pass. Lint is incremental.
-6. For accepted fixes, apply them with cross-reference repair in both directions, update `index_{{REPO_NAME}}.md` as needed, and append a `## [YYYY-MM-DD] lint | Subject` entry to `log_{{REPO_NAME}}.md`.
-7. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+6. For accepted fixes, apply them with cross-reference repair in both directions, update `index_{{REPO_NAME}}.md` as needed, and append a `## [YYYY-MM-DD] lint | Subject` entry to `log_{{REPO_NAME}}.md`. The first bullet of that entry is the attribution line `- by: <name> via cursor`, where `<name>` is the output of `git config user.name` in the wiki repo (read it, do not invent it). See "Log Entry Attribution" in `SCHEMA_{{REPO_NAME}}.md`.
+7. **Finish the cycle.** Commit in the wiki's own git repo in two steps, without asking. One commit per log entry keeps `git blame` on the log a faithful per-entry record (see "Log Entry Attribution" in SCHEMA):
    ```
-   git -C wiki/{{REPO_NAME}}.wiki add <files>
+   git -C wiki/{{REPO_NAME}}.wiki add <lint-fix-and-index-files>
    git -C wiki/{{REPO_NAME}}.wiki commit -m "lint: <summary>"
+   git -C wiki/{{REPO_NAME}}.wiki add log_{{REPO_NAME}}.md
+   git -C wiki/{{REPO_NAME}}.wiki commit -m "log: lint <summary>"
    ```
 
 Honest reporting: do not paper over contradictions. If two pages disagree and current code/results decide between them, update the loser and link to the winner.
