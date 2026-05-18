@@ -15,7 +15,8 @@ Full procedure: see `.claude/skills/wiki-experiment.md` and `wiki/{{REPO_NAME}}.
 7. Update `index_{{REPO_NAME}}.md` with one-line descriptions of new pages.
 8. Append a `## [YYYY-MM-DD] update | Experiment name` entry to `log_{{REPO_NAME}}.md` with 2 to 5 bullets.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
-10. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. It catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries.
+11. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
     ```
     git -C wiki/{{REPO_NAME}}.wiki add <files-by-name>
     git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"

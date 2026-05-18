@@ -17,6 +17,8 @@
 #     llm-wiki.md
 #     wiki/init-wiki.sh
 #     wiki/agents/README.md
+#     wiki/agents/discipline-gates.md
+#     wiki/agents/verification-gate.md
 #     scripts/update-from-template.sh
 #     scripts/check-template-version.sh
 #     .gitignore
@@ -91,6 +93,8 @@ ALWAYS_FILES=(
     "llm-wiki.md"
     "wiki/init-wiki.sh"
     "wiki/agents/README.md"
+    "wiki/agents/discipline-gates.md"
+    "wiki/agents/verification-gate.md"
     "scripts/update-from-template.sh"
     "scripts/check-template-version.sh"
     ".gitignore"
