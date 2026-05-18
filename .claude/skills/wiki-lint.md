@@ -31,9 +31,9 @@ Defer to `wiki/{{REPO_NAME}}.wiki/SCHEMA_{{REPO_NAME}}.md` for the precise conve
 3. For each check above, scan systematically and collect findings.
 4. Report findings to the user grouped by check type, with one or two example pages per finding.
 5. Ask which findings to fix in this pass. Lint is incremental; not every issue needs to be addressed at once.
-6. For accepted fixes, apply them with cross-reference repair in both directions, update `index_{{REPO_NAME}}.md` as needed, and append a `## [YYYY-MM-DD] lint | Subject` entry to `log_{{REPO_NAME}}.md` describing what was cleaned up.
+6. For accepted fixes, apply them with cross-reference repair in both directions, update `index_{{REPO_NAME}}.md` as needed, and append a `## [YYYY-MM-DD] lint | Subject` entry to `log_{{REPO_NAME}}.md` describing what was cleaned up. The first bullet of that entry is the attribution line `- by: <name> via claude-code`, where `<name>` is the output of `git config user.name` in the wiki repo (read it, do not invent it). See "Log Entry Attribution" in `SCHEMA_{{REPO_NAME}}.md`.
 7. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
-8. Stage changed files by name, commit in the wiki's own git repo. Do not push unless asked.
+8. Commit in the wiki's own git repo in two steps: first stage and commit the lint fixes and index changes by name, then stage and commit the `log_{{REPO_NAME}}.md` entry on its own. One commit per log entry keeps `git blame` on the log a faithful per-entry record (see "Log Entry Attribution" in SCHEMA). Do not push unless asked.
 
 ## When to run
 

@@ -13,13 +13,15 @@ Full procedure: see `.claude/skills/wiki-source.md` and `wiki/{{REPO_NAME}}.wiki
 5. Update related entity and concept pages so the new source reinforces or revises what they say. If contradiction, update or flag the affected page.
 6. Fix cross-references in both directions on every affected page.
 7. Update `index_{{REPO_NAME}}.md` under "Source summaries".
-8. Append a `## [YYYY-MM-DD] ingest | Source title` entry to `log_{{REPO_NAME}}.md`.
+8. Append a `## [YYYY-MM-DD] ingest | Source title` entry to `log_{{REPO_NAME}}.md`. The first bullet is the attribution line `- by: <name> via claude-code`, where `<name>` is the output of `git config user.name` in the wiki repo (read it, do not invent it). Then 2 to 5 bullets describing the ingest. See "Log Entry Attribution" in `SCHEMA_{{REPO_NAME}}.md`.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
 10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. It catches projection-as-fact, missing corpus tags, missing back-references, and missing log/index entries.
-11. **Finish the cycle.** Stage and commit in the wiki's own git repo, without asking:
+11. **Finish the cycle.** Commit in the wiki's own git repo in two steps, without asking. One commit per log entry keeps `git blame` on the log a faithful per-entry record (see "Log Entry Attribution" in SCHEMA):
     ```
-    git -C wiki/{{REPO_NAME}}.wiki add <files-by-name>
+    git -C wiki/{{REPO_NAME}}.wiki add <page-and-index-files-by-name>
     git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"
+    git -C wiki/{{REPO_NAME}}.wiki add log_{{REPO_NAME}}.md
+    git -C wiki/{{REPO_NAME}}.wiki commit -m "log: <descriptive message>"
     ```
     Local commits are reversible. Push only if the user requests.
 
