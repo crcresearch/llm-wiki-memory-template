@@ -64,12 +64,10 @@ done
 # Each entry is "<category>/<name>".
 build_test_list() {
     local categories=()
-    local n_explicit=0
-    # bash 3.2 + set -u workaround: explicit length check
-    if [ ${#EXPLICIT_CATEGORIES[@]:-0} -gt 0 ] 2>/dev/null; then
-        n_explicit=${#EXPLICIT_CATEGORIES[@]}
-    fi
-    if [ "$n_explicit" -gt 0 ]; then
+    # ${#ARRAY[@]} always returns 0 for empty (declared) arrays in any bash
+    # version; no special handling needed. (Earlier ${#ARR[@]:-0} workaround
+    # was wrong syntax: works in bash 3.2 by accident, rejected by bash 5+.)
+    if [ "${#EXPLICIT_CATEGORIES[@]}" -gt 0 ]; then
         categories=("${EXPLICIT_CATEGORIES[@]}")
     else
         # Known categories first, then any others
@@ -95,10 +93,8 @@ build_test_list() {
         for t in "$cat_dir"/*/; do
             [ -d "$t" ] || continue
             local tname; tname=$(basename "$t")
-            # If specific tests requested, filter (bash 3.2 + set -u safe)
-            local n_filters=0
-            [ "${#EXPLICIT_TESTS[@]:-0}" -gt 0 ] 2>/dev/null && n_filters=${#EXPLICIT_TESTS[@]}
-            if [ "$n_filters" -gt 0 ]; then
+            # If specific tests requested, filter
+            if [ "${#EXPLICIT_TESTS[@]}" -gt 0 ]; then
                 local match=0
                 for et in "${EXPLICIT_TESTS[@]}"; do
                     [ "$et" = "$tname" ] && match=1 && break
