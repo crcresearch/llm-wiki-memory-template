@@ -29,11 +29,11 @@ assert_contains "commit-msg hook is the trailer-injector" \
 )
 LAST_COMMIT_MSG=$(git -C "$D" log -1 --format=%B)
 
-if echo "$LAST_COMMIT_MSG" | grep -q "Co-Authored-By: Claude Code"; then
-    echo "  PASS: commit message has Co-Authored-By trailer"
+if echo "$LAST_COMMIT_MSG" | grep -q "Co-Authored-By: claude-"; then
+    echo "  PASS: commit message has Co-Authored-By trailer with canonical handle"
     PASS=$((PASS+1))
 else
-    echo "  FAIL: commit message has Co-Authored-By trailer"
+    echo "  FAIL: commit message has Co-Authored-By trailer with canonical handle"
     echo "    last commit message was:"
     echo "$LAST_COMMIT_MSG" | sed 's/^/      /'
     FAIL=$((FAIL+1))

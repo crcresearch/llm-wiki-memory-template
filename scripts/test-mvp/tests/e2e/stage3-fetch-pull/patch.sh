@@ -71,8 +71,8 @@ if [ ! -f "$HOOK_PATH" ] || ! grep -q "agent-trailer-injector" "$HOOK_PATH" 2>/d
 MSG_FILE="\$1"
 HANDLE="$HANDLE"
 INSTANCE_ID="$INSTANCE_ID"
-grep -q "Co-Authored-By: Claude Code" "\$MSG_FILE" || \\
-    printf "\nCo-Authored-By: Claude Code [\${HANDLE}] <noreply@anthropic.com>\n" >> "\$MSG_FILE"
+grep -q "Co-Authored-By: claude-" "\$MSG_FILE" || \\
+    printf "\nCo-Authored-By: \${HANDLE} <noreply@anthropic.com>\n" >> "\$MSG_FILE"
 grep -q "Agent-Instance:" "\$MSG_FILE" || \\
     printf "Agent-Instance: \${INSTANCE_ID}\n" >> "\$MSG_FILE"
 HOOK_EOF
