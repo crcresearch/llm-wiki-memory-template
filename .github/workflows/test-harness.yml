@@ -1,0 +1,32 @@
+name: test-harness
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update -qq && sudo apt-get install -y jq
+
+      - name: Verify bash and jq
+        run: |
+          bash --version | head -1
+          jq --version
+          git --version
+
+      - name: Run test harness
+        env:
+          MVP_TEMPLATE_LOCAL: ${{ github.workspace }}
+        run: ./scripts/test-mvp/run.sh
