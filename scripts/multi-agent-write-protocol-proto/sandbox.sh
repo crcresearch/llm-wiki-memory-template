@@ -38,8 +38,16 @@ EOF
 
 The seed page for the protocol prototype sandbox.
 EOF
+    # Install the union-merge driver alongside the initial wiki. Every
+    # clone inherits it, so wiki_push never has to install (and never has
+    # to commit) the driver itself. (In production, init-wiki.sh would
+    # write this file as part of the wiki scaffolding.)
+    cat > "$SANDBOX/main/.gitattributes" <<'EOF'
+index_*.md  merge=union
+log_*.md    merge=union
+EOF
 
-    git -C "$SANDBOX/main" add index_proto.md log_proto.md Welcome.md
+    git -C "$SANDBOX/main" add index_proto.md log_proto.md Welcome.md .gitattributes
     git -C "$SANDBOX/main" commit -m "Initial sandbox wiki" --quiet
     git -C "$SANDBOX/main" branch -M main
     git -C "$SANDBOX/main" push -u origin main --quiet

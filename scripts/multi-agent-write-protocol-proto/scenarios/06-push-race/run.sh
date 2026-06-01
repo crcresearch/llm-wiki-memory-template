@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Scenario 06: push race.
-# Setup: a pre-receive hook on the bare origin rejects exactly the
-# second push attempt (which we know is B's first push). All other pushes
-# pass through. With prepare/publish ordering: A.publish (push 1, allowed),
-# B.publish (push 2 attempt 1, rejected → retry → push 3, allowed).
-#
-# Verifies that the protocol detects the rejection, refetches and retries
-# without intervention, and both contributions land.
+# Scenario 06: push race. Pre-receive hook on origin rejects exactly the
+# 2nd push attempt (which is B's first push). The wrapper detects, fetches,
+# merges (clean: different files) and retries. Verifies 3 push attempts
+# total (A=1, B=2 attempts including the rejected one).
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -38,7 +34,7 @@ noop_resolve() {
     exit 1
 }
 
-changes_A() {
+apply_A() {
     local wiki="$1"
     cat > "$wiki/Topic-Race-A.md" <<'EOF'
 # Topic Race A
@@ -46,9 +42,10 @@ changes_A() {
 Authored by A in the race scenario.
 EOF
     git -C "$wiki" add Topic-Race-A.md
+    git -C "$wiki" commit -m "A: race write" --quiet
 }
 
-changes_B() {
+apply_B() {
     local wiki="$1"
     cat > "$wiki/Topic-Race-B.md" <<'EOF'
 # Topic Race B
@@ -56,24 +53,21 @@ changes_B() {
 Authored by B in the race scenario.
 EOF
     git -C "$wiki" add Topic-Race-B.md
+    git -C "$wiki" commit -m "B: race write" --quiet
 }
 
 echo "Scenario 06: push race"
 A_WIKI="$(clone_for_agent A)"
 B_WIKI="$(clone_for_agent B)"
-
-# Both prepare; A publishes first; B's publish hits the mock reject once
-# and the protocol's retry loop pushes again successfully.
-agent_prepare "$A_WIKI" "csweet1"  changes_A "A: race write" >/dev/null || { echo "FAIL: A prepare" >&2; exit 1; }
-agent_prepare "$B_WIKI" "vardeman" changes_B "B: race write" >/dev/null || { echo "FAIL: B prepare" >&2; exit 1; }
-agent_publish "$A_WIKI" "csweet1"  noop_resolve || { echo "FAIL: A publish" >&2; exit 1; }
-agent_publish "$B_WIKI" "vardeman" noop_resolve || { echo "FAIL: B publish" >&2; exit 1; }
+apply_A "$A_WIKI"
+apply_B "$B_WIKI"
+wiki_push "$A_WIKI" "csweet1"  noop_resolve || { echo "FAIL: A push" >&2; exit 1; }
+wiki_push "$B_WIKI" "vardeman" noop_resolve || { echo "FAIL: B push" >&2; exit 1; }
 
 VERIFY="$(clone_for_agent verify)"
 fail=0
 [ -f "$VERIFY/Topic-Race-A.md" ] || { echo "FAIL: A's page missing"; fail=$((fail+1)); }
 [ -f "$VERIFY/Topic-Race-B.md" ] || { echo "FAIL: B's page missing"; fail=$((fail+1)); }
-# Counter reflects total push attempts: 1 (A) + 2 (B initial + B retry) = 3.
 total_pushes=$(cat "$COUNTER")
 if [ "$total_pushes" -ne 3 ]; then
     echo "FAIL: expected 3 push attempts (A + B initial + B retry); got $total_pushes"

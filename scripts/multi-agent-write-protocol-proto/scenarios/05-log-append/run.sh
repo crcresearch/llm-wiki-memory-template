@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scenario 05: two agents both append log entries.
-# Expected: both entries present after union merge.
+# Union merge driver handles automatically.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -17,7 +17,7 @@ noop_resolve() {
     exit 1
 }
 
-changes_A() {
+apply_A() {
     local wiki="$1"
     cat >> "$wiki/log_proto.md" <<'EOF'
 
@@ -26,9 +26,10 @@ changes_A() {
 - A's notes.
 EOF
     git -C "$wiki" add log_proto.md
+    git -C "$wiki" commit -m "A: log entry" --quiet
 }
 
-changes_B() {
+apply_B() {
     local wiki="$1"
     cat >> "$wiki/log_proto.md" <<'EOF'
 
@@ -37,13 +38,16 @@ changes_B() {
 - B's notes.
 EOF
     git -C "$wiki" add log_proto.md
+    git -C "$wiki" commit -m "B: log entry" --quiet
 }
 
 echo "Scenario 05: log union append"
 A_WIKI="$(clone_for_agent A)"
 B_WIKI="$(clone_for_agent B)"
-agent_write "$A_WIKI" "csweet1" changes_A noop_resolve "A: log entry" || { echo "FAIL: A write" >&2; exit 1; }
-agent_write "$B_WIKI" "vardeman" changes_B noop_resolve "B: log entry" || { echo "FAIL: B write" >&2; exit 1; }
+apply_A "$A_WIKI"
+apply_B "$B_WIKI"
+wiki_push "$A_WIKI" "csweet1"  noop_resolve || { echo "FAIL: A push" >&2; exit 1; }
+wiki_push "$B_WIKI" "vardeman" noop_resolve || { echo "FAIL: B push" >&2; exit 1; }
 
 VERIFY="$(clone_for_agent verify)"
 fail=0
