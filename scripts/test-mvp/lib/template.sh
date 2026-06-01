@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Derivative-init + template-clone helpers for the MVP test harness.
-#
-# init_derivative creates a stand-in for a template-bootstrapped derivative,
-# decoupled from the actual init-wiki.sh logic. Used by e2e tests for fast
-# iteration on MVP-specific behavior.
+# Template-clone helper for the MVP test harness.
 #
 # clone_template clones (or copies from local) the real template repo. Used
 # by smoke tests that exercise the template's actual bootstrap, including
@@ -15,79 +11,6 @@
 #                                       chrissweet fork of the template)
 
 DEFAULT_TEMPLATE_REPO="https://github.com/chrissweet/llm-wiki-memory-template.git"
-
-# Initialize a minimal derivative project:
-# - git init with a known user
-# - .claude/ directory ready for hooks and config
-# - a wiki/<project>.wiki/ sub-repo (also git-initialized)
-init_derivative() {
-    local dir="$1"
-    local project="${2:-test-project}"
-
-    mkdir -p "$dir"
-    cd "$dir"
-
-    git -c init.defaultBranch=main init --quiet
-    git config user.email "test-user@example.test"
-    git config user.name "Test User"
-
-    mkdir -p .claude/hooks .claude/commands .claude/skills
-
-    # Wiki sub-repo
-    mkdir -p "wiki/${project}.wiki"
-    (
-        cd "wiki/${project}.wiki"
-        git -c init.defaultBranch=master init --quiet
-        git config user.email "test-user@example.test"
-        git config user.name "Test User"
-        # Minimal Home + index so the wiki isn't empty
-        printf '%s\n' "---" "type: index" "up: \"\"" "---" "" "# Home (${project})" > "Home_${project}.md"
-        printf '%s\n' "---" "type: index" "up: \"[[Home_${project}]]\"" "---" "" "# Index (${project})" > "index_${project}.md"
-
-        # Minimal SCHEMA. Stage 2 amends with additional sections (CoALA,
-        # status lifecycle, curator fields, directional inverses note).
-        cat > "SCHEMA_${project}.md" <<SCHEMA_EOF
----
-type: reference
-up: "[[Home_${project}]]"
----
-
-# Wiki Schema — ${project}
-
-## Purpose
-
-This wiki is a persistent, compounding knowledge base.
-
-## Page Format
-
-Every content page should include a title, body, and cross-references.
-
-## Frontmatter
-
-Every page gets standard YAML frontmatter with type: and up: fields.
-
-## Naming Convention
-
-Use Title-Case-Hyphenated.md for page files.
-
-## Operations
-
-The three operations are ingest, query, and lint.
-SCHEMA_EOF
-
-        git add . && git commit -q -m "initial empty wiki"
-    )
-
-    cd - >/dev/null
-}
-
-# Set up a second clone of the derivative's wiki, simulating a second machine
-# or a second collaborator on the same machine. Returns the path.
-init_second_clone() {
-    local first="$1"
-    local second="$2"
-    cp -R "$first" "$second"
-}
 
 # Clone the real template into TARGET. Prefers MVP_TEMPLATE_LOCAL if set
 # (offline mode), falls back to MVP_TEMPLATE_REPO (or DEFAULT_TEMPLATE_REPO).

@@ -149,9 +149,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Initialize a minimal derivative inside the sandbox (for e2e tests)
-init_derivative "$SANDBOX/derivative" "Omniscient_2"
-
 # Run each test in order
 LAST_CATEGORY=""
 for entry in "${TEST_LIST[@]}"; do

@@ -26,13 +26,7 @@ jobs:
           jq --version
           git --version
 
-      - name: Run test harness (smoke + e2e)
+      - name: Run test harness
         env:
           MVP_TEMPLATE_LOCAL: ${{ github.workspace }}
         run: ./scripts/test-mvp/run.sh
-
-      - name: Run smoke category only (re-run for clean per-category output)
-        if: always()
-        env:
-          MVP_TEMPLATE_LOCAL: ${{ github.workspace }}
-        run: ./scripts/test-mvp/run.sh --category=smoke
