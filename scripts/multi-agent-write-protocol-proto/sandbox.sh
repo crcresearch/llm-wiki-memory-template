@@ -51,6 +51,13 @@ EOF
     git -C "$SANDBOX/main" commit -m "Initial sandbox wiki" --quiet
     git -C "$SANDBOX/main" branch -M main
     git -C "$SANDBOX/main" push -u origin main --quiet
+    # Set the bare repo's HEAD to refs/heads/main so fresh clones know
+    # which branch to check out. Without this, on systems where git's
+    # default branch is "master" (older git, or different init.defaultBranch
+    # config than ours), the bare repo's HEAD points to a non-existent
+    # refs/heads/master and fresh clones come up empty, producing
+    # "unrelated histories" merge failures down the line.
+    git -C "$SANDBOX/origin.git" symbolic-ref HEAD refs/heads/main
 }
 
 # Create a per-agent clone. Args: handle.
