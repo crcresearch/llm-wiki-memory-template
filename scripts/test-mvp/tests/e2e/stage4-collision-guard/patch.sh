@@ -21,7 +21,7 @@ WIKI_DIR=$(find "$D/wiki" -maxdepth 2 -name "*.wiki" -type d | head -n1)
 
 # --- Idempotent remote setup (in case Stage 3 hasn't run) ---
 WIKI_REMOTE="$SANDBOX/wiki-remote.git"
-[ -d "$WIKI_REMOTE" ] || git init --bare --initial-branch=master --quiet "$WIKI_REMOTE"
+[ -d "$WIKI_REMOTE" ] || git -c init.defaultBranch=master init --bare --quiet "$WIKI_REMOTE"
 if git -C "$WIKI_DIR" remote get-url origin >/dev/null 2>&1; then
     git -C "$WIKI_DIR" remote set-url origin "$WIKI_REMOTE"
 else

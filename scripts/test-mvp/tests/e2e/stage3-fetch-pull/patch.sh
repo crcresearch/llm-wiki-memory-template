@@ -22,12 +22,12 @@ WIKI_DIR=$(find "$D/wiki" -maxdepth 2 -name "*.wiki" -type d | head -n1)
 [ -z "$WIKI_DIR" ] && { echo "  ERROR: no wiki dir in $D/wiki" >&2; exit 1; }
 
 # --- Set up a bare remote (idempotent) ---
-# IMPORTANT: --initial-branch=master matches the wiki's branch (set in
+# IMPORTANT: init.defaultBranch=master matches the wiki's branch (set in
 # init_derivative). Without it, the bare's HEAD points to the system default
 # (often 'main'), and `git clone` warns "remote HEAD refers to nonexistent
 # ref" and produces an empty working tree, which breaks the side-clone tests.
 WIKI_REMOTE="$SANDBOX/wiki-remote.git"
-[ -d "$WIKI_REMOTE" ] || git init --bare --initial-branch=master --quiet "$WIKI_REMOTE"
+[ -d "$WIKI_REMOTE" ] || git -c init.defaultBranch=master init --bare --quiet "$WIKI_REMOTE"
 
 # Configure origin (handle the "already exists" case)
 if git -C "$WIKI_DIR" remote get-url origin >/dev/null 2>&1; then

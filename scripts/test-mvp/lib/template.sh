@@ -27,7 +27,7 @@ init_derivative() {
     mkdir -p "$dir"
     cd "$dir"
 
-    git init --quiet --initial-branch=main
+    git -c init.defaultBranch=main init --quiet
     git config user.email "test-user@example.test"
     git config user.name "Test User"
 
@@ -37,7 +37,7 @@ init_derivative() {
     mkdir -p "wiki/${project}.wiki"
     (
         cd "wiki/${project}.wiki"
-        git init --quiet --initial-branch=master
+        git -c init.defaultBranch=master init --quiet
         git config user.email "test-user@example.test"
         git config user.name "Test User"
         # Minimal Home + index so the wiki isn't empty
@@ -105,7 +105,7 @@ clone_template() {
         rm -rf "$target/.git"
         (
             cd "$target"
-            git init --quiet --initial-branch=main
+            git -c init.defaultBranch=main init --quiet
             git config user.email "smoke-test@example.test"
             git config user.name "Smoke Test"
             git add -A

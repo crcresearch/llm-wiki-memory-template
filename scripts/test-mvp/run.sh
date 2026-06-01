@@ -23,14 +23,17 @@ FAILED_TESTS=()
 # alphabetically, after the known ones.
 KNOWN_CATEGORIES=(smoke unit integration e2e regression)
 
-# Parse args (initialize arrays explicitly for bash 3.2 + set -u)
+# Parse args (initialize arrays explicitly for bash 3.2 + set -u).
+# Uses a while loop so `--category <name>` (space-separated) can consume
+# the next positional argument; a for-loop over "$@" would freeze the
+# iteration list and make `shift` a no-op for advancing past <name>.
 EXPLICIT_TESTS=()
 EXPLICIT_CATEGORIES=()
 TEST_LIST=()
 CLEANUP=1
-for arg in "$@"; do
-    case "$arg" in
-        --no-cleanup) CLEANUP=0 ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-cleanup) CLEANUP=0; shift ;;
         -h|--help)
             grep -E '^# ' "$0" | sed 's/^# \?//'
             echo ""
@@ -38,24 +41,33 @@ for arg in "$@"; do
             echo ""
             echo "  --no-cleanup       Keep the sandbox dir after the run for inspection."
             echo "  --category <name>  Run only tests in this category (smoke/unit/integration/e2e/regression)."
-            echo "                     Can be repeated."
+            echo "                     Can be repeated. --category=<name> is also accepted."
             echo "  <test-name>        Run only this specific test (by directory name). Can be repeated."
             echo ""
             echo "With no args, runs all tests in known category order."
             exit 0
             ;;
         --category)
-            shift || true
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "Error: --category requires an argument" >&2
+                exit 2
+            fi
+            EXPLICIT_CATEGORIES+=("$1")
+            shift
             ;;
         --category=*)
-            EXPLICIT_CATEGORIES+=("${arg#--category=}") ;;
+            EXPLICIT_CATEGORIES+=("${1#--category=}")
+            shift
+            ;;
         --*)
-            echo "Unknown flag: $arg" >&2
+            echo "Unknown flag: $1" >&2
             exit 2
             ;;
         *)
             # Treat anything else as a test name to filter on
-            EXPLICIT_TESTS+=("$arg")
+            EXPLICIT_TESTS+=("$1")
+            shift
             ;;
     esac
 done
