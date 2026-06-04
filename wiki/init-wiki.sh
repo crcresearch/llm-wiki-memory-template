@@ -341,7 +341,7 @@ Practical implications:
 
 Two distinct retrieval shapes, each suited to a different question:
 
-- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via the SPARQL endpoint set up by \`scripts/kg/build-graph.sh\`.
+- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via SPARQL queries against \`scripts/kg/build/graph-full.ttl\` (in-process via rdflib by default; load into Fuseki when a live endpoint is needed).
 - **Content questions** — *what does this page actually say*. Definitions, prose claims, specific numbers, source quotations. Use a direct file read or grep.
 
 The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.
@@ -512,7 +512,7 @@ Populate edge fields with the most specific type you can justify. Treat `related
 
 Two distinct retrieval shapes, each suited to a different question:
 
-- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via the SPARQL endpoint set up by `scripts/kg/build-graph.sh`.
+- **Topology questions** — *what connects to what*. Multi-hop relationships, concept chains, parent/child rollups, hub detection ("which pages cite this finding?"). Use the KG via SPARQL queries against `scripts/kg/build/graph-full.ttl` (in-process via rdflib by default; load into Fuseki when a live endpoint is needed).
 - **Content questions** — *what does this page actually say*. Definitions, prose claims, specific numbers, source quotations. Use a direct file read or grep.
 
 The right pattern: use the KG to discover *where* to look (which pages connect to the topic), then file tools to read *what* the chosen pages say. Reserve grep for non-wiki code or for content searches that span many files.'; then
@@ -678,10 +678,11 @@ This project maintains a **persistent wiki** at \`wiki/${REPO_NAME}.wiki/\` (sep
 
 KG_SUBSECTION="### Knowledge Graph
 
-The wiki's frontmatter feeds a knowledge graph pipeline (\`scripts/kg/\`) that enables SPARQL queries over wiki content. The pipeline extracts frontmatter and body cross-references, converts them to RDF triples, and loads them into a Fuseki endpoint.
+The wiki's frontmatter and body links feed a knowledge graph pipeline (\`scripts/kg/\`) that produces a SPARQL-queryable RDF graph from wiki content. The pipeline runs in Python via rdflib and pyshacl; no separate server is required by default.
 
 - **Rebuild**: \`./scripts/kg/build-graph.sh\` after wiki updates
-- **Query**: SPARQL endpoint at \`http://localhost:3030/wiki/sparql\` (when Fuseki is running)
+- **Query (default)**: in-process via rdflib against \`scripts/kg/build/graph-full.ttl\`. Agent tool wrappers run SPARQL queries directly against the loaded graph object.
+- **Query (optional)**: load \`graph-full.ttl\` into Apache Jena Fuseki for live multi-client query, agent-write via SPARQL UPDATE, or federation across wikis. rdflib talks to a Fuseki endpoint via \`SPARQLStore\` without changes to tool code.
 - Typed edges in frontmatter (\`extends:\`, \`supports:\`, \`criticizes:\`) produce rich graph relationships
 - Body cross-references (\`[text](Page-Name)\`) produce \`mentions\` edges
 - Pages without frontmatter are included as \`untyped\` nodes — no data is lost"
