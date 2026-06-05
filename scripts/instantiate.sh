@@ -282,9 +282,9 @@ else
             fi
         fi
 
-        "$REPO_ROOT/wiki/init-wiki.sh" --github "${INIT_AGENT_ARGS[@]}"
+        "$REPO_ROOT/wiki/init-wiki.sh" --github ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
     else
-        "$REPO_ROOT/wiki/init-wiki.sh" "${INIT_AGENT_ARGS[@]}"
+        "$REPO_ROOT/wiki/init-wiki.sh" ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
     fi
 fi
 

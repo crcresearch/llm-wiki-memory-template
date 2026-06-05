@@ -16,6 +16,7 @@ Currently one category. The harness auto-discovers any new categories under
 | Test | Assertions | What it checks |
 |---|---|---|
 | `template-bootstrap` | 14 | Clones the real template, runs `instantiate.sh`, asserts: bash syntax of all shipping scripts, CLAUDE.md generated with substituted placeholders, wiki sub-repo created, namespaced nav files present, `init-wiki.sh` is idempotent |
+| `instantiate-agent-none` | 8 | Regression for issue #9: runs `instantiate.sh --agent=none`, asserts bootstrap completes, CLAUDE.md is written, `init-wiki.sh` runs, and no `.claude/` or `.cursor/` overlay is copied |
 
 ## Usage
 
