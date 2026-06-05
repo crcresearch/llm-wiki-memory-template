@@ -8,9 +8,9 @@
 # Two env vars control template resolution, in order of precedence:
 #   MVP_TEMPLATE_LOCAL=/path/to/clone  use a local clone (offline, fast)
 #   MVP_TEMPLATE_REPO=<url>            clone from this URL (default: the
-#                                       chrissweet fork of the template)
+#                                       canonical crcresearch template)
 
-DEFAULT_TEMPLATE_REPO="https://github.com/chrissweet/llm-wiki-memory-template.git"
+DEFAULT_TEMPLATE_REPO="https://github.com/crcresearch/llm-wiki-memory-template.git"
 
 # Clone the real template into TARGET. Prefers MVP_TEMPLATE_LOCAL if set
 # (offline mode), falls back to MVP_TEMPLATE_REPO (or DEFAULT_TEMPLATE_REPO).
