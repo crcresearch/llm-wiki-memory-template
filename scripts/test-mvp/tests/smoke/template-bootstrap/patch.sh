@@ -45,10 +45,10 @@ if [ -f "$T/scripts/instantiate.sh" ]; then
         cd "$T"
         # Only run instantiate if it hasn't already been run (CLAUDE.md absent)
         if [ ! -f CLAUDE.md ]; then
-            # Use --agent=claude-code (the documented default). Note: the
-            # template currently has a 'set -u' bug with empty INIT_AGENT_ARGS
-            # when --agent=none is used; this should be filed upstream.
-            # Using claude-code sidesteps the bug for our smoke test.
+            # Use --agent=claude-code (the documented default) to exercise
+            # the claude-code overlay. The --agent=none path is covered
+            # separately by the instantiate-agent-none smoke test (issue #9
+            # regression).
             bash scripts/instantiate.sh "Smoke Test Project" \
                 --agent=claude-code \
                 --description="Bootstrapping the template inside the harness sandbox." \
