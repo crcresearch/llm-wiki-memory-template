@@ -147,7 +147,18 @@ assert_edge "Concept-A up Home"              Concept-A up         Home
 assert_edge "Concept-B criticizes Concept-A" Concept-B criticizes Concept-A
 assert_edge "Concept-B source Source-X"      Concept-B source     Source-X
 
+# --- Variant 1 inline body annotation produces a typed edge ---
+# Concept-A.md body annotates the Concept-B link with ([*partOf*](Edge-Types#partOf)).
+# The extractor recognises Variant 1 and emits a partOf edge from
+# Concept-A to Concept-B alongside the mentions edge.
+
+assert_edge "Concept-A partOf Concept-B (Variant 1 from body annotation)" \
+    Concept-A partOf Concept-B
+
 # --- Materialised inverses appear in graph-full.ttl ---
+
+assert "graph-full.ttl contains hasPart (inverse of partOf, from Variant 1 annotation)" \
+    "grep -q 'hasPart' '$BUILD_DIR/graph-full.ttl'"
 
 assert "graph-full.ttl contains supportedBy (inverse of supports)" \
     "grep -q 'supportedBy' '$BUILD_DIR/graph-full.ttl'"

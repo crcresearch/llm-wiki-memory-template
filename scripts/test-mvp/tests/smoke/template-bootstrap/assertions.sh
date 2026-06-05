@@ -71,3 +71,31 @@ if [ -f "$T/wiki/init-wiki.sh" ] && [ -d "$WIKI_SUB" ]; then
     RERUN_RC=$(cd "$T" && bash wiki/init-wiki.sh --name "Smoke Test Project" >/dev/null 2>&1; echo $?)
     assert_eq "init-wiki.sh is idempotent (re-runs cleanly on existing wiki)" "0" "$RERUN_RC"
 fi
+
+# --- Edge-Types.md.template was stamped into the wiki ---
+# init-wiki.sh's *.md.template loop should produce wiki/<repo>.wiki/Edge-Types.md
+# with placeholders substituted and the 16 forward-predicate anchored sections
+# present so Variant 1 inline annotations resolve.
+assert "Edge-Types.md present in the wiki" \
+    "[ -f '$WIKI_SUB/Edge-Types.md' ]"
+
+assert "Edge-Types.md has no placeholder leaks" \
+    "! grep -qE '\{\{REPO_NAME\}\}|\{\{PROJECT_NAME\}\}' '$WIKI_SUB/Edge-Types.md'"
+
+assert "Edge-Types.md up: resolves to SCHEMA_${REPO_NAME}" \
+    "grep -qF 'up: \"[[SCHEMA_${REPO_NAME}]]\"' '$WIKI_SUB/Edge-Types.md'"
+
+# All 16 anchored predicate sections (so Edge-Types#<pred> anchors resolve)
+EDGE_PREDS="up source extends supports criticizes concept partOf dependsOn defines resolvedBy incorporatedInto outOfScopeFor precedes feedsInto related mentions"
+ALL_PRESENT=1
+for pred in $EDGE_PREDS; do
+    if ! grep -qE "^## ${pred}$" "$WIKI_SUB/Edge-Types.md"; then
+        ALL_PRESENT=0
+        break
+    fi
+done
+assert_eq "Edge-Types.md has all 16 forward-predicate anchored sections" "1" "$ALL_PRESENT"
+
+# Generated SCHEMA contains the Variant 1 subsection that documents the form
+assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
+    "grep -qF '## Inline body annotations (Variant 1)' '$WIKI_SUB/SCHEMA_${REPO_NAME}.md'"

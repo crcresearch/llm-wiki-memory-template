@@ -337,6 +337,31 @@ Practical implications:
 - Edge types have domain and range. \`extends:\` points at a concept or theory; \`source:\` points at an external resource. Violating the domain/range breaks the operation.
 - Populate edge fields with the most specific type you can justify. Treat \`related:\` as a fallback. Over time, \`related:\` uses should become rarer as the edge vocabulary fits the work.
 
+## Inline body annotations (Variant 1)
+
+The same predicates from \`extends:\` / \`supports:\` / \`criticizes:\` etc. in frontmatter can be applied inline to body links. The form is a content link followed by a parenthesised italicised link to the [Edge-Types](Edge-Types) page anchor:
+
+\`\`\`markdown
+This claim extends the framing in [Theory X](Theory-X) ([*extends*](Edge-Types#extends)).
+\`\`\`
+
+Two links in the rendered output: the content link is the normal cross-reference (emits a \`mentions\` edge), and the parenthesised italicised predicate link is the carrier (adds the typed edge from the source page to the target). The predicate link is filtered out of \`mentions\` by the KG extractor so the Edge-Types page does not become a spurious hub.
+
+**Frontmatter versus inline.** Two granularities, both processed by the KG.
+
+- **Frontmatter** asserts a page-level relationship: the entire page \`extends:\` X.
+- **Inline (Variant 1)** asserts a per-mention relationship: this specific paragraph's reference to X carries the typed edge.
+
+Use frontmatter when the whole page relates to the target that way. Use inline when only one particular reference in one paragraph carries the relationship, or when the same target appears multiple times with different rhetorical positions.
+
+**Agent judgment, not heuristic.** Annotations are added by reading the prose: in this specific context, is there a clear typed-edge predicate that captures the relationship between the source page and the target page? Apply the most specific predicate that fits. Default to no annotation when uncertain. Sparse-accurate beats dense-speculative; a spurious typed-edge claim distorts downstream queries.
+
+**When to annotate**: the predicate is clearly the most-specific fit, the relationship is a per-mention claim, the target is a real wiki page (not an external URL, not a fragment-only reference), and the annotation would be informative to a future reader and queryable by the KG.
+
+**When not to annotate**: multiple predicates plausibly fit and none clearly wins; the relationship is too vague to commit to (default \`mentions\` is fine); the link target is a fragment (\`Page-Name#section\`). Do not pair a fragment-targeted link with an inline annotation; the annotation asserts a page-level relationship and the fragment implies a sub-page target, so the two are incoherent together.
+
+**Where the vocabulary lives.** [Edge-Types](Edge-Types) lists the 16 forward predicates with one-line definitions; each section is the anchor target for the parenthesised carrier (e.g. \`[*partOf*](Edge-Types#partOf)\` resolves to the \`## partOf\` heading on that page).
+
 ## Topology vs Content (when to use the KG)
 
 Two distinct retrieval shapes, each suited to a different question:
@@ -507,6 +532,34 @@ Populate edge fields with the most specific type you can justify. Treat `related
         UPDATED_SECTIONS+=("Edges as Interface Operations")
     fi
 
+    # Add Inline body annotations (Variant 1) section if missing
+    if append_section_if_missing "$SCHEMA_FILE" "## Inline body annotations (Variant 1)" "## Inline body annotations (Variant 1)
+
+The same predicates from \`extends:\` / \`supports:\` / \`criticizes:\` etc. in frontmatter can be applied inline to body links. The form is a content link followed by a parenthesised italicised link to the [Edge-Types](Edge-Types) page anchor:
+
+\`\`\`markdown
+This claim extends the framing in [Theory X](Theory-X) ([*extends*](Edge-Types#extends)).
+\`\`\`
+
+Two links in the rendered output: the content link is the normal cross-reference (emits a \`mentions\` edge), and the parenthesised italicised predicate link is the carrier (adds the typed edge from the source page to the target). The predicate link is filtered out of \`mentions\` by the KG extractor so the Edge-Types page does not become a spurious hub.
+
+**Frontmatter versus inline.** Two granularities, both processed by the KG.
+
+- **Frontmatter** asserts a page-level relationship: the entire page \`extends:\` X.
+- **Inline (Variant 1)** asserts a per-mention relationship: this specific paragraph's reference to X carries the typed edge.
+
+Use frontmatter when the whole page relates to the target that way. Use inline when only one particular reference in one paragraph carries the relationship, or when the same target appears multiple times with different rhetorical positions.
+
+**Agent judgment, not heuristic.** Annotations are added by reading the prose: in this specific context, is there a clear typed-edge predicate that captures the relationship between the source page and the target page? Apply the most specific predicate that fits. Default to no annotation when uncertain. Sparse-accurate beats dense-speculative; a spurious typed-edge claim distorts downstream queries.
+
+**When to annotate**: the predicate is clearly the most-specific fit, the relationship is a per-mention claim, the target is a real wiki page (not an external URL, not a fragment-only reference), and the annotation would be informative to a future reader and queryable by the KG.
+
+**When not to annotate**: multiple predicates plausibly fit and none clearly wins; the relationship is too vague to commit to (default \`mentions\` is fine); the link target is a fragment (\`Page-Name#section\`). Do not pair a fragment-targeted link with an inline annotation; the annotation asserts a page-level relationship and the fragment implies a sub-page target, so the two are incoherent together.
+
+**Where the vocabulary lives.** [Edge-Types](Edge-Types) lists the 16 forward predicates with one-line definitions; each section is the anchor target for the parenthesised carrier (e.g. \`[*partOf*](Edge-Types#partOf)\` resolves to the \`## partOf\` heading on that page)."; then
+        UPDATED_SECTIONS+=("Inline body annotations (Variant 1)")
+    fi
+
     # Add Topology vs Content section if missing
     if append_section_if_missing "$SCHEMA_FILE" "## Topology vs Content" '## Topology vs Content (when to use the KG)
 
@@ -547,6 +600,31 @@ The wiki is a shared memory across a team. Every log entry records who performed
     else
         echo "SCHEMA already up to date."
     fi
+fi
+
+# --- Stamp wiki/*.md.template files into the wiki ---
+# Each *.md.template alongside this script gets sed-substituted (same
+# placeholders as scripts/instantiate.sh: {{REPO_NAME}}, {{PROJECT_NAME}})
+# and written into the wiki sub-repo with the .template suffix stripped.
+# Idempotent on update mode: re-stamping overwrites with the same content.
+SCRIPT_DIR_INIT="$(cd "$(dirname "$0")" && pwd)"
+TEMPLATES_STAMPED=()
+shopt -s nullglob
+for tpl in "$SCRIPT_DIR_INIT"/*.md.template; do
+    out_name="$(basename "${tpl%.template}")"
+    out_path="$WIKI_DIR/$out_name"
+    sed -e "s|{{REPO_NAME}}|${REPO_NAME}|g" \
+        -e "s|{{PROJECT_NAME}}|${PROJECT_NAME:-$REPO_NAME}|g" \
+        "$tpl" > "$out_path"
+    TEMPLATES_STAMPED+=("$out_name")
+done
+shopt -u nullglob
+
+if [[ ${#TEMPLATES_STAMPED[@]} -gt 0 ]]; then
+    echo "Stamped wiki page templates:"
+    for t in "${TEMPLATES_STAMPED[@]}"; do
+        echo "  + $t"
+    done
 fi
 
 # --- WIKI-INDEX: recursive registration ---
