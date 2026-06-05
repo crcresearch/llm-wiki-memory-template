@@ -142,6 +142,12 @@ llm-wiki-memory-template/
     instantiate.sh               first-use bootstrap of a new project
     update-from-template.sh      pull generic + overlay updates from this template
     check-template-version.sh    read-only drift check
+    enable-feature.sh            opt in to a feature retroactively
+    disable-feature.sh           opt out of a feature, symmetric removal
+    lib/install-feature.sh       shared install/uninstall logic (sourced)
+  features/                      opt-in feature definitions (see section 7)
+  docs/
+    adding-a-feature.md          canonical guide for authoring a feature
 ```
 
 ## 5. The three wiki operations (Query / Ingest / Lint)
@@ -163,13 +169,39 @@ Each agent overlay lives in `wiki/agents/<agent>/` and follows a small contract 
 3. Update `templates/` with the agent-appropriate phrasings (rule format, command format, etc.).
 4. Open a PR against this template repo so other projects in the organization can pick it up.
 
-## 7. Contributing back
+## 7. Opt-in features
+
+Some capabilities are useful in some projects and unwanted in others (a knowledge-graph pipeline, a Socratic tutor behavior overlay, an agent-memory tool). Rather than ship every capability on by default and ask projects to delete what they do not want, the template hosts them under `features/<name>/` as **opt-in features**.
+
+Enable a feature at instantiation:
+
+```bash
+./scripts/instantiate.sh "My Project" --agent=claude-code --features=<name>
+# multiple at once:
+./scripts/instantiate.sh "My Project" --agent=claude-code --features=kg,socratic-tutor
+```
+
+Enable or remove later:
+
+```bash
+./scripts/enable-feature.sh <name>
+./scripts/enable-feature.sh --list       # see what is available and what is on
+./scripts/disable-feature.sh <name>      # symmetric removal
+```
+
+Each feature is self-contained under `features/<name>/`: a `feature.json` plus optional code, tests, CI workflow, and a CLAUDE.md section. Installing copies these into the derived project; uninstalling removes them. The state lives in `.features-enabled` (plain text, one feature per line) at the project root.
+
+Authoring a new feature is documented in [docs/adding-a-feature.md](docs/adding-a-feature.md). The architecture is RFC #13; Etapa 1 (this infrastructure) shipped in PR #17.
+
+The template ships **no** real features yet. The shape and machinery are validated; the first real feature is the next milestone.
+
+## 8. Contributing back
 
 Improvements to the agent-agnostic parts (the llm-wiki pattern, `init-wiki.sh`, the schema, the scripts) are most valuable when they land here, in the template. Once merged, every project that runs `update-from-template.sh` will pick them up on the next sync.
 
 For project-specific customizations, edit your project's `CLAUDE.md`, README, or settings -- those never propagate.
 
-## 8. Quick reference
+## 9. Quick reference
 
 ```bash
 # First use (after "Use this template" -> Create repository -> clone locally):
@@ -179,6 +211,11 @@ For project-specific customizations, edit your project's `CLAUDE.md`, README, or
 #   GitHub Wiki backend (UI step required ONCE before this command:
 #     open https://github.com/<owner>/<repo>/wiki -> Create the first page -> save)
 ./scripts/instantiate.sh "My Project" --agent=claude-code --github-wiki
+
+# Enable or remove an opt-in feature (see section 7):
+./scripts/enable-feature.sh --list
+./scripts/enable-feature.sh <name>
+./scripts/disable-feature.sh <name>
 
 # Periodic sync from the template (preview, then apply):
 ./scripts/update-from-template.sh --dry-run

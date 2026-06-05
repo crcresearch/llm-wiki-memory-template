@@ -7,11 +7,10 @@ template.
 
 ## Status
 
-Etapa 1 of the feature-flag architecture (RFC #13) ships an empty
-`features/` directory plus the install/uninstall infrastructure. No real
-features ship here yet. The first migration target is the Socratic tutor
-(#7) or the future agent-memory tooling, neither of which lands in this
-PR.
+Etapa 1 of the feature-flag architecture (RFC #13, PR #17) shipped the
+install/uninstall infrastructure and this empty `features/` directory.
+No real features ship here yet. The first candidate is the Socratic
+tutor (#7) or the future agent-memory tooling.
 
 ## Structure of a feature
 
@@ -59,12 +58,12 @@ Drop a new directory under `features/`, write a `feature.json`, and the
 existing `install_feature` machinery handles the rest. No changes to
 `instantiate.sh` or the install logic are needed per feature.
 
-A proper `docs/adding-a-feature.md` ships in Etapa 5; until then this
-README is the rough guide.
+The canonical guide is [`../docs/adding-a-feature.md`](../docs/adding-a-feature.md):
+schema reference, lifecycle, hello-world walkthrough, pitfalls.
 
-## Out of scope for Etapa 1
+## Still out of scope (post-Etapa 1)
 
-- KG migration into `features/kg/` (Etapa 2 was skipped per RFC #13 discussion)
 - `update-from-template.sh` feature-awareness (Etapa 3)
 - `migrate-to-feature-flags.sh` for legacy derived projects (Etapa 4)
-- Long-form contributor documentation (Etapa 5)
+- `depends_on` enforcement (declared in `feature.json` but ignored by
+  the install logic)
