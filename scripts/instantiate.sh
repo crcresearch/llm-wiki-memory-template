@@ -3,7 +3,7 @@
 # instantiate.sh — first-use bootstrap for a project created from llm-wiki-memory-template.
 #
 # Usage:
-#   ./scripts/instantiate.sh "<Project Name>" [--agent=<x>] [--description="..."] [--github-wiki]
+#   ./scripts/instantiate.sh "<Project Name>" [--agent=<x>] [--description="..."] [--github-wiki] [--features=<csv>]
 #
 # Positional:
 #   <Project Name>   Human-readable project name (e.g. "Data Platform Notes").
@@ -33,6 +33,14 @@
 #                    Requires `origin` to be set on the main repo, an SSH
 #                    key registered for github.com, and `gh` (optional,
 #                    defensive) for the has_wiki=true PATCH.
+#   --features=<csv> Comma-separated list of feature names to enable at
+#                    instantiation time (RFC #13). Each name must match a
+#                    directory under features/ that contains a feature.json.
+#                    Example: --features=kg or --features=kg,socratic-tutor.
+#                    Empty (default) means no features; the base template
+#                    ships with no real features in Etapa 1. Features can
+#                    also be enabled retroactively via scripts/enable-feature.sh
+#                    and removed via scripts/disable-feature.sh.
 #
 # Idempotent failure mode: if CLAUDE.md already exists at the repo root, this
 # script exits immediately. Templates are one-shot.
@@ -45,12 +53,14 @@ PROJECT_NAME=""
 AGENT="claude-code"
 DESCRIPTION=""
 GITHUB_WIKI=false
+FEATURES_CSV=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --agent=*)        AGENT="${1#*=}"; shift ;;
         --description=*)  DESCRIPTION="${1#*=}"; shift ;;
         --github-wiki)    GITHUB_WIKI=true; shift ;;
+        --features=*)     FEATURES_CSV="${1#*=}"; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -86,6 +96,26 @@ case "$AGENT" in
     claude-code|cursor) INIT_AGENT_ARGS=(--agent "$AGENT") ;;
 esac
 
+# --- Parse --features= CSV into FEATURES_LIST (RFC #13, Etapa 1) ---
+# Validation happens after the project layout is detected so the error
+# message can refer to the resolved features/ directory. Empty CSV means
+# no features; bootstrap proceeds with the base template only.
+FEATURES_LIST=()
+if [[ -n "$FEATURES_CSV" ]]; then
+    # Bash 3.2 compatible CSV split (no IFS=, read -a trick portability)
+    _csv="$FEATURES_CSV"
+    while [[ -n "$_csv" ]]; do
+        case "$_csv" in
+            *,*) _name="${_csv%%,*}"; _csv="${_csv#*,}" ;;
+            *)   _name="$_csv";       _csv="" ;;
+        esac
+        # Trim whitespace
+        _name="${_name#"${_name%%[![:space:]]*}"}"
+        _name="${_name%"${_name##*[![:space:]]}"}"
+        [[ -n "$_name" ]] && FEATURES_LIST+=("$_name")
+    done
+fi
+
 # --- Detect project layout ---
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 REPO_NAME=$(basename "$REPO_ROOT")
@@ -93,6 +123,38 @@ CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 CLAUDE_MD_TEMPLATE="$REPO_ROOT/CLAUDE.md.template"
 README_MD="$REPO_ROOT/README.md"
 README_MD_TEMPLATE="$REPO_ROOT/README.md.template"
+
+# --- Validate --features= names early (fail fast before bootstrap) ---
+# Each requested feature must have a feature.json at features/<name>/.
+# This runs BEFORE rendering CLAUDE.md or invoking init-wiki.sh so a typo
+# in --features= does not leave a partially-bootstrapped project behind.
+if [[ "${#FEATURES_LIST[@]}" -gt 0 ]]; then
+    _missing=()
+    for _f in "${FEATURES_LIST[@]}"; do
+        if [[ ! -f "$REPO_ROOT/features/$_f/feature.json" ]]; then
+            _missing+=("$_f")
+        fi
+    done
+    if [[ "${#_missing[@]}" -gt 0 ]]; then
+        echo "Error: requested feature(s) not found in $REPO_ROOT/features/:" >&2
+        for _f in "${_missing[@]}"; do
+            echo "  - $_f" >&2
+        done
+        echo "" >&2
+        echo "Available features:" >&2
+        _found=0
+        if [[ -d "$REPO_ROOT/features" ]]; then
+            for _d in "$REPO_ROOT/features"/*/; do
+                [[ -d "$_d" ]] || continue
+                [[ -f "$_d/feature.json" ]] || continue
+                echo "  - $(basename "$_d")" >&2
+                _found=1
+            done
+        fi
+        [[ "$_found" -eq 0 ]] && echo "  (none)" >&2
+        exit 1
+    fi
+fi
 
 # Derive OWNER (GitHub org or user) from the origin URL, so the generated
 # README's clone commands use the real owner instead of a literal <owner>
@@ -354,6 +416,26 @@ else
     rm -rf "$REPO_ROOT/.cursor"
     rm -f "$REPO_ROOT/.cursorrules.template"
     rm -rf "$REPO_ROOT/wiki/agents/cursor"
+fi
+
+# --- Install requested features (RFC #13, Etapa 1) ---
+# After the base bootstrap and any agent overlay have been set up, install
+# each feature listed in --features=. Validation already happened above;
+# this section just executes the installs through the shared library.
+if [[ "${#FEATURES_LIST[@]}" -gt 0 ]]; then
+    # shellcheck source=lib/install-feature.sh
+    source "$REPO_ROOT/scripts/lib/install-feature.sh"
+    echo ""
+    echo "--------------------------------------------------------"
+    echo "Installing features: ${FEATURES_LIST[*]}"
+    echo "--------------------------------------------------------"
+    cd "$REPO_ROOT"
+    for _f in "${FEATURES_LIST[@]}"; do
+        install_feature "$_f" || {
+            echo "Error: install_feature '$_f' failed." >&2
+            exit 1
+        }
+    done
 fi
 
 # --- Final checklist ---

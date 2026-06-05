@@ -97,6 +97,10 @@ ALWAYS_FILES=(
     "wiki/agents/verification-gate.md"
     "scripts/update-from-template.sh"
     "scripts/check-template-version.sh"
+    "scripts/lib/install-feature.sh"
+    "scripts/enable-feature.sh"
+    "scripts/disable-feature.sh"
+    "features/README.md"
     ".gitignore"
 )
 
