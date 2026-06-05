@@ -28,7 +28,9 @@ if [ -d "$T" ]; then
 elif clone_template "$T"; then
     echo "  Cloned template to $T."
 else
-    echo "  WARN: could not clone template (no network and no MVP_TEMPLATE_LOCAL)." >&2
+    # clone_template declined: either no network + no MVP_TEMPLATE_LOCAL,
+    # or MVP_TEMPLATE_LOCAL points at a derived project (issue #15).
+    echo "  Smoke instantiate-agent-none assertions will skip (see above for reason)." >&2
     exit 0
 fi
 

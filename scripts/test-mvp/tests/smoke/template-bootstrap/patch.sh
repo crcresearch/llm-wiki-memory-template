@@ -32,9 +32,10 @@ if [ -d "$T" ]; then
 elif clone_template "$T"; then
     echo "  Cloned template to $T."
 else
-    echo "  WARN: could not clone template (no network and no MVP_TEMPLATE_LOCAL)." >&2
-    echo "  Smoke assertions will skip. Set MVP_TEMPLATE_LOCAL=/path/to/template clone for offline testing." >&2
-    # Don't fail the patch; let assertions skip
+    # clone_template declined: either no network + no MVP_TEMPLATE_LOCAL,
+    # or MVP_TEMPLATE_LOCAL points at a derived project (issue #15).
+    # clone_template prints the specific reason to stderr; we just skip.
+    echo "  Smoke template-bootstrap assertions will skip (see above for reason)." >&2
     exit 0
 fi
 

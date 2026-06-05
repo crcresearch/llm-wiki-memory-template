@@ -14,13 +14,40 @@ DEFAULT_TEMPLATE_REPO="https://github.com/crcresearch/llm-wiki-memory-template.g
 
 # Clone the real template into TARGET. Prefers MVP_TEMPLATE_LOCAL if set
 # (offline mode), falls back to MVP_TEMPLATE_REPO (or DEFAULT_TEMPLATE_REPO).
-# Returns 0 on success, 1 if both modes fail (e.g. no network and no local).
+# Returns 0 on success, 1 if both modes fail (e.g. no network and no local)
+# OR if MVP_TEMPLATE_LOCAL points at a derived project rather than the
+# canonical template (see the derived-project guard below; issue #15).
 clone_template() {
     local target="$1"
     local repo="${MVP_TEMPLATE_REPO:-$DEFAULT_TEMPLATE_REPO}"
     local local_clone="${MVP_TEMPLATE_LOCAL:-}"
 
     if [ -n "$local_clone" ] && [ -d "$local_clone" ]; then
+        # Derived-project guard (issue #15).
+        #
+        # The shipped test-harness.yml workflow sets
+        # MVP_TEMPLATE_LOCAL=${{ github.workspace }} so the template's own CI
+        # tests its local checkout. The workflow file is also shipped to
+        # derived projects via "Use this template"; in the derived's CI,
+        # github.workspace points at the derived, not at the template.
+        # Copying a derived project into the sandbox would carry its
+        # instantiated state (real CLAUDE.md, wiki/<repo>.wiki/, etc.) and
+        # make the bootstrap assertions meaningless (16 fails, all spurious).
+        #
+        # Heuristic: the canonical template ships CLAUDE.md.template and
+        # has no CLAUDE.md; a derived project has CLAUDE.md and (after
+        # instantiate.sh self-deletes the one-shot template) typically no
+        # CLAUDE.md.template either. The discriminator is the presence of
+        # CLAUDE.md.template.
+        if [ -f "$local_clone/CLAUDE.md" ] && [ ! -f "$local_clone/CLAUDE.md.template" ]; then
+            echo "  Note: MVP_TEMPLATE_LOCAL=$local_clone looks like a derived" >&2
+            echo "        project (has CLAUDE.md, lacks CLAUDE.md.template)." >&2
+            echo "        Template-bootstrap smoke tests apply to the template" >&2
+            echo "        repo only; declining to clone here. Smoke assertions" >&2
+            echo "        will skip cleanly. See issue #15." >&2
+            return 1
+        fi
+
         # Local-clone mode: copy the working tree (preserving .git would
         # confuse instantiate.sh which expects to commit fresh state).
         # We re-init git so the derivative looks like a fresh checkout.
