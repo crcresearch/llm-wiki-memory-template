@@ -155,6 +155,15 @@ Welcome to the project wiki. This is an LLM-maintained knowledge base that grows
 - **[Index](${INDEX_NS})** — Full catalog of all wiki pages
 - **[Log](${LOG_NS})** — Chronological record of wiki updates
 
+## Categories
+
+<!-- As top-level categories emerge in ${INDEX_NS}.md, mirror their
+     headers here with 1-3 representative links per category. This is a
+     curated human-facing nav surface, not a comprehensive catalog —
+     leave that to the Index. -->
+
+*No categories yet. Add them here as the wiki grows.*
+
 ## Getting Started
 
 Ask your LLM to ingest key project documents:
@@ -335,6 +344,11 @@ A design choice with rationale. Use when the project picks one option over alter
 - The first bullet of every entry is the \`- by:\` attribution line (see Log Entry Attribution)
 - Then 2-5 bullet points describing the operation
 - **Append on every operation**, and commit each entry on its own (see Log Entry Attribution)
+
+### ${HOME_NS}.md
+- Human-facing entry point. Project description + a \`## Categories\` section mirroring the top-level categories in \`${INDEX_NS}.md\`, with 1-3 representative links per category. **Not** a comprehensive catalog; that is the Index's job.
+- **Update when a new top-level category emerges in the Index, or when a page lands that is significant enough to be one of its category's representative links.** Routine page additions inside an existing category: Index-only, no Home update needed.
+- Distinct from \`Home.md\` (the GitHub-wiki redirect below), which is never edited.
 
 ### Home.md
 - GitHub wiki redirect only — do not edit
@@ -657,6 +671,19 @@ The wiki is a shared memory across a team. Every log entry records who performed
 
 **Two records, one source of truth.** The \`by:\` field is the human-readable copy; git history is the verifiable record. They should always agree. If they disagree, trust git and correct the field."; then
         UPDATED_SECTIONS+=("Log Entry Attribution")
+    fi
+
+    # Add Home Special-Files entry if missing. The create-mode heredoc
+    # inserts this between the Log and Home.md sub-entries of "## Special
+    # Files"; for existing wikis the helper appends at the end of the
+    # file (append_section_if_missing is order-agnostic by design). The
+    # entry is still discovered by the agent because SCHEMA is read
+    # end-to-end. Marker: the literal ### Home_<repo>.md heading line.
+    if append_section_if_missing "$SCHEMA_FILE" "### ${HOME_NS}.md" "### ${HOME_NS}.md
+- Human-facing entry point. Project description + a \`## Categories\` section mirroring the top-level categories in \`${INDEX_NS}.md\`, with 1-3 representative links per category. **Not** a comprehensive catalog; that is the Index's job.
+- **Update when a new top-level category emerges in the Index, or when a page lands that is significant enough to be one of its category's representative links.** Routine page additions inside an existing category: Index-only, no Home update needed.
+- Distinct from \`Home.md\` (the GitHub-wiki redirect), which is never edited."; then
+        UPDATED_SECTIONS+=("Home Special-Files entry")
     fi
 
     if [[ ${#UPDATED_SECTIONS[@]} -gt 0 ]]; then

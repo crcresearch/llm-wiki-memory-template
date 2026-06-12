@@ -49,6 +49,7 @@ Apply each criterion to each created or edited page.
 
 - **`index_<repo>.md` lists every new page in the right category with a one-line description.** *Fix if failed:* add the entry.
 - **`log_<repo>.md` has a `## [YYYY-MM-DD] <verb> | <subject>` entry covering this write, with 2 to 5 bullets of substance.** *Fix if failed:* append the entry.
+- **`Home_<repo>.md` reflects category-level changes.** If this ingest introduced a new top-level category in `index_<repo>.md`, OR added a page significant enough to be a representative link for its category, the `## Categories` section on Home is updated. Routine page additions inside an existing category that already has its representative links on Home: Index-only, no Home update needed. *Fix if failed:* add the category header on Home with 1-3 representative links from that category.
 
 ### Honest reporting
 
