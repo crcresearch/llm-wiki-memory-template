@@ -99,3 +99,45 @@ assert_eq "Edge-Types.md has all 16 forward-predicate anchored sections" "1" "$A
 # Generated SCHEMA contains the Variant 1 subsection that documents the form
 assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
     "grep -qF '## Inline body annotations (Variant 1)' '$WIKI_SUB/SCHEMA_${REPO_NAME}.md'"
+
+# --- Home page navigation convention ---
+# The Home_<repo>.md page is now seeded with a "## Categories" placeholder
+# section, and the SCHEMA's Special Files block has a "### Home_<repo>.md"
+# entry naming the category-level update rule. The Verification Gate has
+# a matching criterion. The structural assertions below catch reversion
+# of any of these claims.
+HOME_PAGE="$WIKI_SUB/Home_${REPO_NAME}.md"
+SCHEMA_FILE_HOME="$WIKI_SUB/SCHEMA_${REPO_NAME}.md"
+
+# Seeded Home contains the Categories placeholder.
+assert_contains "Home page has '## Categories' section" \
+    "$HOME_PAGE" "## Categories"
+assert_contains "Home page Categories section has the mirror-Index comment" \
+    "$HOME_PAGE" "mirror their"
+assert_contains "Home page Categories section has the empty-state placeholder" \
+    "$HOME_PAGE" "No categories yet"
+
+# Generated SCHEMA documents the Home Special-Files entry + the rule.
+assert_contains "SCHEMA Special Files has 'Home_<repo>.md' entry" \
+    "$SCHEMA_FILE_HOME" "Home_${REPO_NAME}"
+assert_contains "SCHEMA Home entry states the category-level update rule" \
+    "$SCHEMA_FILE_HOME" "Human-facing entry point"
+assert_contains "SCHEMA Home entry mentions representative links convention" \
+    "$SCHEMA_FILE_HOME" "representative links per category"
+
+# Verification gate criterion present.
+VGATE_HOME="$T/wiki/agents/verification-gate.md"
+if [ -f "$VGATE_HOME" ]; then
+    assert_contains "verification-gate.md has Home-page criterion" \
+        "$VGATE_HOME" "reflects category-level changes"
+fi
+
+# Parallel-file-drift check: the new Home Special-Files entry's leading
+# identifying line lives in two byte-identical copies in init-wiki.sh
+# (create-mode heredoc + update-mode append_section_if_missing call).
+INIT_WIKI_HOME="$T/wiki/init-wiki.sh"
+if [ -f "$INIT_WIKI_HOME" ]; then
+    HOME_ENTRY_COUNT=$(grep -c '^- Human-facing entry point\.' "$INIT_WIKI_HOME" || echo 0)
+    assert_eq "init-wiki.sh Home Special-Files entry appears in exactly 2 places (parallel-pair byte-match)" \
+        "2" "$HOME_ENTRY_COUNT"
+fi
