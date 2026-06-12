@@ -4,10 +4,12 @@
 #
 # Usage:
 #   ./scripts/instantiate.sh "<Project Name>" [--agent=<x>] [--description="..."] [--github-wiki] [--features=<csv>]
+#   ./scripts/instantiate.sh --dev-self                  # (template contributor self-dogfood mode)
 #
 # Positional:
 #   <Project Name>   Human-readable project name (e.g. "Data Platform Notes").
 #                    Substituted for {{PROJECT_NAME}} in CLAUDE.md.template.
+#                    Not required when --dev-self is set.
 #
 # Flags:
 #   --agent=<x>      Agent overlay to activate. One of:
@@ -33,6 +35,15 @@
 #                    Requires `origin` to be set on the main repo, an SSH
 #                    key registered for github.com, and `gh` (optional,
 #                    defensive) for the has_wiki=true PATCH.
+#   --dev-self       Self-dogfood mode for template contributors. Renders
+#                    CLAUDE.md against the template repo itself (so working in a
+#                    template clone gives Claude Code llm-wiki context) and
+#                    installs the SessionStart + PostToolUse hooks. Does NOT
+#                    clone the wiki, run init-wiki.sh, modify .claude/commands
+#                    or .claude/skills, or self-delete. Prerequisite: clone the
+#                    template's GitHub Wiki to wiki/llm-wiki-memory-template.wiki/
+#                    manually before running this. All resulting artifacts are
+#                    gitignored.
 #   --features=<csv> Comma-separated list of feature names to enable at
 #                    instantiation time (RFC #13). Each name must match a
 #                    directory under features/ that contains a feature.json.
@@ -54,6 +65,7 @@ AGENT="claude-code"
 DESCRIPTION=""
 GITHUB_WIKI=false
 FEATURES_CSV=""
+DEV_SELF=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -61,6 +73,7 @@ while [[ $# -gt 0 ]]; do
         --description=*)  DESCRIPTION="${1#*=}"; shift ;;
         --github-wiki)    GITHUB_WIKI=true; shift ;;
         --features=*)     FEATURES_CSV="${1#*=}"; shift ;;
+        --dev-self)       DEV_SELF=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -77,7 +90,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$PROJECT_NAME" ]]; then
+if [[ -z "$PROJECT_NAME" ]] && ! $DEV_SELF; then
     echo "Error: <Project Name> is required (positional arg)." >&2
     echo "Run with --help for usage." >&2
     exit 1
@@ -181,6 +194,85 @@ fi
 if [[ ! -f "$CLAUDE_MD_TEMPLATE" ]]; then
     echo "Error: $CLAUDE_MD_TEMPLATE not found. Was the template properly cloned?" >&2
     exit 1
+fi
+
+# --- Dev-self path: template contributor self-dogfooding ---
+# Renders CLAUDE.md in-place in the template clone and installs the
+# claude-code SessionStart + PostToolUse hooks, so a contributor opens
+# Claude Code in the template repo and gets the same wiki-discipline
+# context any derived project gets. Diverges from the normal flow in
+# four ways:
+#   1. No PROJECT_NAME required; uses a self-describing default.
+#   2. Does NOT delete CLAUDE.md.template (the template must stay intact
+#      so future instantiations of derived projects work).
+#   3. Does NOT call init-wiki.sh; the contributor clones the template's
+#      own GitHub Wiki manually to wiki/llm-wiki-memory-template.wiki/
+#      (one-time, documented in README).
+#   4. Does NOT touch .claude/commands or .claude/skills (avoids
+#      dirtying tracked template files with REPO_NAME substitution).
+# All resulting artifacts (CLAUDE.md, .claude/settings.json,
+# .claude/hooks/, the wiki clone) are gitignored. See .gitignore.
+if $DEV_SELF; then
+    # Pre-flight: ensure the template's own wiki has been cloned manually.
+    DEV_SELF_WIKI="$REPO_ROOT/wiki/llm-wiki-memory-template.wiki"
+    if [[ ! -d "$DEV_SELF_WIKI" ]]; then
+        echo "Error: --dev-self requires the template's GitHub Wiki cloned at" >&2
+        echo "       $DEV_SELF_WIKI" >&2
+        echo "" >&2
+        echo "Run this one-time, then re-invoke --dev-self:" >&2
+        echo "  git clone https://github.com/crcresearch/llm-wiki-memory-template.wiki.git \\" >&2
+        echo "    wiki/llm-wiki-memory-template.wiki" >&2
+        exit 1
+    fi
+
+    # Fixed values for the self-instance.
+    PROJECT_NAME="${PROJECT_NAME:-LLM-Wiki Memory Template (dev self-instance)}"
+    DESCRIPTION="${DESCRIPTION:-Self-dogfooded instance of the template, for contributors developing on the template itself.}"
+    AGENT_NOTE="Claude Code users have project-level slash commands available for explicit invocation: \`/wiki-experiment\`, \`/wiki-source\`, \`/wiki-lint\`. See \`.claude/commands/\`. The project also ships the same procedures as model-side skills at \`.claude/skills/\` (referenced by the slash commands). The slash commands are a safety net: the proactive behavior described above is the default, the slash commands exist for cases where the user wants to force the action explicitly."
+
+    # Render CLAUDE.md (same substitution pattern as the normal flow, but
+    # in-place at the template root and WITHOUT deleting CLAUDE.md.template).
+    TMP=$(mktemp)
+    sed \
+        -e "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" \
+        -e "s|{{REPO_NAME}}|$REPO_NAME|g" \
+        -e "s|{{DESCRIPTION}}|$DESCRIPTION|g" \
+        "$CLAUDE_MD_TEMPLATE" > "$TMP"
+    python3 - "$TMP" "$AGENT_NOTE" "$CLAUDE_MD" <<'PYEOF'
+import sys, pathlib
+src, note, dst = sys.argv[1], sys.argv[2], sys.argv[3]
+text = pathlib.Path(src).read_text()
+text = text.replace("{{AGENT_NOTE}}", note)
+text = text.rstrip() + "\n"
+pathlib.Path(dst).write_text(text)
+PYEOF
+    rm -f "$TMP"
+    # Deliberately NOT removing $CLAUDE_MD_TEMPLATE (cf. normal flow line below).
+
+    echo "✓ Wrote CLAUDE.md (REPO_NAME=$REPO_NAME, dev-self mode)"
+
+    # Install the SessionStart + PostToolUse hooks via the existing overlay
+    # setup. setup.sh handles .claude/settings.json create-or-merge and
+    # copies the hook scripts from wiki/agents/claude-code/templates/ to
+    # .claude/hooks/ with ${REPO_NAME} substituted to the right value at
+    # install time.
+    "$REPO_ROOT/wiki/agents/claude-code/setup.sh" --hook --posttooluse-hook
+
+    echo ""
+    echo "================ Dev-self instance ready ================"
+    echo "  CLAUDE.md:                          present at repo root"
+    echo "  .claude/hooks/session-start.sh:     installed"
+    echo "  .claude/hooks/posttooluse-hook.sh:  installed"
+    echo "  .claude/settings.json:              created/merged with hooks block"
+    echo "  Template wiki:                      $DEV_SELF_WIKI"
+    echo ""
+    echo "All four artifacts are gitignored — they will not be committed"
+    echo "and they will not propagate to derived projects."
+    echo ""
+    echo "Claude Code in this directory now has llm-wiki context. Open it"
+    echo "here and the SessionStart hook will fire on next session start."
+    echo "========================================================="
+    exit 0
 fi
 
 # --- Build the agent note that goes in CLAUDE.md ---

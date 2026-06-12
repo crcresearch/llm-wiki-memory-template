@@ -71,6 +71,42 @@ git push origin main
 
 The wiki lives inside the project at `wiki/<repo-name>.wiki/` as a separate git repo with no remote. You can attach a remote and switch to Path B later (see `wiki/agents/README.md` for the procedure).
 
+### Path C: template-contributor dev self-instance
+
+Use this path **only** if you are developing on the template itself and want Claude Code to function as an llm-wiki instance against the template's own GitHub Wiki — i.e., to dogfood the pattern while working on it. The motivation and the recursive-bootstrap finding it addresses are documented at [Lessons-Learned-From-model_fusion § The recursive bootstrap problem](https://github.com/crcresearch/llm-wiki-memory-template/wiki/Lessons-Learned-From-model_fusion#the-recursive-bootstrap-problem).
+
+Two commands, both run from a fresh clone of this template:
+
+```bash
+# 1. Clone the template's own GitHub Wiki manually (one-time).
+git clone https://github.com/crcresearch/llm-wiki-memory-template.wiki.git \
+  wiki/llm-wiki-memory-template.wiki
+
+# 2. Render CLAUDE.md at the template root and install the SessionStart + PostToolUse hooks.
+./scripts/instantiate.sh --dev-self
+```
+
+After this, Claude Code opened in the template clone has:
+- A `CLAUDE.md` pointing at `wiki/llm-wiki-memory-template.wiki/` as durable memory.
+- A `SessionStart` hook injecting the wiki reminder at every session start.
+- A `PostToolUse` hook nudging the verification-gate workflow on every wiki write.
+
+**All four artifacts** (`CLAUDE.md`, `wiki/llm-wiki-memory-template.wiki/`, `.claude/settings.json`, `.claude/hooks/`) **are gitignored**. They are local-only by construction: never committed to the template repo, never propagated to derived projects (which generate their own equivalents via Paths A or B). `--dev-self` does not call `init-wiki.sh`, does not modify `.claude/commands/` or `.claude/skills/`, and does not self-delete.
+
+#### Updating after a template-side hook change
+
+The hook scripts at `.claude/hooks/*.sh` are *snapshots* taken from `wiki/agents/claude-code/templates/` when `--dev-self` first installed them. `setup.sh` defensively refuses to overwrite a live hook that already exists (correct for derived projects where a user might have hand-customized their hook; not what a dev-self contributor wants). So after a PR lands that modifies a hook template, `git pull` updates the source-of-truth but your live hooks stay stale.
+
+To force-refresh the live hooks against the latest template source:
+
+```bash
+git pull origin main
+rm -f .claude/hooks/*.sh
+./wiki/agents/claude-code/setup.sh --hook --posttooluse-hook
+```
+
+The `rm -f` is what makes `setup.sh` re-install rather than skip. `.claude/settings.json` is unaffected — `setup.sh` always re-asserts the hook registrations there idempotently via `jq`.
+
 ### What `instantiate.sh` does (either path)
 
 1. Substitutes placeholders in `CLAUDE.md.template` (`{{PROJECT_NAME}}`, `{{REPO_NAME}}`, `{{DESCRIPTION}}`, `{{AGENT_NOTE}}`) and writes `CLAUDE.md`.
