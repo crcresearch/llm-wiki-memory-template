@@ -41,6 +41,29 @@ if [ -f "$T/CLAUDE.md" ]; then
         "$T/CLAUDE.md" "Smoke Test Project"
     assert "instantiate.sh did NOT leave {{PROJECT_NAME}} placeholder" \
         "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
+
+    # PR #28: Memory boundary subsection is in CLAUDE.md.template, so a
+    # fresh instantiation should carry it through verbatim.
+    assert_contains "CLAUDE.md has '### Memory boundary' subsection" \
+        "$T/CLAUDE.md" "### Memory boundary"
+    assert_contains "CLAUDE.md memory boundary names Claude-memory" \
+        "$T/CLAUDE.md" "Claude-memory holds"
+    assert_contains "CLAUDE.md memory boundary names the wiki" \
+        "$T/CLAUDE.md" "Wiki holds"
+fi
+
+# --- The parallel snippet (claude-md-snippet.md) carries the same
+#     subsections. Catches parallel-file-drift on the boundary stanza:
+#     if the boundary text drifts between CLAUDE.md.template and the
+#     snippet, only one of these assertions fires.
+SNIPPET="$T/wiki/agents/claude-code/templates/claude-md-snippet.md"
+if [ -f "$SNIPPET" ]; then
+    assert_contains "claude-md-snippet has '### Memory boundary' subsection" \
+        "$SNIPPET" "### Memory boundary"
+    assert_contains "claude-md-snippet memory boundary names Claude-memory" \
+        "$SNIPPET" "Claude-memory holds"
+    assert_contains "claude-md-snippet memory boundary names the wiki" \
+        "$SNIPPET" "Wiki holds"
 fi
 
 # --- init-wiki.sh produced the expected wiki structure ---
@@ -148,4 +171,74 @@ if [ -f "$INIT_WIKI" ]; then
     EDGE_HEADER_COUNT=$(grep -c '^| Edge | Inverse | What it licenses the agent to do |$' "$INIT_WIKI" || echo 0)
     assert_eq "init-wiki.sh Edges-table header appears in exactly 2 places (parallel-pair byte-match)" \
         "2" "$EDGE_HEADER_COUNT"
+fi
+
+# --- SessionStart hook auto-loads wiki state (model_fusion rec #1) ---
+# The hook template ships content-injection logic so the wiki functions
+# as compounding memory rather than RAG-on-demand. Structural assertions
+# below catch the case where the template gets reverted to the
+# orientation-only form. The behavioral end-to-end test (rendered hook
+# against a stub wiki, last-5-of-7 log-entry selection, no-wiki
+# graceful skip) lives in the integration/session-start-hook stage.
+SS_HOOK_TPL="$T/wiki/agents/claude-code/templates/session-start-hook.sh"
+if [ -f "$SS_HOOK_TPL" ]; then
+    # assert_contains uses grep -qE; ${REPO_NAME} would be regex-interpreted
+    # ($ is end-of-line, {} are metacharacters). For the index-path check we
+    # use a regex-safe substring that is unique within the template.
+    assert_contains "session-start-hook template references the wiki index" \
+        "$SS_HOOK_TPL" 'INDEX_FILE="wiki/'
+    assert_contains "session-start-hook template injects the index header" \
+        "$SS_HOOK_TPL" "Wiki current state — index"
+    assert_contains "session-start-hook template emits last-5 log entries header" \
+        "$SS_HOOK_TPL" "last 5 log entries"
+    assert_contains "session-start-hook template uses awk to slice log entries" \
+        "$SS_HOOK_TPL" "awk"
+fi
+
+# --- analysis + decision page types ---
+# init-wiki.sh now declares both in the SCHEMA frontmatter type list and
+# adds a "## Page types" subsection that defines their required structure.
+# The list lives in two byte-identical copies in init-wiki.sh (create-mode
+# heredoc + update-mode append_section_if_missing call); the structural
+# assertions below confirm the generated SCHEMA has them, and the
+# duplicate-line check confirms init-wiki.sh's two copies still match.
+
+SCHEMA_FILE="$WIKI_SUB/SCHEMA_${REPO_NAME}.md"
+
+# Type list contains analysis and decision
+assert_contains "SCHEMA type list contains 'analysis'" \
+    "$SCHEMA_FILE" "analysis"
+assert_contains "SCHEMA type list contains 'decision'" \
+    "$SCHEMA_FILE" "decision"
+
+# Page types subsection is present, with both type definitions
+assert_contains "SCHEMA contains '## Page types' subsection" \
+    "$SCHEMA_FILE" "## Page types"
+assert_contains "SCHEMA Page types defines 'analysis' subsection" \
+    "$SCHEMA_FILE" "### \`analysis\`"
+assert_contains "SCHEMA Page types defines 'decision' subsection" \
+    "$SCHEMA_FILE" "### \`decision\`"
+assert_contains "SCHEMA analysis pages require derived_from frontmatter" \
+    "$SCHEMA_FILE" "derived_from:"
+assert_contains "SCHEMA decision pages require decided_at frontmatter" \
+    "$SCHEMA_FILE" "decided_at:"
+
+# Verification gate references the new page-type requirements
+VGATE="$T/wiki/agents/verification-gate.md"
+if [ -f "$VGATE" ]; then
+    assert_contains "verification-gate.md mentions analysis page requirements" \
+        "$VGATE" "type: analysis"
+    assert_contains "verification-gate.md mentions decision page requirements" \
+        "$VGATE" "type: decision"
+fi
+
+# Parallel-file-drift check: the type-list line lives in two places in
+# init-wiki.sh (the create-mode heredoc and the update-mode append call).
+# They must be byte-identical for derived projects to land in the same
+# state regardless of which path their wiki took.
+INIT_WIKI="$T/wiki/init-wiki.sh"
+if [ -f "$INIT_WIKI" ]; then
+    TYPE_LIST_COUNT=$(grep -c "^type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped$" "$INIT_WIKI" || echo 0)
+    assert_eq "init-wiki.sh type list appears in exactly 2 places (parallel-pair byte-match)" \
+        "2" "$TYPE_LIST_COUNT"
 fi

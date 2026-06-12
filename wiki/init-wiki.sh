@@ -264,7 +264,7 @@ Every page gets standard YAML frontmatter:
 
 \`\`\`markdown
 ---
-type: concept | entity | source-summary | synthesis | index | comparison | untyped
+type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped
 up: "[[Parent-Page]]"
 tags: [topic-a, topic-b]
 ---
@@ -286,6 +286,36 @@ tags: [topic-a, topic-b]
 - Cross-references in frontmatter use \`[[Page-Name]]\` wikilink format for Obsidian compatibility
 - Cross-references in body text use \`[Display](Page-Name)\` format for GitHub wiki compatibility
 - The frontmatter feeds the knowledge graph pipeline for SPARQL queries
+
+## Page types
+
+Most page types (\`concept\`, \`entity\`, \`synthesis\`, etc.) have no required structure beyond the page format. Two query-driven types do, because they exist to capture content that would otherwise be dropped on the floor mid-session.
+
+### \`analysis\`
+
+A query-driven assessment or evaluation. Use when the user asks a synthesis question (\`why X\`, \`compare A and B\`, \`should we ...\`) and the answer is fileable.
+
+**Required sections**:
+1. **Question** — the synthesis question being answered, verbatim or close to it
+2. **Context** — what background drove the question
+3. **Analysis** — the body of the assessment
+4. **Conclusion** — the bottom line
+5. **Open follow-ups** — what is unresolved
+
+**Required frontmatter**: \`derived_from:\` listing the source pages synthesised (one or more wikilinks). Without it, the analysis is unprovenanced.
+
+### \`decision\`
+
+A design choice with rationale. Use when the project picks one option over alternatives and the reasoning should outlast the decision.
+
+**Required sections**:
+1. **Question** — the choice being made
+2. **Options considered** — each option with pros / cons
+3. **Decision** — what was chosen
+4. **Rejected alternatives** — what was not chosen, and why
+5. **Revisit triggers** — conditions under which the choice should be re-opened
+
+**Required frontmatter**: \`decided_at: YYYY-MM-DD\`. **Optional**: \`superseded_by: [[Page]]\` once a later decision replaces this one.
 
 ## Naming Convention
 
@@ -468,7 +498,7 @@ Every page gets standard YAML frontmatter:
 
 \`\`\`markdown
 ---
-type: concept | entity | source-summary | synthesis | index | comparison | untyped
+type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped
 up: \"[[Parent-Page]]\"
 tags: [topic-a, topic-b]
 ---
@@ -491,6 +521,39 @@ tags: [topic-a, topic-b]
 - Cross-references in body text use \`[Display](Page-Name)\` format for GitHub wiki compatibility
 - The frontmatter feeds the knowledge graph pipeline for SPARQL queries"; then
         UPDATED_SECTIONS+=("Frontmatter")
+    fi
+
+    # Add Page types section if missing (analysis + decision page types)
+    if append_section_if_missing "$SCHEMA_FILE" "## Page types" '## Page types
+
+Most page types (`concept`, `entity`, `synthesis`, etc.) have no required structure beyond the page format. Two query-driven types do, because they exist to capture content that would otherwise be dropped on the floor mid-session.
+
+### `analysis`
+
+A query-driven assessment or evaluation. Use when the user asks a synthesis question (`why X`, `compare A and B`, `should we ...`) and the answer is fileable.
+
+**Required sections**:
+1. **Question** — the synthesis question being answered, verbatim or close to it
+2. **Context** — what background drove the question
+3. **Analysis** — the body of the assessment
+4. **Conclusion** — the bottom line
+5. **Open follow-ups** — what is unresolved
+
+**Required frontmatter**: `derived_from:` listing the source pages synthesised (one or more wikilinks). Without it, the analysis is unprovenanced.
+
+### `decision`
+
+A design choice with rationale. Use when the project picks one option over alternatives and the reasoning should outlast the decision.
+
+**Required sections**:
+1. **Question** — the choice being made
+2. **Options considered** — each option with pros / cons
+3. **Decision** — what was chosen
+4. **Rejected alternatives** — what was not chosen, and why
+5. **Revisit triggers** — conditions under which the choice should be re-opened
+
+**Required frontmatter**: `decided_at: YYYY-MM-DD`. **Optional**: `superseded_by: [[Page]]` once a later decision replaces this one.'; then
+        UPDATED_SECTIONS+=("Page types")
     fi
 
     # Add frontmatter lint rules if missing
