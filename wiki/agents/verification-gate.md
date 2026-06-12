@@ -43,6 +43,7 @@ Apply each criterion to each created or edited page.
 - **Every new typed-edge reference in frontmatter (`extends:`, `supports:`, `criticizes:`, `up:`) has the reciprocal edge on the target page.** *Fix if failed:* edit the target page and add the reciprocal edge before committing.
 - **Every new body-link `[Display](Page-Name)` resolves to an existing wiki page.** Broken links are not acceptable except for documented external-resource markers. *Fix if failed:* fix the link target or create the missing page.
 - **Frontmatter is valid YAML and includes `type:` and `up:` (required) plus any typed edges that apply.** *Fix if failed:* repair frontmatter.
+- **For `type: analysis` or `type: decision` pages, the required sections and frontmatter fields named in the SCHEMA "Page types" section are present.** Analysis pages need Question / Context / Analysis / Conclusion / Open follow-ups and a `derived_from:` field; decision pages need Question / Options considered / Decision / Rejected alternatives / Revisit triggers and a `decided_at:` field. *Fix if failed:* add the missing sections or pick a different page type that matches what was actually written.
 
 ### Index and log
 

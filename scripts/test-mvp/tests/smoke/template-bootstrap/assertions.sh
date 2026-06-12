@@ -99,3 +99,51 @@ assert_eq "Edge-Types.md has all 16 forward-predicate anchored sections" "1" "$A
 # Generated SCHEMA contains the Variant 1 subsection that documents the form
 assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
     "grep -qF '## Inline body annotations (Variant 1)' '$WIKI_SUB/SCHEMA_${REPO_NAME}.md'"
+
+# --- analysis + decision page types ---
+# init-wiki.sh now declares both in the SCHEMA frontmatter type list and
+# adds a "## Page types" subsection that defines their required structure.
+# The list lives in two byte-identical copies in init-wiki.sh (create-mode
+# heredoc + update-mode append_section_if_missing call); the structural
+# assertions below confirm the generated SCHEMA has them, and the
+# duplicate-line check confirms init-wiki.sh's two copies still match.
+
+SCHEMA_FILE="$WIKI_SUB/SCHEMA_${REPO_NAME}.md"
+
+# Type list contains analysis and decision
+assert_contains "SCHEMA type list contains 'analysis'" \
+    "$SCHEMA_FILE" "analysis"
+assert_contains "SCHEMA type list contains 'decision'" \
+    "$SCHEMA_FILE" "decision"
+
+# Page types subsection is present, with both type definitions
+assert_contains "SCHEMA contains '## Page types' subsection" \
+    "$SCHEMA_FILE" "## Page types"
+assert_contains "SCHEMA Page types defines 'analysis' subsection" \
+    "$SCHEMA_FILE" "### \`analysis\`"
+assert_contains "SCHEMA Page types defines 'decision' subsection" \
+    "$SCHEMA_FILE" "### \`decision\`"
+assert_contains "SCHEMA analysis pages require derived_from frontmatter" \
+    "$SCHEMA_FILE" "derived_from:"
+assert_contains "SCHEMA decision pages require decided_at frontmatter" \
+    "$SCHEMA_FILE" "decided_at:"
+
+# Verification gate references the new page-type requirements
+VGATE="$T/wiki/agents/verification-gate.md"
+if [ -f "$VGATE" ]; then
+    assert_contains "verification-gate.md mentions analysis page requirements" \
+        "$VGATE" "type: analysis"
+    assert_contains "verification-gate.md mentions decision page requirements" \
+        "$VGATE" "type: decision"
+fi
+
+# Parallel-file-drift check: the type-list line lives in two places in
+# init-wiki.sh (the create-mode heredoc and the update-mode append call).
+# They must be byte-identical for derived projects to land in the same
+# state regardless of which path their wiki took.
+INIT_WIKI="$T/wiki/init-wiki.sh"
+if [ -f "$INIT_WIKI" ]; then
+    TYPE_LIST_COUNT=$(grep -c "^type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped$" "$INIT_WIKI" || echo 0)
+    assert_eq "init-wiki.sh type list appears in exactly 2 places (parallel-pair byte-match)" \
+        "2" "$TYPE_LIST_COUNT"
+fi
