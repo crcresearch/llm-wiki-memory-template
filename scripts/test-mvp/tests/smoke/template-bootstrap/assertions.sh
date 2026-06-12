@@ -41,6 +41,29 @@ if [ -f "$T/CLAUDE.md" ]; then
         "$T/CLAUDE.md" "Smoke Test Project"
     assert "instantiate.sh did NOT leave {{PROJECT_NAME}} placeholder" \
         "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
+
+    # PR #28: Memory boundary subsection is in CLAUDE.md.template, so a
+    # fresh instantiation should carry it through verbatim.
+    assert_contains "CLAUDE.md has '### Memory boundary' subsection" \
+        "$T/CLAUDE.md" "### Memory boundary"
+    assert_contains "CLAUDE.md memory boundary names Claude-memory" \
+        "$T/CLAUDE.md" "Claude-memory holds"
+    assert_contains "CLAUDE.md memory boundary names the wiki" \
+        "$T/CLAUDE.md" "Wiki holds"
+fi
+
+# --- The parallel snippet (claude-md-snippet.md) carries the same
+#     subsections. Catches parallel-file-drift on the boundary stanza:
+#     if the boundary text drifts between CLAUDE.md.template and the
+#     snippet, only one of these assertions fires.
+SNIPPET="$T/wiki/agents/claude-code/templates/claude-md-snippet.md"
+if [ -f "$SNIPPET" ]; then
+    assert_contains "claude-md-snippet has '### Memory boundary' subsection" \
+        "$SNIPPET" "### Memory boundary"
+    assert_contains "claude-md-snippet memory boundary names Claude-memory" \
+        "$SNIPPET" "Claude-memory holds"
+    assert_contains "claude-md-snippet memory boundary names the wiki" \
+        "$SNIPPET" "Wiki holds"
 fi
 
 # --- init-wiki.sh produced the expected wiki structure ---
