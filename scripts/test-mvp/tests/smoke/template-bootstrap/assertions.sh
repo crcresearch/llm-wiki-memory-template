@@ -123,6 +123,28 @@ assert_eq "Edge-Types.md has all 16 forward-predicate anchored sections" "1" "$A
 assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
     "grep -qF '## Inline body annotations (Variant 1)' '$WIKI_SUB/SCHEMA_${REPO_NAME}.md'"
 
+# --- SessionStart hook auto-loads wiki state (model_fusion rec #1) ---
+# The hook template ships content-injection logic so the wiki functions
+# as compounding memory rather than RAG-on-demand. Structural assertions
+# below catch the case where the template gets reverted to the
+# orientation-only form. The behavioral end-to-end test (rendered hook
+# against a stub wiki, last-5-of-7 log-entry selection, no-wiki
+# graceful skip) lives in the integration/session-start-hook stage.
+SS_HOOK_TPL="$T/wiki/agents/claude-code/templates/session-start-hook.sh"
+if [ -f "$SS_HOOK_TPL" ]; then
+    # assert_contains uses grep -qE; ${REPO_NAME} would be regex-interpreted
+    # ($ is end-of-line, {} are metacharacters). For the index-path check we
+    # use a regex-safe substring that is unique within the template.
+    assert_contains "session-start-hook template references the wiki index" \
+        "$SS_HOOK_TPL" 'INDEX_FILE="wiki/'
+    assert_contains "session-start-hook template injects the index header" \
+        "$SS_HOOK_TPL" "Wiki current state — index"
+    assert_contains "session-start-hook template emits last-5 log entries header" \
+        "$SS_HOOK_TPL" "last 5 log entries"
+    assert_contains "session-start-hook template uses awk to slice log entries" \
+        "$SS_HOOK_TPL" "awk"
+fi
+
 # --- analysis + decision page types ---
 # init-wiki.sh now declares both in the SCHEMA frontmatter type list and
 # adds a "## Page types" subsection that defines their required structure.
