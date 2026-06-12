@@ -3,7 +3,7 @@
   Injected by wiki/agents/claude-code/setup.sh into the ## Wiki section,
   immediately before the ### Knowledge Graph subsection.
   Idempotency: setup.sh checks two markers independently:
-    "### Memory boundary"          (added in PR #26)
+    "### Memory boundary"          (added in PR #28)
     "### Wiki maintenance behavior" (original marker)
   A derived project missing either marker triggers injection of the
   corresponding subsection; both present → setup.sh skips.

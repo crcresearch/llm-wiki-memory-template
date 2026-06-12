@@ -103,7 +103,7 @@ fi
 # --- Step 2: patch CLAUDE.md ---
 # The snippet at $SNIPPET_FILE contains TWO subsections, each with an
 # independent idempotency marker:
-#   "### Memory boundary"          (PR #26 — Claude-memory vs wiki layout)
+#   "### Memory boundary"          (PR #28 — Claude-memory vs wiki layout)
 #   "### Wiki maintenance behavior" (original)
 # A derived project may have one but not the other (e.g., setup.sh was run
 # before the boundary subsection existed). Each marker is checked
@@ -170,7 +170,7 @@ else
         inject_before_kg_or_append "$SNIPPET_BODY" "Memory boundary + Wiki maintenance behavior"
     elif ! $HAS_BOUNDARY; then
         # Partial-state case: maintenance present from an earlier setup.sh
-        # run, boundary subsection missing (added in PR #26). Inject just
+        # run, boundary subsection missing (added in PR #28). Inject just
         # the boundary subsection.
         inject_before_kg_or_append "$(extract_boundary_only)" "Memory boundary"
     else

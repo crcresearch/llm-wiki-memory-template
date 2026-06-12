@@ -42,7 +42,7 @@ if [ -f "$T/CLAUDE.md" ]; then
     assert "instantiate.sh did NOT leave {{PROJECT_NAME}} placeholder" \
         "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
 
-    # PR #26: Memory boundary subsection is in CLAUDE.md.template, so a
+    # PR #28: Memory boundary subsection is in CLAUDE.md.template, so a
     # fresh instantiation should carry it through verbatim.
     assert_contains "CLAUDE.md has '### Memory boundary' subsection" \
         "$T/CLAUDE.md" "### Memory boundary"
