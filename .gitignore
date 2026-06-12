@@ -21,3 +21,14 @@ wiki/*.wiki/
 # Keep this in git if you want a permanent trail of template syncs;
 # uncomment the line below if you prefer it local-only.
 # .llm-wiki-template-log.md
+
+# Dev-mode self-dogfooding artifacts (template contributors only).
+# Produced by `scripts/instantiate.sh --dev-self` plus the manual clone of the
+# template's own GitHub Wiki. Never committed; never propagate to derived
+# projects (which have their own CLAUDE.md, .claude/settings.json, etc.).
+# Anchored to template repo root with leading slash so derived projects'
+# equivalent paths are unaffected.
+/CLAUDE.md
+/wiki/llm-wiki-memory-template.wiki/
+/.claude/settings.json
+/.claude/hooks/
