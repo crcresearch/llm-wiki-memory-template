@@ -101,35 +101,80 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
 fi
 
 # --- Step 2: patch CLAUDE.md ---
+# The snippet at $SNIPPET_FILE contains TWO subsections, each with an
+# independent idempotency marker:
+#   "### Memory boundary"          (PR #26 — Claude-memory vs wiki layout)
+#   "### Wiki maintenance behavior" (original)
+# A derived project may have one but not the other (e.g., setup.sh was run
+# before the boundary subsection existed). Each marker is checked
+# separately and injected when missing.
 SNIPPET_FILE="$TEMPLATES_DIR/claude-md-snippet.md"
-MARKER="### Wiki maintenance behavior"
+MARKER_MAINTENANCE="### Wiki maintenance behavior"
+MARKER_BOUNDARY="### Memory boundary"
 
-if [[ ! -f "$CLAUDE_MD" ]]; then
-    echo "WARNING: CLAUDE.md not found at $CLAUDE_MD. Skipping CLAUDE.md patch." >&2
-    REPORT+=("CLAUDE.md: not found (skipped)")
-elif grep -qF "$MARKER" "$CLAUDE_MD"; then
-    REPORT+=("CLAUDE.md: 'Wiki maintenance behavior' already present (skipped)")
-else
-    # Inject snippet before "### Knowledge Graph" if present,
-    # else append to the end of the file.
+# Extract the whole snippet body once, with comments stripped and
+# placeholders substituted.
+if [[ -f "$SNIPPET_FILE" ]]; then
     SNIPPET_BODY=$(grep -v '^<!--' "$SNIPPET_FILE" | grep -v '^-->' | sed "s/\${REPO_NAME}/$REPO_NAME/g")
+fi
 
+# Extract just the Memory boundary subsection (between its header and the
+# next ### header), in case we need to inject it alone.
+extract_boundary_only() {
+    awk '
+        /^### Memory boundary/ { capture = 1 }
+        /^### Wiki maintenance behavior/ { capture = 0 }
+        capture { print }
+    ' <<<"$SNIPPET_BODY"
+}
+
+inject_before_kg_or_append() {
+    local content="$1"
+    local label="$2"
     if grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
-        # Insert before "### Knowledge Graph"
+        # Use a tempfile to hand the multi-line snippet to awk via getline
+        # rather than -v: BSD awk on macOS rejects newlines in -v
+        # assignments with "newline in string" and silently produces empty
+        # output. Reading from a file with getline is portable.
+        local SNIPPET_TMP TMP
+        SNIPPET_TMP=$(mktemp)
         TMP=$(mktemp)
-        awk -v snippet="$SNIPPET_BODY" '
+        printf '%s\n' "$content" > "$SNIPPET_TMP"
+        awk -v snippet_file="$SNIPPET_TMP" '
             /^### Knowledge Graph/ && !done {
-                print snippet
+                while ((getline line < snippet_file) > 0) print line
+                close(snippet_file)
                 print ""
                 done = 1
             }
             { print }
         ' "$CLAUDE_MD" > "$TMP"
         mv "$TMP" "$CLAUDE_MD"
-        REPORT+=("CLAUDE.md: injected 'Wiki maintenance behavior' before '### Knowledge Graph'")
+        rm -f "$SNIPPET_TMP"
+        REPORT+=("CLAUDE.md: injected '$label' before '### Knowledge Graph'")
     else
-        printf '\n%s\n' "$SNIPPET_BODY" >> "$CLAUDE_MD"
-        REPORT+=("CLAUDE.md: appended 'Wiki maintenance behavior' at end")
+        printf '\n%s\n' "$content" >> "$CLAUDE_MD"
+        REPORT+=("CLAUDE.md: appended '$label' at end")
+    fi
+}
+
+if [[ ! -f "$CLAUDE_MD" ]]; then
+    echo "WARNING: CLAUDE.md not found at $CLAUDE_MD. Skipping CLAUDE.md patch." >&2
+    REPORT+=("CLAUDE.md: not found (skipped)")
+else
+    HAS_MAINTENANCE=$(grep -qF "$MARKER_MAINTENANCE" "$CLAUDE_MD" && echo true || echo false)
+    HAS_BOUNDARY=$(grep -qF "$MARKER_BOUNDARY" "$CLAUDE_MD" && echo true || echo false)
+
+    if ! $HAS_MAINTENANCE; then
+        # First-run case: inject the entire snippet (both subsections).
+        inject_before_kg_or_append "$SNIPPET_BODY" "Memory boundary + Wiki maintenance behavior"
+    elif ! $HAS_BOUNDARY; then
+        # Partial-state case: maintenance present from an earlier setup.sh
+        # run, boundary subsection missing (added in PR #26). Inject just
+        # the boundary subsection.
+        inject_before_kg_or_append "$(extract_boundary_only)" "Memory boundary"
+    else
+        REPORT+=("CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)")
     fi
 fi
 
