@@ -109,8 +109,11 @@ assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
 # graceful skip) lives in the integration/session-start-hook stage.
 SS_HOOK_TPL="$T/wiki/agents/claude-code/templates/session-start-hook.sh"
 if [ -f "$SS_HOOK_TPL" ]; then
+    # assert_contains uses grep -qE; ${REPO_NAME} would be regex-interpreted
+    # ($ is end-of-line, {} are metacharacters). For the index-path check we
+    # use a regex-safe substring that is unique within the template.
     assert_contains "session-start-hook template references the wiki index" \
-        "$SS_HOOK_TPL" "index_\${REPO_NAME}.md"
+        "$SS_HOOK_TPL" 'INDEX_FILE="wiki/'
     assert_contains "session-start-hook template injects the index header" \
         "$SS_HOOK_TPL" "Wiki current state — index"
     assert_contains "session-start-hook template emits last-5 log entries header" \
