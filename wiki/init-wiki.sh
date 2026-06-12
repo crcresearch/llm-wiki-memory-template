@@ -352,14 +352,16 @@ A design choice with rationale. Use when the project picks one option over alter
 
 A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
 
-| Edge | What it licenses the agent to do |
-|---|---|
-| \`extends:\` | Inherit semantic context from the parent. Treat the parent's claims as background assumptions for the current page. |
-| \`supports:\` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
-| \`criticizes:\` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
-| \`source:\` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
-| \`up:\` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
-| \`related:\` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+| Edge | Inverse | What it licenses the agent to do |
+|---|---|---|
+| \`extends:\` | \`extendedBy\` | Inherit semantic context from the parent. Treat the parent's claims as background assumptions for the current page. |
+| \`supports:\` | \`supportedBy\` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| \`criticizes:\` | \`criticizedBy\` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| \`source:\` | (none — external) | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| \`up:\` | (none — implicit) | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| \`related:\` | (none — symmetric) | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+**Inverses are materialised by the KG, not authored.** Inverse predicates exist so that SPARQL queries can traverse a typed edge in either direction. The KG build pipeline (\`scripts/kg/\`) emits the inverse triple automatically from each forward assertion. **Agents do not write \`extendedBy:\`, \`supportedBy:\`, etc. in source documents.** When a back-reference would help a reader navigate, add it at the body level (typically in the target page's See also section), not as a frontmatter inverse. See [Edge-Types](Edge-Types) for the full 16-predicate vocabulary.
 
 Practical implications:
 
@@ -582,14 +584,16 @@ Also check during lint:
 
 A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
 
-| Edge | What it licenses the agent to do |
-|---|---|
-| `extends:` | Inherit semantic context from the parent. Treat the parents claims as background assumptions for the current page. |
-| `supports:` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
-| `criticizes:` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
-| `source:` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
-| `up:` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
-| `related:` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+| Edge | Inverse | What it licenses the agent to do |
+|---|---|---|
+| `extends:` | `extendedBy` | Inherit semantic context from the parent. Treat the parent'"'"'s claims as background assumptions for the current page. |
+| `supports:` | `supportedBy` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| `criticizes:` | `criticizedBy` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| `source:` | (none — external) | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| `up:` | (none — implicit) | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| `related:` | (none — symmetric) | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+**Inverses are materialised by the KG, not authored.** Inverse predicates exist so that SPARQL queries can traverse a typed edge in either direction. The KG build pipeline (`scripts/kg/`) emits the inverse triple automatically from each forward assertion. **Agents do not write `extendedBy:`, `supportedBy:`, etc. in source documents.** When a back-reference would help a reader navigate, add it at the body level (typically in the target page'"'"'s See also section), not as a frontmatter inverse. See [Edge-Types](Edge-Types) for the full 16-predicate vocabulary.
 
 Populate edge fields with the most specific type you can justify. Treat `related:` as a fallback. Over time, `related:` uses should become rarer as the edge vocabulary fits the work.'; then
         UPDATED_SECTIONS+=("Edges as Interface Operations")
