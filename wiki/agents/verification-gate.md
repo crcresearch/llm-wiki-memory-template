@@ -40,7 +40,7 @@ Apply each criterion to each created or edited page.
 
 ### Cross-references and structure
 
-- **Every new typed-edge reference in frontmatter (`extends:`, `supports:`, `criticizes:`, `up:`) has the reciprocal edge on the target page.** *Fix if failed:* edit the target page and add the reciprocal edge before committing.
+- **Every new typed-edge reference in frontmatter (`extends:`, `supports:`, `criticizes:`, etc.) is paired with a body-level back-reference on the target page** — typically a See also entry or an explicit prose mention, so a reader navigating from the target can find this page. The frontmatter inverse (`extendedBy`, `supportedBy`, `criticizedBy`, ...) is materialised by the KG build pipeline; **agents do not assert inverse predicates in source documents**. *Fix if failed:* edit the target page's See also section (or relevant body prose) to mention this page; do not add the inverse predicate to the target's frontmatter.
 - **Every new body-link `[Display](Page-Name)` resolves to an existing wiki page.** Broken links are not acceptable except for documented external-resource markers. *Fix if failed:* fix the link target or create the missing page.
 - **Frontmatter is valid YAML and includes `type:` and `up:` (required) plus any typed edges that apply.** *Fix if failed:* repair frontmatter.
 

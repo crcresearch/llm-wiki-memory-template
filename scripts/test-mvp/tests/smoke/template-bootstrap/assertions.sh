@@ -99,3 +99,53 @@ assert_eq "Edge-Types.md has all 16 forward-predicate anchored sections" "1" "$A
 # Generated SCHEMA contains the Variant 1 subsection that documents the form
 assert "SCHEMA contains 'Inline body annotations (Variant 1)' subsection" \
     "grep -qF '## Inline body annotations (Variant 1)' '$WIKI_SUB/SCHEMA_${REPO_NAME}.md'"
+
+# --- Inverse edge vocabulary in SCHEMA (model_fusion rec #9(b)(i)) ---
+# The Edges table now has an Inverse column listing the predicates the KG
+# materialises. The accompanying prose says the agent does NOT assert
+# inverses in source documents. The structural assertions below catch
+# regression of any of these claims.
+SCHEMA_FILE="$WIKI_SUB/SCHEMA_${REPO_NAME}.md"
+
+assert_contains "SCHEMA Edges table has Inverse column header" \
+    "$SCHEMA_FILE" "Edge \| Inverse \|"
+assert_contains "SCHEMA Edges table lists extendedBy inverse" \
+    "$SCHEMA_FILE" "extendedBy"
+assert_contains "SCHEMA Edges table lists supportedBy inverse" \
+    "$SCHEMA_FILE" "supportedBy"
+assert_contains "SCHEMA Edges table lists criticizedBy inverse" \
+    "$SCHEMA_FILE" "criticizedBy"
+assert_contains "SCHEMA states inverses are KG-materialised, not authored" \
+    "$SCHEMA_FILE" "Inverses are materialised by the KG"
+assert_contains "SCHEMA states agents do NOT write inverse predicates in source documents" \
+    "$SCHEMA_FILE" "Agents do not write"
+
+# Edge-Types.md now declares the extendedBy inverse for extends (it was the
+# only forward predicate missing an explicit inverse line in PR #16).
+EDGE_TYPES="$WIKI_SUB/Edge-Types.md"
+assert_contains "Edge-Types.md declares extendedBy as inverse of extends" \
+    "$EDGE_TYPES" "Inverse: \`extendedBy\`"
+
+# verification-gate.md aligns with the KG-materialises stance: the
+# reciprocal-edge criterion now points the agent at body-level
+# back-references and explicitly forbids asserting inverses in
+# frontmatter. Catches a regression to the old (write-inverse-to-target)
+# wording.
+VGATE="$T/wiki/agents/verification-gate.md"
+if [ -f "$VGATE" ]; then
+    assert_contains "verification-gate.md references body-level back-references" \
+        "$VGATE" "body-level back-reference"
+    assert_contains "verification-gate.md says agents do NOT assert inverse predicates" \
+        "$VGATE" "agents do not assert inverse predicates"
+fi
+
+# Parallel-file-drift check: the new Edges table line appears in two
+# byte-identical copies in init-wiki.sh (create-mode heredoc +
+# update-mode append_section_if_missing call). Either copy drifting from
+# the other means derived projects land in inconsistent states.
+INIT_WIKI="$T/wiki/init-wiki.sh"
+if [ -f "$INIT_WIKI" ]; then
+    EDGE_HEADER_COUNT=$(grep -c '^| Edge | Inverse | What it licenses the agent to do |$' "$INIT_WIKI" || echo 0)
+    assert_eq "init-wiki.sh Edges-table header appears in exactly 2 places (parallel-pair byte-match)" \
+        "2" "$EDGE_HEADER_COUNT"
+fi
