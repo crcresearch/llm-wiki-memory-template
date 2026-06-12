@@ -273,7 +273,7 @@ Every page gets standard YAML frontmatter:
 
 \`\`\`markdown
 ---
-type: concept | entity | source-summary | synthesis | index | comparison | untyped
+type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped
 up: "[[Parent-Page]]"
 tags: [topic-a, topic-b]
 ---
@@ -295,6 +295,36 @@ tags: [topic-a, topic-b]
 - Cross-references in frontmatter use \`[[Page-Name]]\` wikilink format for Obsidian compatibility
 - Cross-references in body text use \`[Display](Page-Name)\` format for GitHub wiki compatibility
 - The frontmatter feeds the knowledge graph pipeline for SPARQL queries
+
+## Page types
+
+Most page types (\`concept\`, \`entity\`, \`synthesis\`, etc.) have no required structure beyond the page format. Two query-driven types do, because they exist to capture content that would otherwise be dropped on the floor mid-session.
+
+### \`analysis\`
+
+A query-driven assessment or evaluation. Use when the user asks a synthesis question (\`why X\`, \`compare A and B\`, \`should we ...\`) and the answer is fileable.
+
+**Required sections**:
+1. **Question** — the synthesis question being answered, verbatim or close to it
+2. **Context** — what background drove the question
+3. **Analysis** — the body of the assessment
+4. **Conclusion** — the bottom line
+5. **Open follow-ups** — what is unresolved
+
+**Required frontmatter**: \`derived_from:\` listing the source pages synthesised (one or more wikilinks). Without it, the analysis is unprovenanced.
+
+### \`decision\`
+
+A design choice with rationale. Use when the project picks one option over alternatives and the reasoning should outlast the decision.
+
+**Required sections**:
+1. **Question** — the choice being made
+2. **Options considered** — each option with pros / cons
+3. **Decision** — what was chosen
+4. **Rejected alternatives** — what was not chosen, and why
+5. **Revisit triggers** — conditions under which the choice should be re-opened
+
+**Required frontmatter**: \`decided_at: YYYY-MM-DD\`. **Optional**: \`superseded_by: [[Page]]\` once a later decision replaces this one.
 
 ## Naming Convention
 
@@ -336,14 +366,16 @@ tags: [topic-a, topic-b]
 
 A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
 
-| Edge | What it licenses the agent to do |
-|---|---|
-| \`extends:\` | Inherit semantic context from the parent. Treat the parent's claims as background assumptions for the current page. |
-| \`supports:\` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
-| \`criticizes:\` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
-| \`source:\` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
-| \`up:\` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
-| \`related:\` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+| Edge | Inverse | What it licenses the agent to do |
+|---|---|---|
+| \`extends:\` | \`extendedBy\` | Inherit semantic context from the parent. Treat the parent's claims as background assumptions for the current page. |
+| \`supports:\` | \`supportedBy\` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| \`criticizes:\` | \`criticizedBy\` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| \`source:\` | (none — external) | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| \`up:\` | (none — implicit) | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| \`related:\` | (none — symmetric) | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+**Inverses are materialised by the KG, not authored.** Inverse predicates exist so that SPARQL queries can traverse a typed edge in either direction. The KG build pipeline (\`scripts/kg/\`) emits the inverse triple automatically from each forward assertion. **Agents do not write \`extendedBy:\`, \`supportedBy:\`, etc. in source documents.** When a back-reference would help a reader navigate, add it at the body level (typically in the target page's See also section), not as a frontmatter inverse. See [Edge-Types](Edge-Types) for the full 16-predicate vocabulary.
 
 Practical implications:
 
@@ -480,7 +512,7 @@ Every page gets standard YAML frontmatter:
 
 \`\`\`markdown
 ---
-type: concept | entity | source-summary | synthesis | index | comparison | untyped
+type: concept | entity | source-summary | synthesis | analysis | decision | index | comparison | untyped
 up: \"[[Parent-Page]]\"
 tags: [topic-a, topic-b]
 ---
@@ -503,6 +535,39 @@ tags: [topic-a, topic-b]
 - Cross-references in body text use \`[Display](Page-Name)\` format for GitHub wiki compatibility
 - The frontmatter feeds the knowledge graph pipeline for SPARQL queries"; then
         UPDATED_SECTIONS+=("Frontmatter")
+    fi
+
+    # Add Page types section if missing (analysis + decision page types)
+    if append_section_if_missing "$SCHEMA_FILE" "## Page types" '## Page types
+
+Most page types (`concept`, `entity`, `synthesis`, etc.) have no required structure beyond the page format. Two query-driven types do, because they exist to capture content that would otherwise be dropped on the floor mid-session.
+
+### `analysis`
+
+A query-driven assessment or evaluation. Use when the user asks a synthesis question (`why X`, `compare A and B`, `should we ...`) and the answer is fileable.
+
+**Required sections**:
+1. **Question** — the synthesis question being answered, verbatim or close to it
+2. **Context** — what background drove the question
+3. **Analysis** — the body of the assessment
+4. **Conclusion** — the bottom line
+5. **Open follow-ups** — what is unresolved
+
+**Required frontmatter**: `derived_from:` listing the source pages synthesised (one or more wikilinks). Without it, the analysis is unprovenanced.
+
+### `decision`
+
+A design choice with rationale. Use when the project picks one option over alternatives and the reasoning should outlast the decision.
+
+**Required sections**:
+1. **Question** — the choice being made
+2. **Options considered** — each option with pros / cons
+3. **Decision** — what was chosen
+4. **Rejected alternatives** — what was not chosen, and why
+5. **Revisit triggers** — conditions under which the choice should be re-opened
+
+**Required frontmatter**: `decided_at: YYYY-MM-DD`. **Optional**: `superseded_by: [[Page]]` once a later decision replaces this one.'; then
+        UPDATED_SECTIONS+=("Page types")
     fi
 
     # Add frontmatter lint rules if missing
@@ -533,14 +598,16 @@ Also check during lint:
 
 A typed edge is not a label that says "these two things are related." It is an **interface contract** that defines an *operation* the agent should perform when it traverses the edge. Each edge type has an expected behavior, an expected target type, and a semantic commitment that shapes how downstream retrieval and reasoning should handle it.
 
-| Edge | What it licenses the agent to do |
-|---|---|
-| `extends:` | Inherit semantic context from the parent. Treat the parents claims as background assumptions for the current page. |
-| `supports:` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
-| `criticizes:` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
-| `source:` | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
-| `up:` | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
-| `related:` | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+| Edge | Inverse | What it licenses the agent to do |
+|---|---|---|
+| `extends:` | `extendedBy` | Inherit semantic context from the parent. Treat the parent'"'"'s claims as background assumptions for the current page. |
+| `supports:` | `supportedBy` | Evidence aggregation. When traversing this edge, expect to combine claims; consistency across supporting pages is desirable. |
+| `criticizes:` | `criticizedBy` | Contradiction detection. Expect an unresolved tension that should trigger conflict-resolution logic before combining evidence. |
+| `source:` | (none — external) | Grounding check. The target is an external source; verify that any cited claim traces back to the source. |
+| `up:` | (none — implicit) | Parent / breadcrumb. Navigate upward in the hierarchy for category context. |
+| `related:` | (none — symmetric) | Fallback — no specific operation contract. Prefer a more specific edge type where one applies. |
+
+**Inverses are materialised by the KG, not authored.** Inverse predicates exist so that SPARQL queries can traverse a typed edge in either direction. The KG build pipeline (`scripts/kg/`) emits the inverse triple automatically from each forward assertion. **Agents do not write `extendedBy:`, `supportedBy:`, etc. in source documents.** When a back-reference would help a reader navigate, add it at the body level (typically in the target page'"'"'s See also section), not as a frontmatter inverse. See [Edge-Types](Edge-Types) for the full 16-predicate vocabulary.
 
 Populate edge fields with the most specific type you can justify. Treat `related:` as a fallback. Over time, `related:` uses should become rarer as the edge vocabulary fits the work.'; then
         UPDATED_SECTIONS+=("Edges as Interface Operations")
