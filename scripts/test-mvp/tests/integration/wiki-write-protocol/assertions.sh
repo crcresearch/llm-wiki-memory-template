@@ -1,13 +1,13 @@
-# Integration test: drives the multi-agent wiki write-protocol prototype
-# scenarios from the harness. Each prototype scenario is reported as a
-# single harness assertion. The prototype lives independently at
-# scripts/multi-agent-write-protocol-proto/ and remains runnable
-# standalone via that directory's run-all.sh.
+# Integration test: drives the wiki write-protocol scenarios from the
+# harness. Each scenario is reported as a single harness assertion. The
+# reference implementation lives independently at
+# scripts/wiki-write-protocol/ and remains runnable standalone via that
+# directory's run-all.sh.
 #
-# Each scenario manages its own sandbox (via the prototype's sandbox.sh),
-# so the harness's $SANDBOX is not used here.
+# Each scenario manages its own sandbox (via the implementation's
+# sandbox.sh), so the harness's $SANDBOX is not used here.
 
-PROTO_DIR="$(cd "$HERE/../multi-agent-write-protocol-proto" && pwd)"
+PROTO_DIR="$(cd "$HERE/../wiki-write-protocol" && pwd)"
 
 if [ ! -d "$PROTO_DIR/scenarios" ]; then
     echo "  protocol prototype not found at $PROTO_DIR; skipping"

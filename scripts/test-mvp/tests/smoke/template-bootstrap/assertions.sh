@@ -284,3 +284,14 @@ if [ -f "$INIT_WIKI" ]; then
     assert_eq "init-wiki.sh type list appears in exactly 2 places (parallel-pair byte-match)" \
         "2" "$TYPE_LIST_COUNT"
 fi
+
+# --- wiki-write-protocol rename (PR6) ---
+# scripts/multi-agent-write-protocol-proto/ was renamed to
+# scripts/wiki-write-protocol/. These assertions lock the new path in
+# and catch any regression that restores the old name.
+assert "scripts/wiki-write-protocol/ directory exists at the renamed path" \
+    "[ -d '$T/scripts/wiki-write-protocol' ]"
+assert "scripts/multi-agent-write-protocol-proto/ no longer exists at the old path" \
+    "[ ! -d '$T/scripts/multi-agent-write-protocol-proto' ]"
+assert "wiki-write-protocol README references the new directory name in its layout" \
+    "grep -qF 'scripts/wiki-write-protocol/' '$T/scripts/wiki-write-protocol/README.md'"
