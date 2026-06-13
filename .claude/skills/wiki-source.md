@@ -36,7 +36,7 @@ Follow the Ingest procedure in `wiki/{{REPO_NAME}}.wiki/SCHEMA_{{REPO_NAME}}.md`
 8. Append a `## [YYYY-MM-DD] ingest | Source title` entry to `log_{{REPO_NAME}}.md`. The first bullet is the attribution line `- by: <name> via claude-code`, where `<name>` is the output of `git config user.name` in the wiki repo (read it, do not invent it). Then 2 to 5 bullets describing the ingest. See "Log Entry Attribution" in `SCHEMA_{{REPO_NAME}}.md`.
 9. Optionally rebuild the knowledge graph: `./scripts/kg/build-graph.sh`.
 10. **Run the Verification Gate** at `wiki/agents/verification-gate.md` over every page created or edited. Do not commit until all criteria pass. The gate catches projection-as-fact, missing corpus tags, missing back-references, and missing log/index entries.
-11. Commit in the wiki's own git repo in two steps: first stage and commit the page and index changes by name with a descriptive message, then stage and commit the `log_{{REPO_NAME}}.md` entry on its own. One commit per log entry keeps `git blame` on the log a faithful per-entry record (see "Log Entry Attribution" in SCHEMA). Do not push unless the user requests.
+11. Commit in the wiki's own git repo in two steps: first stage and commit the page and index changes by name with a descriptive message, then stage and commit the `log_{{REPO_NAME}}.md` entry on its own. One commit per log entry keeps `git blame` on the log a faithful per-entry record (see "Log Entry Attribution" in SCHEMA). Do not push unless the user requests. **When pushing, follow the procedure at `wiki/agents/wiki-write-protocol.md`** rather than plain `git push`.
 
 A typical source ingest touches 5 to 15 pages.
 

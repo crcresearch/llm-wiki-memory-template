@@ -72,7 +72,7 @@ git -C wiki/{{REPO_NAME}}.wiki add <files-by-name>
 git -C wiki/{{REPO_NAME}}.wiki commit -m "<descriptive message>"
 ```
 
-Execute these without asking. Local commits in the wiki repo are trivially reversible. Push only when explicitly asked.
+Execute these without asking. Local commits in the wiki repo are trivially reversible. Push only when explicitly asked. **When pushing, follow the procedure at `wiki/agents/wiki-write-protocol.md`** rather than plain `git push`: it uses the `wiki_push` wrapper to handle multi-writer collisions safely.
 
 Honest reporting: bad results and contradicted claims get filed truthfully, not polished. Per the global rule, never report accuracy from projections, only from real script outputs. See `wiki/agents/discipline-gates.md` for the canonical "Universal Rationalizations (Always Wrong)" table that names the failure modes the Verification Gate catches.
 

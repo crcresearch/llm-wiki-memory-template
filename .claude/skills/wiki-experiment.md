@@ -42,4 +42,4 @@ A single experiment write-up typically touches 5 to 15 pages.
 
 ## After running
 
-Tell the user which wiki pages were created or updated, summarize the headline result in one sentence, and remind that the wiki commit is local. Push only if asked.
+Tell the user which wiki pages were created or updated, summarize the headline result in one sentence, and remind that the wiki commit is local. **When pushing (only if asked), follow the procedure at `wiki/agents/wiki-write-protocol.md`** — it uses the `wiki_push` wrapper to handle multi-writer collisions, mechanical union-merge for `index_*`/`log_*` files, and content-conflict deferral to the agent's next turn.

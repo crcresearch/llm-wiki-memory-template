@@ -295,3 +295,45 @@ assert "scripts/multi-agent-write-protocol-proto/ no longer exists at the old pa
     "[ ! -d '$T/scripts/multi-agent-write-protocol-proto' ]"
 assert "wiki-write-protocol README references the new directory name in its layout" \
     "grep -qF 'scripts/wiki-write-protocol/' '$T/scripts/wiki-write-protocol/README.md'"
+
+# --- wiki-write-protocol wiring (PR7) ---
+# Three behavioural checks that catch real regressions in the wiring:
+# (1) the agent-agnostic procedure doc ships in the template (otherwise
+#     the references on skill/CLAUDE.md/command files dangle silently —
+#     no other test fails);
+# (2) the per-overlay skill files reference the procedure doc (otherwise
+#     the wiring decays invisibly: the doc exists but no agent reads it);
+# (3) ALWAYS_FILES contains the procedure doc + protocol.sh in both sync
+#     scripts (otherwise derived projects never receive PR7's payload).
+WWP_DOC="$T/wiki/agents/wiki-write-protocol.md"
+assert "wiki-write-protocol.md ships in the template repo" \
+    "[ -f '$WWP_DOC' ]"
+
+for skill in wiki-experiment wiki-source wiki-lint; do
+    skill_path="$T/.claude/skills/${skill}.md"
+    cmd_path="$T/.claude/commands/${skill}.md"
+    if [ -f "$skill_path" ]; then
+        assert_contains ".claude/skills/${skill}.md references wiki-write-protocol.md" \
+            "$skill_path" "wiki-write-protocol.md"
+    fi
+    if [ -f "$cmd_path" ]; then
+        assert_contains ".claude/commands/${skill}.md references wiki-write-protocol.md" \
+            "$cmd_path" "wiki-write-protocol.md"
+    fi
+done
+
+# Parallel-pair byte-match: the two sync scripts must both list the
+# procedure doc AND protocol.sh in ALWAYS_FILES, or derived projects
+# receive a partial payload.
+UFT="$T/scripts/update-from-template.sh"
+CTV="$T/scripts/check-template-version.sh"
+if [ -f "$UFT" ] && [ -f "$CTV" ]; then
+    assert "update-from-template.sh ALWAYS_FILES lists wiki-write-protocol.md" \
+        "grep -qF 'wiki/agents/wiki-write-protocol.md' '$UFT'"
+    assert "check-template-version.sh ALWAYS_FILES lists wiki-write-protocol.md" \
+        "grep -qF 'wiki/agents/wiki-write-protocol.md' '$CTV'"
+    assert "update-from-template.sh ALWAYS_FILES lists wiki-write-protocol/protocol.sh" \
+        "grep -qF 'scripts/wiki-write-protocol/protocol.sh' '$UFT'"
+    assert "check-template-version.sh ALWAYS_FILES lists wiki-write-protocol/protocol.sh" \
+        "grep -qF 'scripts/wiki-write-protocol/protocol.sh' '$CTV'"
+fi

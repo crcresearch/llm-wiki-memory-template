@@ -30,6 +30,6 @@ Full procedure: see `.claude/skills/wiki-lint.md`. Summary:
     git -C wiki/{{REPO_NAME}}.wiki add log_{{REPO_NAME}}.md
     git -C wiki/{{REPO_NAME}}.wiki commit -m "log: lint <summary>"
     ```
-    Local commits are reversible. Push only if the user requests.
+    Local commits are reversible. Push only if the user requests. **When pushing, follow the procedure at `wiki/agents/wiki-write-protocol.md`** rather than plain `git push`.
 
 Honest reporting: do not paper over contradictions. If two pages disagree and current code/results decide between them, update the loser and link to the winner.
