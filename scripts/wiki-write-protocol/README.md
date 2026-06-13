@@ -1,9 +1,9 @@
-# Multi-Agent Write Protocol — Deterministic Prototype
+# Wiki Write Protocol — Reference Implementation
 
-A bash prototype of the multi-agent wiki write protocol specified in the
-template wiki page `Multi-Agent-Write-Protocol`. Exercises the git-merge
-layer against a sandboxed remote with two (or more) simulated agents.
-No LLM in the loop; the semantic resolver step is replaced with
+A bash reference implementation of the wiki write protocol specified in
+the template wiki page `Multi-Agent-Write-Protocol`. Exercises the
+git-merge layer against a sandboxed remote with two (or more) simulated
+agents. No LLM in the loop; the semantic resolver step is replaced with
 deterministic policies so the mechanics can be tested.
 
 **Design: push-time-only / transparent wrapper.** Agents work directly
@@ -12,15 +12,19 @@ an optimistic push; on rejection it fetches, merges, classifies
 conflicts (union for `index_*`/`log_*`, semantic for everything else),
 commits the merge, and retries.
 
-Status: prototype. Not wired into any agent overlay. Lives on the
-`multi-agent-write-protocol-proto` branch of
-`chrissweet/llm-wiki-memory-template`, branched off `add-test-harness`
-(PR #10).
+**Status (2026-06-13).** CI-validated reference implementation. Nine
+scenarios PASS on `ubuntu-latest` + `macos-latest` as part of the
+template's standard test harness. The production wiring into the agent
+overlay (sourcing `protocol.sh` from the verification gate / ingest
+skills, installing a pre-push hook in derived projects' wiki sub-repos)
+is the remaining gap; see the wiki page `Analysis-of-Wiki-Push-Race-Pattern`
+for the empirical motivation. PR6 (this rename) is the housekeeping
+half; PR7 will land the wiring.
 
 ## Layout
 
 ```
-scripts/multi-agent-write-protocol-proto/
+scripts/wiki-write-protocol/
 ├── README.md            this file
 ├── protocol.sh          agent_session_start + wiki_push (+ helpers)
 ├── sandbox.sh           bare-repo origin + per-agent local clones
@@ -53,9 +57,9 @@ scripts/multi-agent-write-protocol-proto/
 The `resolve_fn` argument is the name of a shell function called once
 per semantically-conflicting file with `(wiki_dir, file_path)`. The
 function must produce a resolved file with no conflict markers. In
-production this is an LLM call; in the prototype it is a deterministic
-policy per scenario (e.g. scenario 03's resolver appends agent B's
-content beneath agent A's under an "Update by agent-B" header).
+production this is an LLM call; in the scenarios here it is a
+deterministic policy per scenario (e.g. scenario 03's resolver appends
+agent B's content beneath agent A's under an "Update by agent-B" header).
 
 The union-merge driver for `index_*` and `log_*` files is installed
 into the wiki sub-repo at sandbox-creation time (via `.gitattributes`),
@@ -81,18 +85,18 @@ Exit code = number of failed scenarios. 0 = all green.
 ## Test-harness integration
 
 The existing template test harness at `scripts/test-mvp/` includes an
-integration test that drives all nine prototype scenarios:
+integration test that drives all nine scenarios:
 
 ```
 scripts/test-mvp/tests/integration/wiki-write-protocol/
-├── patch.sh        (no-op; the prototype manages its own sandbox)
+├── patch.sh        (no-op; the implementation manages its own sandbox)
 └── assertions.sh   (iterates scenarios; one harness assertion each)
 ```
 
 The harness CI workflow at `.github/workflows/test-harness.yml` runs on
 every push to every branch, on both `ubuntu-latest` and `macos-latest`,
-so the protocol prototype is structurally validated on both platforms
-as part of normal harness CI.
+so the protocol is structurally validated on both platforms as part of
+normal harness CI.
 
 Run the integration category alone:
 
@@ -100,7 +104,7 @@ Run the integration category alone:
 MVP_TEMPLATE_LOCAL=$(pwd) ./scripts/test-mvp/run.sh --category=integration
 ```
 
-## What the prototype tests
+## What this implementation tests
 
 The mechanics, not the LLM judgement:
 
@@ -115,15 +119,13 @@ The mechanics, not the LLM judgement:
 - SessionStart defers cleanly on divergence rather than auto-rebasing
   (scenario 09).
 
-## What the prototype does NOT test
+## What this implementation does NOT test
 
-- LLM-driven semantic reasoning over a real conflict. Deferred to a
-  follow-up "LLM-driven prototype" that swaps the deterministic resolver
-  for actual Claude sessions.
+- LLM-driven semantic reasoning over a real conflict. Behavioural
+  validation requires real LLM agents in the loop, which is part of
+  PR7's wiring work (or a follow-up).
 - The template's existing scripts and hooks. Those are exercised by the
   rest of the test harness.
-- Behavioural validation (does an agent actually invoke `wiki_push` in
-  a live session). Deferred.
 
 ## Compatibility
 
