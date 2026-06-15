@@ -23,6 +23,6 @@ Full procedure: see `.claude/skills/wiki-source.md` and `wiki/{{REPO_NAME}}.wiki
     git -C wiki/{{REPO_NAME}}.wiki add log_{{REPO_NAME}}.md
     git -C wiki/{{REPO_NAME}}.wiki commit -m "log: <descriptive message>"
     ```
-    Local commits are reversible. Push only if the user requests.
+    Local commits are reversible. Push only if the user requests. **When pushing, follow the procedure at `wiki/agents/wiki-write-protocol.md`** rather than plain `git push`.
 
 After filing, report which pages were created or updated, and which existing pages now link to the new source.

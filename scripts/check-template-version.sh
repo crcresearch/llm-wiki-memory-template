@@ -44,9 +44,23 @@ TEMPLATE_SHA=$(git rev-parse --short template/main)
 ALWAYS_FILES=(
     "llm-wiki.md" "wiki/init-wiki.sh" "wiki/agents/README.md"
     "wiki/agents/discipline-gates.md" "wiki/agents/verification-gate.md"
+    "wiki/agents/wiki-write-protocol.md"
     "scripts/update-from-template.sh" "scripts/check-template-version.sh"
     "scripts/lib/install-feature.sh" "scripts/enable-feature.sh"
     "scripts/disable-feature.sh" "features/README.md"
+    "scripts/wiki-write-protocol/README.md"
+    "scripts/wiki-write-protocol/protocol.sh"
+    "scripts/wiki-write-protocol/sandbox.sh"
+    "scripts/wiki-write-protocol/run-all.sh"
+    "scripts/wiki-write-protocol/scenarios/01-different-pages/run.sh"
+    "scripts/wiki-write-protocol/scenarios/02-different-sections/run.sh"
+    "scripts/wiki-write-protocol/scenarios/03-same-section/run.sh"
+    "scripts/wiki-write-protocol/scenarios/04-index-union/run.sh"
+    "scripts/wiki-write-protocol/scenarios/05-log-append/run.sh"
+    "scripts/wiki-write-protocol/scenarios/06-push-race/run.sh"
+    "scripts/wiki-write-protocol/scenarios/07-livelock-retry/run.sh"
+    "scripts/wiki-write-protocol/scenarios/08-session-start-auto-pull/run.sh"
+    "scripts/wiki-write-protocol/scenarios/09-session-start-divergent/run.sh"
     ".gitignore"
 )
 # One-shot files (self-delete or consumed at end of bootstrap; not synced).
