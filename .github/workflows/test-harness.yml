@@ -47,4 +47,4 @@ jobs:
       - name: Run test harness
         env:
           MVP_TEMPLATE_LOCAL: ${{ github.workspace }}
-        run: ./scripts/test-mvp/run.sh
+        run: ./scripts/test/run.sh

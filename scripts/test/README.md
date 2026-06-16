@@ -22,17 +22,17 @@ Currently one category. The harness auto-discovers any new categories under
 
 ```bash
 # Run all categories
-./scripts/test-mvp/run.sh
+./scripts/test/run.sh
 
 # Filter by category
-./scripts/test-mvp/run.sh --category=smoke
-./scripts/test-mvp/run.sh --category smoke
+./scripts/test/run.sh --category=smoke
+./scripts/test/run.sh --category smoke
 
 # Filter by test name
-./scripts/test-mvp/run.sh template-bootstrap
+./scripts/test/run.sh template-bootstrap
 
 # Keep the sandbox dir after the run (for inspection)
-./scripts/test-mvp/run.sh --no-cleanup
+./scripts/test/run.sh --no-cleanup
 ```
 
 Exit code = number of failed assertions. 0 = all green.
@@ -44,14 +44,14 @@ Smoke tests need a real template clone. Two ways to provide one:
 ```bash
 # Offline mode (preferred for fast iteration; cheapest)
 export MVP_TEMPLATE_LOCAL=/path/to/llm-wiki-memory-template
-./scripts/test-mvp/run.sh
+./scripts/test/run.sh
 
 # Network mode (defaults to the upstream fork)
-./scripts/test-mvp/run.sh
+./scripts/test/run.sh
 
 # Network mode with a different fork / branch
 export MVP_TEMPLATE_REPO=https://github.com/your-fork/llm-wiki-memory-template.git
-./scripts/test-mvp/run.sh
+./scripts/test/run.sh
 ```
 
 If neither is reachable, smoke tests `skip` gracefully.
@@ -59,7 +59,7 @@ If neither is reachable, smoke tests `skip` gracefully.
 ## Structure
 
 ```
-scripts/test-mvp/
+scripts/test/
 ├── README.md           # this file
 ├── run.sh              # main entry point (categories, filtering, reporting)
 ├── lib/

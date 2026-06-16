@@ -84,11 +84,11 @@ Exit code = number of failed scenarios. 0 = all green.
 
 ## Test-harness integration
 
-The existing template test harness at `scripts/test-mvp/` includes an
+The existing template test harness at `scripts/test/` includes an
 integration test that drives all nine scenarios:
 
 ```
-scripts/test-mvp/tests/integration/wiki-write-protocol/
+scripts/test/tests/integration/wiki-write-protocol/
 ├── patch.sh        (no-op; the implementation manages its own sandbox)
 └── assertions.sh   (iterates scenarios; one harness assertion each)
 ```
@@ -101,7 +101,7 @@ normal harness CI.
 Run the integration category alone:
 
 ```bash
-MVP_TEMPLATE_LOCAL=$(pwd) ./scripts/test-mvp/run.sh --category=integration
+MVP_TEMPLATE_LOCAL=$(pwd) ./scripts/test/run.sh --category=integration
 ```
 
 ## What this implementation tests

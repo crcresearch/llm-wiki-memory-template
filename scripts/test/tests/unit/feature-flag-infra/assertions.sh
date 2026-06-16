@@ -7,7 +7,7 @@
 
 PROJ="$SANDBOX/feature-flag-test-project"
 # assertions.sh is sourced by run.sh, so $HERE here = run.sh's HERE =
-# scripts/test-mvp/. Two levels up is the template repo root.
+# scripts/test/. Two levels up is the template repo root.
 REPO_ROOT_FFINFRA="$(cd "$HERE/../.." && pwd)"
 INSTALL_LIB="$REPO_ROOT_FFINFRA/scripts/lib/install-feature.sh"
 ENABLE_SCRIPT="$REPO_ROOT_FFINFRA/scripts/enable-feature.sh"

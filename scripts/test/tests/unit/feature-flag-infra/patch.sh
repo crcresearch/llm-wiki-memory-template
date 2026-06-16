@@ -15,8 +15,8 @@ set -uo pipefail
 
 PROJ="$SANDBOX/feature-flag-test-project"
 # patch.sh is invoked (not sourced), so compute the fixture path from this
-# file's own location. Layout: <test-mvp>/tests/unit/feature-flag-infra/patch.sh
-# -> fixture at <test-mvp>/_fixtures/test-feature
+# file's own location. Layout: <test>/tests/unit/feature-flag-infra/patch.sh
+# -> fixture at <test>/_fixtures/test-feature
 HERE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURE_SRC="$HERE_DIR/../../../_fixtures/test-feature"
 
