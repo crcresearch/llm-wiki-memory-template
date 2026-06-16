@@ -36,7 +36,7 @@ features/<name>/
 ├── feature.json          required: metadata
 ├── CLAUDE.section.md     optional: prose inserted into CLAUDE.md
 ├── code/                 optional: copied into scripts/<name>/
-├── tests/                optional: copied into scripts/test-mvp/tests/...
+├── tests/                optional: copied into scripts/test/tests/...
 ├── fixtures/             optional: test data your tests reference
 └── ci/
     └── test-<name>.yml   optional: GitHub Actions workflow
@@ -55,7 +55,7 @@ if (and only if) declared in `feature.json`.
   "status": "experimental",
 
   "files":     { "source": "code/",      "destination": "scripts/your-feature/" },
-  "tests":     { "source": "tests/",     "destination": "scripts/test-mvp/tests/unit/your-feature/" },
+  "tests":     { "source": "tests/",     "destination": "scripts/test/tests/unit/your-feature/" },
   "ci":        { "workflow_file": "ci/test-your-feature.yml" },
   "claude_md": { "marker": "feature:your-feature", "section_file": "CLAUDE.section.md" },
 
@@ -211,7 +211,7 @@ feature does not require YAML surgery on shared infra.
 
 ## Writing tests for your feature
 
-The template uses a small bash harness under `scripts/test-mvp/`. A
+The template uses a small bash harness under `scripts/test/`. A
 feature's tests live in its own subtree and are copied into the
 derived project at install time:
 
@@ -230,16 +230,16 @@ The harness contract:
 - `patch.sh` runs in a subshell with `$SANDBOX` set to a tmpdir. Make
   whatever fixture state your assertions need under `$SANDBOX`.
 - `assertions.sh` is **sourced**, not invoked. Use `assert` and
-  `assert_eq` from `scripts/test-mvp/lib/assertions.sh`. Path-relative
+  `assert_eq` from `scripts/test/lib/assertions.sh`. Path-relative
   navigation in a sourced file: `$HERE` resolves to
-  `scripts/test-mvp/`, not your test directory.
+  `scripts/test/`, not your test directory.
 - Both should be idempotent. The harness re-runs them on every CI run
   and on every local invocation.
 
 Run the harness locally with:
 
 ```bash
-MVP_TEMPLATE_LOCAL=$(pwd) ./scripts/test-mvp/run.sh
+MVP_TEMPLATE_LOCAL=$(pwd) ./scripts/test/run.sh
 ```
 
 The `MVP_TEMPLATE_LOCAL` env var matters: the smoke test

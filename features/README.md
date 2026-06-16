@@ -19,7 +19,7 @@ features/<name>/
 ├── feature.json          # metadata (name, files, tests, ci, claude_md, system_deps, depends_on)
 ├── CLAUDE.section.md     # prose inserted into the derived project's CLAUDE.md
 ├── code/                 # files copied into scripts/<name>/ at install time
-├── tests/                # files copied into scripts/test-mvp/tests/<category>/<name>/
+├── tests/                # files copied into scripts/test/tests/<category>/<name>/
 ├── fixtures/             # test data referenced by the feature's own tests
 └── ci/
     └── test-<name>.yml   # GitHub Actions workflow copied into .github/workflows/

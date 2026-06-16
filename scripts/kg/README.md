@@ -107,12 +107,12 @@ scripts/kg/
 ## Tests
 
 The harness wraps a single assertion-set at
-`scripts/test-mvp/tests/unit/kg-frontmatter-graph/assertions.sh`. Run
+`scripts/test/tests/unit/kg-frontmatter-graph/assertions.sh`. Run
 either:
 
 ```bash
-./scripts/test-mvp/run.sh --category=unit
-./scripts/test-mvp/run.sh kg-frontmatter-graph
+./scripts/test/run.sh --category=unit
+./scripts/test/run.sh kg-frontmatter-graph
 ```
 
 The assertions run `build-graph.sh --wiki=scripts/kg/fixtures/mini-wiki`

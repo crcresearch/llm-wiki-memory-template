@@ -14,7 +14,7 @@ ROOT="$SANDBOX/clone-template-guard"
 TEMPL="$ROOT/fake-template"
 DERIVED="$ROOT/fake-derived"
 
-# assertions.sh is sourced by run.sh, so $HERE = scripts/test-mvp/.
+# assertions.sh is sourced by run.sh, so $HERE = scripts/test/.
 TEMPLATE_LIB="$HERE/lib/template.sh"
 
 assert "lib/template.sh exists"             "[ -f '$TEMPLATE_LIB' ]"
