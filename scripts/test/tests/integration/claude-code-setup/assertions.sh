@@ -45,7 +45,9 @@ assert "no wiki: setup.sh exits non-zero" "[ $RC -ne 0 ]"
 # --- Audit #9: a settings.json-only merge still reports a change ---
 if command -v jq >/dev/null 2>&1; then
     OUT="$( cd "$STAGE/merge" && CLAUDE_CONFIG_DIR="$STAGE/cfg" bash "$SETUP" --hook 2>&1 )"
-    MERGED=0;    case "$OUT" in *"merged SessionStart hook"*) MERGED=1 ;; esac
+    # setup.sh now registers each hook in its own group; the per-hook message
+    # is "merged <file> SessionStart hook (via jq)". Match the common suffix.
+    MERGED=0;    case "$OUT" in *"SessionStart hook (via jq)"*) MERGED=1 ;; esac
     NEXTSTEPS=0; case "$OUT" in *"Next steps:"*) NEXTSTEPS=1 ;; esac
     assert "merge: the jq merge is reported"                       "[ $MERGED -eq 1 ]"
     assert "merge-only change still prints 'Next steps' (audit #9)" "[ $NEXTSTEPS -eq 1 ]"
