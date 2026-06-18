@@ -22,13 +22,8 @@ wiki/*.wiki/
 # uncomment the line below if you prefer it local-only.
 # .llm-wiki-template-log.md
 
-# Dev-mode self-dogfooding artifacts (template contributors only).
-# Produced by `scripts/instantiate.sh --dev-self` plus the manual clone of the
-# template's own GitHub Wiki. Never committed; never propagate to derived
-# projects (which have their own CLAUDE.md, .claude/settings.json, etc.).
-# Anchored to template repo root with leading slash so derived projects'
-# equivalent paths are unaffected.
-/CLAUDE.md
-/wiki/llm-wiki-memory-template.wiki/
-/.claude/settings.json
-/.claude/hooks/
+# Dev-mode self-dogfooding artifacts (template contributors only) live in
+# .git/info/exclude on the dev-self clone, not here. `scripts/instantiate.sh
+# --dev-self` writes them there (idempotent). They are deliberately NOT in
+# the tracked .gitignore because leading-slash anchors would resolve to a
+# derived project's own root and start matching its real files.

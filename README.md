@@ -91,7 +91,7 @@ After this, Claude Code opened in the template clone has:
 - A `SessionStart` hook injecting the wiki reminder at every session start.
 - A `PostToolUse` hook nudging the verification-gate workflow on every wiki write.
 
-**All four artifacts** (`CLAUDE.md`, `wiki/llm-wiki-memory-template.wiki/`, `.claude/settings.json`, `.claude/hooks/`) **are gitignored**. They are local-only by construction: never committed to the template repo, never propagated to derived projects (which generate their own equivalents via Paths A or B). `--dev-self` does not call `init-wiki.sh`, does not modify `.claude/commands/` or `.claude/skills/`, and does not self-delete.
+**All four artifacts** (`CLAUDE.md`, `wiki/llm-wiki-memory-template.wiki/`, `.claude/settings.json`, `.claude/hooks/`) **are excluded locally** via `.git/info/exclude`, which `--dev-self` writes (and re-writes idempotently on re-runs). The exclusion is deliberately not in the tracked `.gitignore`: leading-slash anchors there would resolve to a derived project's own root after `update-from-template.sh` synced the file, shadowing that project's real `CLAUDE.md`, `.claude/settings.json`, and `.claude/hooks/`. The artifacts are local-only by construction: never committed, never propagated to derived projects (which generate their own equivalents via Paths A or B). `--dev-self` does not call `init-wiki.sh`, does not modify `.claude/commands/` or `.claude/skills/`, and does not self-delete.
 
 #### Updating after a template-side hook change
 
