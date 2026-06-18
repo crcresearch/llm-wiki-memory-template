@@ -211,7 +211,11 @@ fi
 #   4. Does NOT touch .claude/commands or .claude/skills (avoids
 #      dirtying tracked template files with REPO_NAME substitution).
 # All resulting artifacts (CLAUDE.md, .claude/settings.json,
-# .claude/hooks/, the wiki clone) are gitignored. See .gitignore.
+# .claude/hooks/, the wiki clone) are excluded locally via
+# .git/info/exclude, which this --dev-self branch writes below. They are
+# deliberately NOT in the tracked .gitignore: leading-slash anchors there
+# would resolve to a derived repo's root after update-from-template.sh
+# synced the file, shadowing the derived project's real files.
 if $DEV_SELF; then
     # Pre-flight: ensure the template's own wiki has been cloned manually.
     DEV_SELF_WIKI="$REPO_ROOT/wiki/llm-wiki-memory-template.wiki"
@@ -223,6 +227,50 @@ if $DEV_SELF; then
         echo "  git clone https://github.com/crcresearch/llm-wiki-memory-template.wiki.git \\" >&2
         echo "    wiki/llm-wiki-memory-template.wiki" >&2
         exit 1
+    fi
+
+    # Write dev-self ignore entries to .git/info/exclude (per-clone, not
+    # tracked, so they cannot propagate to derived projects). These used to
+    # live in the tracked .gitignore but their leading-slash anchors resolved
+    # to a derived repo's own root after update-from-template.sh synced the
+    # file, silently shadowing the derived project's real CLAUDE.md and
+    # .claude/ paths. Idempotent: a marked block is replaced atomically; an
+    # unmarked file gets the block appended.
+    mkdir -p "$REPO_ROOT/.git/info"
+    EXCLUDE_FILE="$REPO_ROOT/.git/info/exclude"
+    BEGIN_MARK="# BEGIN llm-wiki-memory-template dev-self"
+    DEV_SELF_BLOCK=$(cat <<'EOF'
+# BEGIN llm-wiki-memory-template dev-self
+# Written by scripts/instantiate.sh --dev-self. Local-only; never propagates.
+/CLAUDE.md
+/wiki/llm-wiki-memory-template.wiki/
+/.claude/settings.json
+/.claude/hooks/
+# END llm-wiki-memory-template dev-self
+EOF
+)
+    if [[ -f "$EXCLUDE_FILE" ]] && grep -qF "$BEGIN_MARK" "$EXCLUDE_FILE"; then
+        # Replace existing marked block in place.
+        python3 - "$EXCLUDE_FILE" "$DEV_SELF_BLOCK" <<'PYEOF'
+import sys, pathlib, re
+path, block = sys.argv[1], sys.argv[2]
+text = pathlib.Path(path).read_text()
+pattern = re.compile(
+    r"# BEGIN llm-wiki-memory-template dev-self.*?# END llm-wiki-memory-template dev-self",
+    re.DOTALL,
+)
+pathlib.Path(path).write_text(pattern.sub(block, text))
+PYEOF
+        echo "✓ Updated dev-self block in .git/info/exclude"
+    else
+        # Append the block. Ensure exactly one blank line between any prior
+        # content and the new block.
+        if [[ -s "$EXCLUDE_FILE" ]]; then
+            [[ -n "$(tail -c 1 "$EXCLUDE_FILE")" ]] && printf '\n' >> "$EXCLUDE_FILE"
+            printf '\n' >> "$EXCLUDE_FILE"
+        fi
+        printf '%s\n' "$DEV_SELF_BLOCK" >> "$EXCLUDE_FILE"
+        echo "✓ Wrote dev-self block to .git/info/exclude"
     fi
 
     # Fixed values for the self-instance.
