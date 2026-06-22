@@ -34,6 +34,14 @@ assert_eq "owner: from https"         "acme"        "$(lw_call "lw_owner_from_ur
 # --- git.sh: lw_wiki_url (both suffix forms collapse to one result) ---
 assert_eq "wiki_url: .git form"    "https://github.com/acme/widget.wiki.git" "$(lw_call "lw_wiki_url 'https://github.com/acme/widget.git'")"
 assert_eq "wiki_url: no-.git form" "https://github.com/acme/widget.wiki.git" "$(lw_call "lw_wiki_url 'https://github.com/acme/widget'")"
+assert_eq "wiki_url: scp-style github" "git@github.com:acme/widget.wiki.git" "$(lw_call "lw_wiki_url 'git@github.com:acme/widget.git'")"
+assert_eq "wiki_url: github enterprise host accepted" "https://github.corp.example/acme/widget.wiki.git" \
+    "$(lw_call "lw_wiki_url 'https://github.corp.example/acme/widget.git'")"
+# D1: non-GitHub host fails loud instead of emitting a wrong URL.
+lw_call "lw_wiki_url 'https://gitlab.com/acme/widget.git'" >/dev/null 2>&1; RC=$?
+assert "wiki_url: non-github host (gitlab) exits non-zero" "[ $RC -ne 0 ]"
+lw_call "lw_wiki_url 'git@gitlab.com:acme/widget.git'" >/dev/null 2>&1; RC=$?
+assert "wiki_url: non-github host (scp gitlab) exits non-zero" "[ $RC -ne 0 ]"
 
 # --- git.sh: lw_repo_root / lw_origin_url ---
 assert_eq "repo_root resolves toplevel" "$(cd "$ROOT/repo-https" && pwd -P)" "$(lw_call "cd '$ROOT/repo-https' && lw_repo_root")"
@@ -146,3 +154,21 @@ assert "insert_before: needle absent leaves content uninserted" \
     "! grep -qF 'SHOULD-NOT-APPEAR' '$INS'"
 assert_eq "insert_before: needle absent preserves line count" "3" \
     "$(wc -l < "$INS" | tr -d ' ')"
+
+# --- text.sh: lw_sed_inplace (portable in-place edit; init-wiki relies on it) ---
+SEDF="$ROOT/sed.md"
+
+# s/// substitution lands and leaves no .bak behind.
+printf 'alpha\nbeta\ngamma\n' > "$SEDF"
+lw_call "lw_sed_inplace 's/beta/BETA/' '$SEDF'" >/dev/null 2>&1
+assert_contains "sed_inplace: substitution applied" "$SEDF" '^BETA$'
+assert "sed_inplace: leaves no .bak file" "[ ! -e '$SEDF.bak' ]"
+
+# Multi-line `a\` append: the exact form init-wiki uses to extend WIKI-INDEX.
+printf 'one\nHEADING\ntwo\n' > "$SEDF"
+SED_LN=$(grep -n HEADING "$SEDF" | cut -d: -f1)
+lw_call "lw_sed_inplace '${SED_LN}a\\
+- appended line' '$SEDF'" >/dev/null 2>&1
+assert_contains "sed_inplace: a-backslash append inserted the line" "$SEDF" '^- appended line$'
+assert "sed_inplace: append lands right after the target line" \
+    "awk '/HEADING/{h=NR} /^- appended line\$/{a=NR} END{exit !(h>0 && a==h+1)}' '$SEDF'"

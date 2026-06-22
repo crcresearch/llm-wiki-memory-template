@@ -47,10 +47,28 @@ lw_repo_from_url()  { local s; s="$(lw_repo_slug "$1")"; printf '%s\n' "${s##*/}
 # replacing the two that had drifted: init-wiki.sh used `sed 's/.git$/...'`
 # which is a no-op on a suffix-less URL; instantiate.sh handled that case.
 # strip-then-append covers both.
-# NOTE: GitHub-specific. Non-GitHub hosts use different wiki schemes — that
-# is the open policy question, deliberately localized here.
+#
+# The `<repo>.wiki.git` scheme is GitHub-specific (it also holds for GitHub
+# Enterprise, whose host names contain "github"). GitLab, Gitea, and other
+# hosts use entirely different wiki schemes, so deriving this URL for them
+# would emit a plausible-looking address that does not exist. Policy (D1):
+# fail loud on a non-GitHub host rather than return a wrong URL silently.
+# The host check is a heuristic ("github" in the host component); a host
+# that contains "github" but is not GitHub is accepted, which is the safe
+# direction (the user opted into --github).
 lw_wiki_url() {
-  local url="${1%.git}"
+  local url="$1" rest host
+  rest="$url"
+  case "$rest" in
+    *://*) rest="${rest#*://}"; rest="${rest#*@}" ;;  # scheme://[user@]host/...
+    *@*:*) rest="${rest#*@}" ;;                        # scp-style user@host:...
+  esac
+  host="${rest%%[:/]*}"  # up to the first ':' or '/'
+  case "$host" in
+    *github*) : ;;
+    *) lw_die "lw_wiki_url: GitHub-only; refusing to derive a wiki URL for non-GitHub host '$host' (origin: $url)" ;;
+  esac
+  url="${url%.git}"
   printf '%s\n' "${url}.wiki.git"
 }
 
