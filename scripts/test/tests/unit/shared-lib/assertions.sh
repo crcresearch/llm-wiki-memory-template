@@ -119,3 +119,30 @@ assert "inject: block precedes the marker line" \
 lw_call "lw_inject_block '$INJ' demo 'BODY-CONTENT' KGMARKER" >/dev/null 2>&1
 assert_eq "inject: idempotent (one open sentinel after two calls)" "1" \
     "$(grep -cF '<!-- lw:demo -->' "$INJ")"
+
+# --- text.sh: lw_insert_before (BSD-safe raw insert, no sentinels) ---
+# Both overlay setup scripts inject their CLAUDE.md snippet through this.
+INS="$ROOT/insert.md"
+
+# Single-line content, before a matching line.
+printf 'alpha\nNEEDLE-LINE\nomega\n' > "$INS"
+lw_call "lw_insert_before '$INS' 'NEEDLE-LINE' 'INSERTED'" >/dev/null 2>&1
+assert_contains "insert_before: content present" "$INS" 'INSERTED'
+assert "insert_before: content precedes the needle line" \
+    "awk '/INSERTED/{s=NR} /NEEDLE-LINE/{m=NR} END{exit !(s>0 && s<m)}' '$INS'"
+
+# Multi-line content ($'...' carries the newline through eval).
+printf 'alpha\nNEEDLE-LINE\nomega\n' > "$INS"
+lw_call "lw_insert_before '$INS' 'NEEDLE-LINE' \$'L1\nL2'" >/dev/null 2>&1
+assert_contains "insert_before: multi-line first line present"  "$INS" '^L1$'
+assert_contains "insert_before: multi-line second line present" "$INS" '^L2$'
+assert "insert_before: multi-line block precedes the needle" \
+    "awk '/^L2\$/{s=NR} /NEEDLE-LINE/{m=NR} END{exit !(s>0 && s<m)}' '$INS'"
+
+# Needle absent: nothing inserted, file otherwise unchanged.
+printf 'alpha\nbeta\ngamma\n' > "$INS"
+lw_call "lw_insert_before '$INS' 'NO-SUCH-NEEDLE' 'SHOULD-NOT-APPEAR'" >/dev/null 2>&1
+assert "insert_before: needle absent leaves content uninserted" \
+    "! grep -qF 'SHOULD-NOT-APPEAR' '$INS'"
+assert_eq "insert_before: needle absent preserves line count" "3" \
+    "$(wc -l < "$INS" | tr -d ' ')"

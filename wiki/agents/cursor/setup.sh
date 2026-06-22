@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # setup.sh — Cursor overlay on top of an llm-wiki project.
 #
@@ -13,15 +14,16 @@
 # What it does:
 #   Base mode:
 #     1. Verifies the wiki is present (else points to init-wiki.sh).
-#     2. Patches CLAUDE.md with the "Wiki maintenance behavior" subsection,
-#        if not already present. Same marker as the Claude Code overlay; if
-#        both overlays are active, only the first one to run patches.
+#     2. Patches CLAUDE.md with the "Memory boundary" and "Wiki maintenance
+#        behavior" subsections, if not already present. Same markers as the
+#        Claude Code overlay; if both overlays are active, only the first one
+#        to run patches each subsection.
 #     3. Reports presence/absence of .cursor/rules/wiki-*.mdc. These ship
 #        with the repository and the script only verifies them.
 #
 #   --legacy:
 #     4. Copies .cursorrules.template -> .cursorrules at the repo root,
-#        substituting ${REPO_NAME}. Skipped if .cursorrules already exists.
+#        substituting {{REPO_NAME}}. Skipped if .cursorrules already exists.
 #
 # Cursor has no SessionStart hook equivalent and no per-user memory directory
 # managed by the IDE, so the Claude Code overlay's --hook and --seed-memory
@@ -46,20 +48,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --- Load shared library ---
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../scripts/lib/common.sh
+source "$HERE/../../../scripts/lib/common.sh"
+
 # --- Detect project layout ---
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-REPO_NAME=$(basename "$REPO_ROOT")
+REPO_ROOT=$(lw_repo_root)
+# This overlay runs post-clone, so the canonical name is already committed
+# as wiki/<name>.wiki. Read it from there rather than from the clone
+# directory name (a fork or renamed clone makes the basename, and origin,
+# wrong here). lw_discover_wiki_name fails loud if the wiki is absent.
+REPO_NAME=$(lw_discover_wiki_name "$REPO_ROOT")
 WIKI_DIR="$REPO_ROOT/wiki/${REPO_NAME}.wiki"
 SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 
-OVERLAY_DIR="$REPO_ROOT/wiki/agents/cursor"
-TEMPLATES_DIR="$OVERLAY_DIR/templates"
 RULES_DIR="$REPO_ROOT/.cursor/rules"
 CURSORRULES_DEST="$REPO_ROOT/.cursorrules"
 CURSORRULES_TEMPLATE="$REPO_ROOT/.cursorrules.template"
-
-REPORT=()
 
 # --- Step 1: verify wiki present ---
 if [[ ! -f "$SCHEMA_FILE" ]]; then
@@ -71,31 +78,67 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
 fi
 
 # --- Step 2: patch CLAUDE.md (shared with Claude Code overlay) ---
-# The same marker "### Wiki maintenance behavior" is used by both overlays.
-# If either overlay has already patched, this is a no-op.
+# The snippet ships with the Claude Code overlay and carries TWO subsections,
+# each with an independent idempotency marker:
+#   "### Memory boundary"           (PR #28 — Claude-memory vs wiki layout)
+#   "### Wiki maintenance behavior" (original)
+# Mirrors claude-code/setup.sh: a derived project may have one but not the
+# other, so each marker is checked separately and injected when missing.
+# Whichever overlay runs first patches; the other then skips.
 SNIPPET_FILE="$REPO_ROOT/wiki/agents/claude-code/templates/claude-md-snippet.md"
-MARKER="### Wiki maintenance behavior"
+MARKER_MAINTENANCE="### Wiki maintenance behavior"
+MARKER_BOUNDARY="### Memory boundary"
+
+# Extract the whole snippet body once, with comments stripped and
+# placeholders substituted.
+if [[ -f "$SNIPPET_FILE" ]]; then
+    SNIPPET_BODY=$(grep -v '^<!--' "$SNIPPET_FILE" | grep -v '^-->' | sed "s/\${REPO_NAME}/$REPO_NAME/g")
+fi
+
+# Extract just the Memory boundary subsection (between its header and the
+# next ### header), in case we need to inject it alone.
+extract_boundary_only() {
+    awk '
+        /^### Memory boundary/ { capture = 1 }
+        /^### Wiki maintenance behavior/ { capture = 0 }
+        capture { print }
+    ' <<<"$SNIPPET_BODY"
+}
+
+inject_before_kg_or_append() {
+    local content="$1"
+    local label="$2"
+    if grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
+        # lw_insert_before is the shared BSD-safe injector (tempfile +
+        # getline, not awk -v). The old inline `awk -v snippet=...` here
+        # silently no-opped on BSD awk (macOS); claude-code/setup.sh routes
+        # through the same helper so both overlays share one injection path.
+        lw_insert_before "$CLAUDE_MD" "### Knowledge Graph" "$content"
+        lw_record_change "CLAUDE.md: injected '$label' before '### Knowledge Graph'"
+    else
+        printf '\n%s\n' "$content" >> "$CLAUDE_MD"
+        lw_record_change "CLAUDE.md: appended '$label' at end"
+    fi
+}
 
 if [[ ! -f "$CLAUDE_MD" ]]; then
-    REPORT+=("CLAUDE.md: not found (skipped). Run instantiate.sh to generate it.")
-elif grep -qF "$MARKER" "$CLAUDE_MD"; then
-    REPORT+=("CLAUDE.md: 'Wiki maintenance behavior' already present (skipped)")
+    lw_record_skip "CLAUDE.md: not found (skipped). Run instantiate.sh to generate it."
 elif [[ ! -f "$SNIPPET_FILE" ]]; then
-    REPORT+=("CLAUDE.md: template snippet not found at $SNIPPET_FILE (skipped)")
+    lw_record_skip "CLAUDE.md: template snippet not found at $SNIPPET_FILE (skipped)"
 else
-    # Inject snippet before "### Knowledge Graph" if present, else append.
-    SNIPPET_BODY=$(grep -v '^<!--' "$SNIPPET_FILE" | grep -v '^-->' | sed "s/\${REPO_NAME}/$REPO_NAME/g")
-    if grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
-        TMP=$(mktemp)
-        awk -v snippet="$SNIPPET_BODY" '
-            /^### Knowledge Graph/ && !done { print snippet; print ""; done = 1 }
-            { print }
-        ' "$CLAUDE_MD" > "$TMP"
-        mv "$TMP" "$CLAUDE_MD"
-        REPORT+=("CLAUDE.md: injected 'Wiki maintenance behavior' before '### Knowledge Graph'")
+    HAS_MAINTENANCE=$(grep -qF "$MARKER_MAINTENANCE" "$CLAUDE_MD" && echo true || echo false)
+    HAS_BOUNDARY=$(grep -qF "$MARKER_BOUNDARY" "$CLAUDE_MD" && echo true || echo false)
+
+    if ! $HAS_MAINTENANCE; then
+        # First-run case: inject the entire snippet (both subsections).
+        inject_before_kg_or_append "$SNIPPET_BODY" "Memory boundary + Wiki maintenance behavior"
+    elif ! $HAS_BOUNDARY; then
+        # Partial-state case: maintenance present from an earlier run,
+        # boundary subsection missing (added in PR #28). Inject just the
+        # boundary subsection.
+        inject_before_kg_or_append "$(extract_boundary_only)" "Memory boundary"
     else
-        printf '\n%s\n' "$SNIPPET_BODY" >> "$CLAUDE_MD"
-        REPORT+=("CLAUDE.md: appended 'Wiki maintenance behavior' at end")
+        lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
     fi
 fi
 
@@ -108,20 +151,20 @@ for rule in wiki-as-memory wiki-experiment wiki-source wiki-lint; do
 done
 
 if [[ ${#RULES_MISSING[@]} -eq 0 ]]; then
-    REPORT+=(".cursor/rules/: all four present (wiki-as-memory, wiki-experiment, wiki-source, wiki-lint)")
+    lw_record_skip ".cursor/rules/: all four present (wiki-as-memory, wiki-experiment, wiki-source, wiki-lint)"
 else
-    REPORT+=(".cursor/rules/: MISSING — ${RULES_MISSING[*]} (these should be committed in the repo)")
+    lw_record_skip ".cursor/rules/: MISSING — ${RULES_MISSING[*]} (these should be committed in the repo)"
 fi
 
 # --- Step 4: install legacy .cursorrules (--legacy) ---
 if $WITH_LEGACY; then
     if [[ -f "$CURSORRULES_DEST" ]]; then
-        REPORT+=(".cursorrules: already present (skipped)")
+        lw_record_skip ".cursorrules: already present (skipped)"
     elif [[ ! -f "$CURSORRULES_TEMPLATE" ]]; then
-        REPORT+=(".cursorrules: template not found at $CURSORRULES_TEMPLATE (skipped)")
+        lw_record_skip ".cursorrules: template not found at $CURSORRULES_TEMPLATE (skipped)"
     else
         sed "s/{{REPO_NAME}}/$REPO_NAME/g" "$CURSORRULES_TEMPLATE" > "$CURSORRULES_DEST"
-        REPORT+=(".cursorrules: created from template (legacy single-file Cursor format)")
+        lw_record_change ".cursorrules: created from template (legacy single-file Cursor format)"
     fi
 fi
 
@@ -132,19 +175,11 @@ echo "Repo:        $REPO_ROOT"
 echo "Wiki:        $WIKI_DIR"
 echo "Flags:       --legacy=$WITH_LEGACY"
 echo "------------------------------------------------------"
-for line in "${REPORT[@]}"; do
-    echo " - $line"
-done
+lw_print_report
 echo "======================================================"
 echo ""
 
-CHANGES_MADE=false
-for line in "${REPORT[@]}"; do
-    case "$line" in
-        *injected*|*appended*|*created*) CHANGES_MADE=true; break ;;
-    esac
-done
-if $CHANGES_MADE; then
+if lw_changed_p; then
     echo "Next steps:"
     echo "  Review the changes above, then stage and commit:"
     echo "    git add CLAUDE.md .cursor/ ${WITH_LEGACY:+.cursorrules}"

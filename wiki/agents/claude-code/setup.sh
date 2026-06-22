@@ -140,25 +140,10 @@ inject_before_kg_or_append() {
     local content="$1"
     local label="$2"
     if grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
-        # Use a tempfile to hand the multi-line snippet to awk via getline
-        # rather than -v: BSD awk on macOS rejects newlines in -v
-        # assignments with "newline in string" and silently produces empty
-        # output. Reading from a file with getline is portable.
-        local SNIPPET_TMP TMP
-        SNIPPET_TMP=$(mktemp)
-        TMP=$(mktemp)
-        printf '%s\n' "$content" > "$SNIPPET_TMP"
-        awk -v snippet_file="$SNIPPET_TMP" '
-            /^### Knowledge Graph/ && !done {
-                while ((getline line < snippet_file) > 0) print line
-                close(snippet_file)
-                print ""
-                done = 1
-            }
-            { print }
-        ' "$CLAUDE_MD" > "$TMP"
-        mv "$TMP" "$CLAUDE_MD"
-        rm -f "$SNIPPET_TMP"
+        # lw_insert_before is the shared BSD-safe injector (tempfile +
+        # getline, not awk -v); cursor/setup.sh routes through the same
+        # helper so both overlays share one injection path.
+        lw_insert_before "$CLAUDE_MD" "### Knowledge Graph" "$content"
         lw_record_change "CLAUDE.md: injected '$label' before '### Knowledge Graph'"
     else
         printf '\n%s\n' "$content" >> "$CLAUDE_MD"

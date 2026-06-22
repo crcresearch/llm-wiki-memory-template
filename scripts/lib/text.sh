@@ -27,7 +27,7 @@ lw_inject_block() {
   local block
   block="$(printf '%s\n%s\n%s' "$open" "$content" "$close")"
   if [[ -n "$before" ]] && grep -qF "$before" "$file" 2>/dev/null; then
-    _lw_insert_before "$file" "$before" "$block"
+    lw_insert_before "$file" "$before" "$block"
   else
     printf '\n%s\n' "$block" >> "$file"
   fi
@@ -42,8 +42,11 @@ lw_inject_block() {
 # Insert a multi-line BLOCK before the first line containing NEEDLE.
 # The block is handed to awk via a tempfile + getline rather than -v
 # because BSD awk (macOS) rejects newlines in -v assignments and silently
-# emits empty output.
-_lw_insert_before() {
+# emits empty output. Both overlay setup scripts route their CLAUDE.md
+# snippet injection through this one helper so the BSD-safe behavior lives
+# in a single place (cursor's old inline `awk -v snippet=...` no-opped on
+# macOS).
+lw_insert_before() {
   local file="$1" needle="$2" block="$3" tmp blockfile
   tmp="$(mktemp)"; blockfile="$(mktemp)"
   printf '%s\n' "$block" > "$blockfile"
