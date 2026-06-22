@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # setup.sh — Claude Code overlay on top of an llm-wiki project.
 #
@@ -75,9 +76,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --- Load shared library ---
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../scripts/lib/common.sh
+source "$HERE/../../../scripts/lib/common.sh"
+
 # --- Detect project layout ---
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-REPO_NAME=$(basename "$REPO_ROOT")
+REPO_ROOT=$(lw_repo_root)
+# This overlay runs post-clone, so the canonical name is already committed
+# as wiki/<name>.wiki. Read it from there rather than from the clone
+# directory name (a fork or renamed clone makes the basename, and origin,
+# wrong here). lw_discover_wiki_name fails loud if the wiki is absent.
+REPO_NAME=$(lw_discover_wiki_name "$REPO_ROOT")
 WIKI_DIR="$REPO_ROOT/wiki/${REPO_NAME}.wiki"
 SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
@@ -88,8 +98,6 @@ COMMANDS_DIR="$REPO_ROOT/.claude/commands"
 SKILLS_DIR="$REPO_ROOT/.claude/skills"
 HOOKS_DIR="$REPO_ROOT/.claude/hooks"
 SETTINGS_JSON="$REPO_ROOT/.claude/settings.json"
-
-REPORT=()
 
 # --- Step 1: verify wiki present ---
 if [[ ! -f "$SCHEMA_FILE" ]]; then
@@ -151,16 +159,16 @@ inject_before_kg_or_append() {
         ' "$CLAUDE_MD" > "$TMP"
         mv "$TMP" "$CLAUDE_MD"
         rm -f "$SNIPPET_TMP"
-        REPORT+=("CLAUDE.md: injected '$label' before '### Knowledge Graph'")
+        lw_record_change "CLAUDE.md: injected '$label' before '### Knowledge Graph'"
     else
         printf '\n%s\n' "$content" >> "$CLAUDE_MD"
-        REPORT+=("CLAUDE.md: appended '$label' at end")
+        lw_record_change "CLAUDE.md: appended '$label' at end"
     fi
 }
 
 if [[ ! -f "$CLAUDE_MD" ]]; then
     echo "WARNING: CLAUDE.md not found at $CLAUDE_MD. Skipping CLAUDE.md patch." >&2
-    REPORT+=("CLAUDE.md: not found (skipped)")
+    lw_record_skip "CLAUDE.md: not found (skipped)"
 else
     HAS_MAINTENANCE=$(grep -qF "$MARKER_MAINTENANCE" "$CLAUDE_MD" && echo true || echo false)
     HAS_BOUNDARY=$(grep -qF "$MARKER_BOUNDARY" "$CLAUDE_MD" && echo true || echo false)
@@ -174,7 +182,7 @@ else
         # the boundary subsection.
         inject_before_kg_or_append "$(extract_boundary_only)" "Memory boundary"
     else
-        REPORT+=("CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)")
+        lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
     fi
 fi
 
@@ -187,9 +195,9 @@ for cmd in wiki-experiment wiki-source wiki-lint; do
 done
 
 if [[ ${#COMMANDS_MISSING[@]} -eq 0 ]]; then
-    REPORT+=(".claude/commands/: all three present (wiki-experiment, wiki-source, wiki-lint)")
+    lw_record_skip ".claude/commands/: all three present (wiki-experiment, wiki-source, wiki-lint)"
 else
-    REPORT+=(".claude/commands/: MISSING — ${COMMANDS_MISSING[*]} (these should be committed in the repo)")
+    lw_record_skip ".claude/commands/: MISSING — ${COMMANDS_MISSING[*]} (these should be committed in the repo)"
 fi
 
 # --- Step 3b: verify model-side skills present ---
@@ -201,9 +209,9 @@ for skill in wiki-experiment wiki-source wiki-lint; do
 done
 
 if [[ ${#SKILLS_MISSING[@]} -eq 0 ]]; then
-    REPORT+=(".claude/skills/: all three present (wiki-experiment, wiki-source, wiki-lint)")
+    lw_record_skip ".claude/skills/: all three present (wiki-experiment, wiki-source, wiki-lint)"
 else
-    REPORT+=(".claude/skills/: MISSING — ${SKILLS_MISSING[*]} (these should be committed in the repo)")
+    lw_record_skip ".claude/skills/: MISSING — ${SKILLS_MISSING[*]} (these should be committed in the repo)"
 fi
 
 # --- Step 4: install SessionStart hook (--hook) ---
@@ -214,11 +222,11 @@ if $WITH_HOOK; then
     mkdir -p "$HOOKS_DIR"
 
     if [[ -f "$HOOK_DEST" ]]; then
-        REPORT+=(".claude/hooks/session-start.sh: already present (not overwritten)")
+        lw_record_skip ".claude/hooks/session-start.sh: already present (not overwritten)"
     else
         sed "s/\${REPO_NAME}/$REPO_NAME/g" "$HOOK_TEMPLATE" > "$HOOK_DEST"
         chmod +x "$HOOK_DEST"
-        REPORT+=(".claude/hooks/session-start.sh: installed")
+        lw_record_change ".claude/hooks/session-start.sh: installed"
     fi
 
     # --- Step 5: register hook in settings.json ---
@@ -236,9 +244,9 @@ if $WITH_HOOK; then
   }
 }
 JSONEOF
-        REPORT+=(".claude/settings.json: created with SessionStart hook")
+        lw_record_change ".claude/settings.json: created with SessionStart hook"
     elif grep -qF '"session-start.sh"' "$SETTINGS_JSON"; then
-        REPORT+=(".claude/settings.json: SessionStart hook already registered (skipped)")
+        lw_record_skip ".claude/settings.json: SessionStart hook already registered (skipped)"
     elif command -v jq >/dev/null 2>&1; then
         TMP=$(mktemp)
         jq '. + {
@@ -252,9 +260,9 @@ JSONEOF
             }
           )
         }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
-        REPORT+=(".claude/settings.json: merged SessionStart hook (via jq)")
+        lw_record_change ".claude/settings.json: merged SessionStart hook (via jq)"
     else
-        REPORT+=(".claude/settings.json: exists but SessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST")
+        lw_record_skip ".claude/settings.json: exists but SessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST"
     fi
 fi
 
@@ -273,16 +281,16 @@ if $WITH_POSTTOOLUSE_HOOK; then
     mkdir -p "$HOOKS_DIR"
 
     if [[ -f "$PTU_HOOK_DEST" ]]; then
-        REPORT+=(".claude/hooks/posttooluse-hook.sh: already present (not overwritten)")
+        lw_record_skip ".claude/hooks/posttooluse-hook.sh: already present (not overwritten)"
     else
         sed "s/\${REPO_NAME}/$REPO_NAME/g" "$PTU_HOOK_TEMPLATE" > "$PTU_HOOK_DEST"
         chmod +x "$PTU_HOOK_DEST"
-        REPORT+=(".claude/hooks/posttooluse-hook.sh: installed")
+        lw_record_change ".claude/hooks/posttooluse-hook.sh: installed"
     fi
 
     # Register the hook in settings.json: matcher Write|Edit, type command.
     if [[ -f "$SETTINGS_JSON" ]] && grep -qF '"posttooluse-hook.sh"' "$SETTINGS_JSON"; then
-        REPORT+=(".claude/settings.json: PostToolUse advisory hook already registered (skipped)")
+        lw_record_skip ".claude/settings.json: PostToolUse advisory hook already registered (skipped)"
     elif command -v jq >/dev/null 2>&1; then
         TMP=$(mktemp)
         if [[ -f "$SETTINGS_JSON" ]]; then
@@ -297,7 +305,7 @@ if $WITH_POSTTOOLUSE_HOOK; then
                 }
               )
             }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
-            REPORT+=(".claude/settings.json: merged PostToolUse advisory hook (via jq)")
+            lw_record_change ".claude/settings.json: merged PostToolUse advisory hook (via jq)"
         else
             jq -n '{
               "hooks": {
@@ -306,20 +314,18 @@ if $WITH_POSTTOOLUSE_HOOK; then
                 ]
               }
             }' > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
-            REPORT+=(".claude/settings.json: created with PostToolUse advisory hook (via jq)")
+            lw_record_change ".claude/settings.json: created with PostToolUse advisory hook (via jq)"
         fi
     else
-        REPORT+=(".claude/settings.json: exists but PostToolUse advisory hook not registered, and jq not found. Manual edit needed: see $PTU_HOOK_DEST")
+        lw_record_skip ".claude/settings.json: exists but PostToolUse advisory hook not registered, and jq not found. Manual edit needed: see $PTU_HOOK_DEST"
     fi
 fi
 
 # --- Step 6 & 7: seed personal memory (--seed-memory) ---
 if $WITH_SEED_MEMORY; then
-    # Encode the absolute path the way Claude Code does:
-    # /Users/alice/some_project → -Users-alice-some-project
-    # Replace / with -, leading - kept, dots/underscores replaced with -.
-    ENCODED=$(echo "$REPO_ROOT" | tr '/._' '---')
-    MEMORY_DIR="$HOME/.claude/projects/${ENCODED}/memory"
+    # Per-project memory dir, mirroring Claude Code's own cwd encoding
+    # (and honoring $CLAUDE_CONFIG_DIR). See scripts/lib/claude.sh.
+    MEMORY_DIR=$(lw_memory_dir "$REPO_ROOT")
     MEMORY_FILE="$MEMORY_DIR/wiki-as-project-memory.md"
     MEMORY_INDEX="$MEMORY_DIR/MEMORY.md"
 
@@ -330,13 +336,13 @@ if $WITH_SEED_MEMORY; then
 
     if [[ -f "$MEMORY_FILE" ]]; then
         if diff -q <(echo "$SEED_RENDERED") "$MEMORY_FILE" >/dev/null 2>&1; then
-            REPORT+=("Personal memory $MEMORY_FILE: already up to date (skipped)")
+            lw_record_skip "Personal memory $MEMORY_FILE: already up to date (skipped)"
         else
-            REPORT+=("Personal memory $MEMORY_FILE: EXISTS with different content. Not overwritten. Diff manually if you want to update.")
+            lw_record_skip "Personal memory $MEMORY_FILE: EXISTS with different content. Not overwritten. Diff manually if you want to update."
         fi
     else
         echo "$SEED_RENDERED" > "$MEMORY_FILE"
-        REPORT+=("Personal memory $MEMORY_FILE: seeded")
+        lw_record_change "Personal memory $MEMORY_FILE: seeded"
     fi
 
     # MEMORY.md index
@@ -347,12 +353,12 @@ if $WITH_SEED_MEMORY; then
 
 ${INDEX_ENTRY}
 MEMEOF
-        REPORT+=("Personal memory $MEMORY_INDEX: created")
+        lw_record_change "Personal memory $MEMORY_INDEX: created"
     elif ! grep -qF "wiki-as-project-memory.md" "$MEMORY_INDEX"; then
         printf '\n%s\n' "$INDEX_ENTRY" >> "$MEMORY_INDEX"
-        REPORT+=("Personal memory $MEMORY_INDEX: appended entry")
+        lw_record_change "Personal memory $MEMORY_INDEX: appended entry"
     else
-        REPORT+=("Personal memory $MEMORY_INDEX: already references wiki-as-project-memory (skipped)")
+        lw_record_skip "Personal memory $MEMORY_INDEX: already references wiki-as-project-memory (skipped)"
     fi
 fi
 
@@ -363,22 +369,13 @@ echo "Repo:        $REPO_ROOT"
 echo "Wiki:        $WIKI_DIR"
 echo "Flags:       --hook=$WITH_HOOK --seed-memory=$WITH_SEED_MEMORY"
 echo "-----------------------------------------------------------"
-for line in "${REPORT[@]}"; do
-    echo " - $line"
-done
+lw_print_report
 echo "==========================================================="
 echo ""
 
 # --- Next-step guidance ---
 NEXT=()
-CHANGES_MADE=false
-for line in "${REPORT[@]}"; do
-    case "$line" in
-        *injected*|*appended*|*installed*|*created*|*seeded*|*"appended entry"*)
-            CHANGES_MADE=true; break ;;
-    esac
-done
-if $CHANGES_MADE; then
+if lw_changed_p; then
     NEXT+=("Review the changes above. Repo-tracked files that may have been modified:")
     NEXT+=("  - CLAUDE.md (only if 'Wiki maintenance behavior' subsection was missing)")
     NEXT+=("  - .claude/settings.json (only if SessionStart hook was merged in)")
@@ -391,7 +388,7 @@ fi
 if $WITH_SEED_MEMORY; then
     NEXT+=("")
     NEXT+=("Personal memory was seeded outside the repo at:")
-    NEXT+=("  $HOME/.claude/projects/${ENCODED:-<encoded>}/memory/")
+    NEXT+=("  $MEMORY_DIR/")
     NEXT+=("This is per-user and not version-controlled with the repo.")
 fi
 
