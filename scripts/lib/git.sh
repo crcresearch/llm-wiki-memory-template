@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# git.sh — git remote / URL / branch helpers.
+#
+# Host-agnostic where it costs nothing. The few GitHub-specific
+# assumptions (wiki URL scheme) are isolated in one function and flagged,
+# so the "do we support non-GitHub hosts?" policy question has exactly one
+# place to be answered later.
+
+# Repo root, robustly. Fails LOUD instead of falling back to $PWD, so a
+# script invoked outside a repo gets a clear error rather than silently
+# building paths against the wrong directory.
+lw_repo_root() {
+  local root
+  root="$(git -C "${1:-.}" rev-parse --show-toplevel 2>/dev/null)" \
+    || lw_die "not inside a git repository"
+  printf '%s\n' "$root"
+}
+
+# Origin URL on stdout; empty output + nonzero return when origin is unset.
+lw_origin_url() {
+  local url
+  url="$(git -C "${1:-.}" remote get-url origin 2>/dev/null)" || return 1
+  printf '%s\n' "$url"
+}
+
+# owner/repo slug from any git URL. Strips scheme+host generically rather
+# than matching github.com, so it survives gitlab/gitea/self-hosted/ssh:
+#   https://host/owner/repo(.git)   git@host:owner/repo(.git)
+#   ssh://git@host[:port]/owner/repo(.git)
+# Caveat: GitLab subgroups (host/group/sub/repo) yield owner=group; the
+# repo component (last path element) is still correct.
+lw_repo_slug() {
+  local url="$1"
+  url="${url%.git}"; url="${url%/}"
+  case "$url" in
+    *://*) url="${url#*://}"; url="${url#*@}"; url="${url#*/}" ;;  # scheme[user@]host/owner/repo
+    *@*:*) url="${url#*@}";   url="${url#*:}" ;;                   # scp-style user@host:owner/repo
+  esac
+  printf '%s\n' "$url"
+}
+
+lw_owner_from_url() { local s; s="$(lw_repo_slug "$1")"; printf '%s\n' "${s%%/*}"; }
+lw_repo_from_url()  { local s; s="$(lw_repo_slug "$1")"; printf '%s\n' "${s##*/}"; }
+
+# GitHub wiki clone URL from an origin URL. Single canonical implementation
+# replacing the two that had drifted: init-wiki.sh used `sed 's/.git$/...'`
+# which is a no-op on a suffix-less URL; instantiate.sh handled that case.
+# strip-then-append covers both.
+# NOTE: GitHub-specific. Non-GitHub hosts use different wiki schemes — that
+# is the open policy question, deliberately localized here.
+lw_wiki_url() {
+  local url="${1%.git}"
+  printf '%s\n' "${url}.wiki.git"
+}
+
+# Default branch of a remote, DETECTED not hardcoded (mirrors the fix
+# already in protocol.sh). Tries the locally-known remote HEAD symref
+# first, then asks the remote over the network. Empty output + nonzero
+# return when undetectable, so the caller chooses a fallback explicitly
+# instead of silently assuming main vs master.
+lw_default_branch() {
+  local remote="${1:-origin}" dir="${2:-.}" head
+  head="$(git -C "$dir" symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null)" \
+    && { printf '%s\n' "${head#"$remote/"}"; return 0; }
+  head="$(git -C "$dir" remote show "$remote" 2>/dev/null \
+            | awk '/HEAD branch:/ {print $NF; exit}')"
+  [[ -n "$head" && "$head" != "(unknown)" ]] && { printf '%s\n' "$head"; return 0; }
+  return 1
+}
