@@ -6,11 +6,11 @@
 #   F6   a pre-existing 'template' remote pointing elsewhere is rejected;
 #   F12  the scripts run (sha comparison via lw_sha256).
 #
-# All remotes are local paths, so the runs are hermetic. GIT_CONFIG_GLOBAL is
-# pinned so the scripts' internal git calls do not depend on host config.
+# All remotes are local paths, so the runs are hermetic. Git identity for the
+# scripts' internal git calls comes from the harness-wide hermetic env
+# (sandbox_git_env), inherited here and by the scripts under test.
 
 STAGE="$SANDBOX/template-scripts"
-GITCFG="$STAGE/gitconfig"
 # assertions.sh is sourced by run.sh, so $HERE = scripts/test/; two up = repo root.
 REPO_ROOT_TS="$(cd "$HERE/../.." && pwd)"
 UPDATE="$REPO_ROOT_TS/scripts/update-from-template.sh"
@@ -18,8 +18,7 @@ CHECK="$REPO_ROOT_TS/scripts/check-template-version.sh"
 
 run_in() {  # run_in <dir> <logfile> <script> [args...]
     local dir="$1" log="$2"; shift 2
-    ( cd "$dir" && GIT_CONFIG_GLOBAL="$GITCFG" GIT_CONFIG_SYSTEM=/dev/null \
-        bash "$@" ) >"$log" 2>&1
+    ( cd "$dir" && bash "$@" ) >"$log" 2>&1
 }
 
 assert "update-from-template.sh passes bash -n"   "bash -n '$UPDATE'"
