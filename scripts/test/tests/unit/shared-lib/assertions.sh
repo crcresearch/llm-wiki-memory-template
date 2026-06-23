@@ -188,14 +188,17 @@ lw_call "lw_sed_inplace 's/beta/BETA/' '$SEDF'" >/dev/null 2>&1
 assert_contains "sed_inplace: substitution applied" "$SEDF" '^BETA$'
 assert "sed_inplace: leaves no .bak file" "[ ! -e '$SEDF.bak' ]"
 
-# Multi-line `a\` append: the exact form init-wiki uses to extend WIKI-INDEX.
-printf 'one\nHEADING\ntwo\n' > "$SEDF"
-SED_LN=$(grep -n HEADING "$SEDF" | cut -d: -f1)
-lw_call "lw_sed_inplace '${SED_LN}a\\
-- appended line' '$SEDF'" >/dev/null 2>&1
-assert_contains "sed_inplace: a-backslash append inserted the line" "$SEDF" '^- appended line$'
-assert "sed_inplace: append lands right after the target line" \
-    "awk '/HEADING/{h=NR} /^- appended line\$/{a=NR} END{exit !(h>0 && a==h+1)}' '$SEDF'"
+# --- text.sh: lw_append_after (insert under a heading; init-wiki's WIKI-INDEX
+# registration). Replaces a sed 'Na\' append that BSD/macOS sed silently
+# no-ops, so this is the exact case the macos CI job regressed on. ---
+APPF="$ROOT/append.md"
+printf '# Index\n\n## Wikis\n- [[existing]] — old\n\nfooter\n' > "$APPF"
+lw_call "lw_append_after '$APPF' '## Wikis' '- [[new]] — fresh'" >/dev/null 2>&1
+assert_contains "append_after: line inserted" "$APPF" '^- \[\[new\]\] — fresh$'
+assert "append_after: lands directly under the heading" \
+    "awk '/^## Wikis\$/{h=NR} /^- \[\[new\]\]/{a=NR} END{exit !(h>0 && a==h+1)}' '$APPF'"
+assert_contains "append_after: pre-existing entry preserved" "$APPF" '^- \[\[existing\]\] — old$'
+assert_contains "append_after: content below the heading preserved" "$APPF" '^footer$'
 
 # --- text.sh: lw_replace_block (update body between an existing sentinel) ---
 RB="$ROOT/replace.md"

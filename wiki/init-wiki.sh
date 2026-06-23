@@ -792,11 +792,9 @@ WIKIIDXEOF
         if ! grep -qF "[[${home_page}]]" "$index_file"; then
             # Find the Wikis section and append, or just append
             if grep -qF "## Wikis" "$index_file"; then
-                # Append after the Wikis heading (find line number, insert after)
-                local line_num
-                line_num=$(grep -n "## Wikis" "$index_file" | tail -1 | cut -d: -f1)
-                lw_sed_inplace "${line_num}a\\
-- [[${home_page}]] — ${description}" "$index_file"
+                # Append directly under the Wikis heading. Uses lw_append_after
+                # (awk) because BSD/macOS sed rejects the 'Na\' append form.
+                lw_append_after "$index_file" "## Wikis" "- [[${home_page}]] — ${description}"
             else
                 printf '\n## Wikis\n- [[%s]] — %s\n' "${home_page}" "${description}" >> "$index_file"
             fi
@@ -843,10 +841,9 @@ GPIDXEOF
             echo "Created $grandparent_index"
         elif ! grep -qF "[[${index_basename}]]" "$grandparent_index"; then
             if grep -qF "## Collections" "$grandparent_index"; then
-                local gp_line
-                gp_line=$(grep -n "## Collections" "$grandparent_index" | tail -1 | cut -d: -f1)
-                lw_sed_inplace "${gp_line}a\\
-- [[${index_basename}]] — ${parent_name} wikis" "$grandparent_index"
+                # Append directly under the Collections heading. Uses
+                # lw_append_after (awk); BSD/macOS sed rejects 'Na\'.
+                lw_append_after "$grandparent_index" "## Collections" "- [[${index_basename}]] — ${parent_name} wikis"
             else
                 printf '\n## Collections\n- [[%s]] — %s wikis\n' "${index_basename}" "${parent_name}" >> "$grandparent_index"
             fi

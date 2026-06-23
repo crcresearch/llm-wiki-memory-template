@@ -106,3 +106,25 @@ lw_insert_before() {
   mv "$tmp" "$file"
   rm -f "$blockfile"
 }
+
+# Insert a multi-line BLOCK on the line(s) immediately after the first line
+# containing NEEDLE. The sed-free counterpart to appending after a matched
+# line: `sed 'Na\<newline>text'` is rejected by BSD/macOS sed (it silently
+# no-ops), so anything that needs to append under a heading goes through this
+# instead. Same blockfile + getline mechanism as lw_insert_before, so it is
+# BSD-safe for multi-line blocks too. No trailing blank line is added, which
+# is what list registration (e.g. WIKI-INDEX entries) wants.
+lw_append_after() {
+  local file="$1" needle="$2" block="$3" tmp blockfile
+  tmp="$(mktemp)"; blockfile="$(mktemp)"
+  printf '%s\n' "$block" > "$blockfile"
+  awk -v needle="$needle" -v bf="$blockfile" '
+    { print }
+    index($0, needle) && !done {
+      while ((getline line < bf) > 0) print line
+      close(bf); done = 1
+    }
+  ' "$file" > "$tmp"
+  mv "$tmp" "$file"
+  rm -f "$blockfile"
+}
