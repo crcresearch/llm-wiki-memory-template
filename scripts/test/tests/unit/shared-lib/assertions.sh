@@ -67,6 +67,16 @@ assert "discover_wiki_name: multiple wikis exits non-zero" "[ $RC -ne 0 ]"
 # --- git.sh: lw_default_branch (detected, not hardcoded to main/master) ---
 assert_eq "default_branch detects 'trunk'" "trunk" "$(lw_call "lw_default_branch origin '$ROOT/branch/clone'")"
 
+# --- git.sh: lw_ensure_remote (add when absent; accept same repo; reject other) ---
+lw_call "lw_ensure_remote template 'https://github.com/acme/widget.git' '$ROOT/ensure/none'" >/dev/null 2>&1; RC=$?
+assert "ensure_remote: adds the remote when absent (exit 0)" "[ $RC -eq 0 ]"
+assert_eq "ensure_remote: records the expected URL" "https://github.com/acme/widget.git" \
+    "$(git -C "$ROOT/ensure/none" remote get-url template 2>/dev/null)"
+lw_call "lw_ensure_remote template 'git@github.com:acme/widget.git' '$ROOT/ensure/has'" >/dev/null 2>&1; RC=$?
+assert "ensure_remote: accepts the same repo in another URL form (exit 0)" "[ $RC -eq 0 ]"
+lw_call "lw_ensure_remote template 'https://github.com/acme/other.git' '$ROOT/ensure/has'" >/dev/null 2>&1; RC=$?
+assert "ensure_remote: rejects a different repo (exit non-zero)" "[ $RC -ne 0 ]"
+
 # --- claude.sh: project-dir encoding (faithful port of Claude Code NS/tr/MU) ---
 # Every non-alnum char sanitizes to '-' (the old tr '/._' was wrong for
 # spaces, '+', parens, etc. — those would have produced an unreadable dir).

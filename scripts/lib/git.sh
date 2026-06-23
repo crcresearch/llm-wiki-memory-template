@@ -72,6 +72,23 @@ lw_wiki_url() {
   printf '%s\n' "${url}.wiki.git"
 }
 
+# Ensure a named remote exists and points at the expected repo. Adds it when
+# absent; when already present, compares by normalized owner/repo slug so an
+# ssh-vs-https spelling of the SAME repo is accepted, but a genuinely different
+# repo fails loud rather than silently fetching from the wrong place (F6).
+# The slug of a local-path remote (used in tests) is its bare path, so a
+# different path is correctly rejected too.
+lw_ensure_remote() {
+  local name="$1" expected="$2" dir="${3:-.}" current
+  if current="$(git -C "$dir" remote get-url "$name" 2>/dev/null)"; then
+    if [[ "$(lw_repo_slug "$current")" != "$(lw_repo_slug "$expected")" ]]; then
+      lw_die "remote '$name' points at '$current', not the expected '$expected'; refusing to fetch from a different repo (remove the remote or pass the matching URL)"
+    fi
+  else
+    git -C "$dir" remote add "$name" "$expected"
+  fi
+}
+
 # Default branch of a remote, DETECTED not hardcoded (mirrors the fix
 # already in protocol.sh). Tries the locally-known remote HEAD symref
 # first, then asks the remote over the network. Empty output + nonzero

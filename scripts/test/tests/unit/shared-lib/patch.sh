@@ -60,6 +60,13 @@ git -C "$BD/seed" remote add origin "$BD/remote.git"
 git -C "$BD/seed" push -q origin trunk
 git clone -q "$BD/remote.git" "$BD/clone"
 
+# --- lw_ensure_remote fixtures (git.sh) ---
+# 'none' has no template remote (add path); 'has' already points at a repo, so
+# the same repo in another URL form is accepted and a different repo rejected.
+_mkrepo "$ROOT/ensure/none"
+_mkrepo "$ROOT/ensure/has"
+git -C "$ROOT/ensure/has" remote add template "https://github.com/acme/widget.git"
+
 # --- sha256 fixtures (sys.sh: lw_sha256) ---
 # A fixed-content input whose digest is known, plus a fake PATH dir that
 # provides shasum + awk but NOT sha256sum, so the fallback branch can be
