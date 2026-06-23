@@ -17,7 +17,7 @@ LW_COMMON="$REPO_ROOT_LIB/scripts/lib/common.sh"
 lw_call() { ( set -uo pipefail; source "$LW_COMMON"; eval "$1" ); }
 
 # --- Sanity: every module exists, parses, and the umbrella sources cleanly ---
-for _f in common report git identity text claude; do
+for _f in common report sys git identity text claude; do
     assert "scripts/lib/$_f.sh exists"         "[ -f '$REPO_ROOT_LIB/scripts/lib/$_f.sh' ]"
     assert "scripts/lib/$_f.sh passes bash -n" "bash -n '$REPO_ROOT_LIB/scripts/lib/$_f.sh'"
 done
@@ -106,6 +106,20 @@ PY
         "$(lw_call "lw_claude_project_slug '$LONGP'")"
 else
     skip "slug(long): truncate+hash vs reference impl" "python3 not available"
+fi
+
+# --- sys.sh: lw_sha256 (sha256sum preferred, shasum -a 256 fallback) ---
+# Known digest of "llm-wiki\n" (printf 'llm-wiki\n' | sha256sum).
+SHA_EXPECT="164d626053db60f0f0b9b6c6cba8eabd98d82d81a8f491e90e0b81ed0276c7a1"
+assert_eq "sha256: matches a known digest" "$SHA_EXPECT" \
+    "$(lw_call "lw_sha256 '$ROOT/sha/input.txt'")"
+# Fallback: with sha256sum absent from PATH (fakebin has only shasum + awk),
+# lw_sha256 must take the shasum branch and produce the same digest.
+if [ -x "$ROOT/sha-fakebin/shasum" ]; then
+    assert_eq "sha256: shasum fallback matches when sha256sum absent" "$SHA_EXPECT" \
+        "$(lw_call "PATH='$ROOT/sha-fakebin'; lw_sha256 '$ROOT/sha/input.txt'")"
+else
+    skip "sha256: shasum fallback" "shasum not available on this host"
 fi
 
 # --- report.sh: change tracking without parsing report strings ---

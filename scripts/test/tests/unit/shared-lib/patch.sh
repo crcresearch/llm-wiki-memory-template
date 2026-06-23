@@ -60,4 +60,19 @@ git -C "$BD/seed" remote add origin "$BD/remote.git"
 git -C "$BD/seed" push -q origin trunk
 git clone -q "$BD/remote.git" "$BD/clone"
 
+# --- sha256 fixtures (sys.sh: lw_sha256) ---
+# A fixed-content input whose digest is known, plus a fake PATH dir that
+# provides shasum + awk but NOT sha256sum, so the fallback branch can be
+# exercised deterministically. The shims are symlinks to the real tools; if
+# shasum is unavailable on this host the assertion skips.
+SHA="$ROOT/sha"
+mkdir -p "$SHA"
+printf 'llm-wiki\n' > "$SHA/input.txt"
+FAKEBIN="$ROOT/sha-fakebin"
+mkdir -p "$FAKEBIN"
+if command -v shasum >/dev/null 2>&1 && command -v awk >/dev/null 2>&1; then
+    ln -sf "$(command -v shasum)" "$FAKEBIN/shasum"
+    ln -sf "$(command -v awk)"    "$FAKEBIN/awk"
+fi
+
 echo "  shared-lib patch applied: fixtures at $ROOT"

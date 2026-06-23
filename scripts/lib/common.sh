@@ -27,6 +27,8 @@ _LW_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Order matters: report.sh defines lw_die/lw_warn used by the others.
 # shellcheck source=report.sh
 source "$_LW_LIB_DIR/report.sh"
+# shellcheck source=sys.sh
+source "$_LW_LIB_DIR/sys.sh"
 # shellcheck source=git.sh
 source "$_LW_LIB_DIR/git.sh"
 # shellcheck source=identity.sh

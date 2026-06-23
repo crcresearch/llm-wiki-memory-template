@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # instantiate.sh — first-use bootstrap for a project created from llm-wiki-memory-template.
 #
@@ -129,9 +130,19 @@ if [[ -n "$FEATURES_CSV" ]]; then
     done
 fi
 
+# --- Load shared library ---
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$HERE/lib/common.sh"
+
 # --- Detect project layout ---
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-REPO_NAME=$(basename "$REPO_ROOT")
+# At first-use the wiki does not exist yet, so the canonical name is resolved
+# from the origin repo (lw_name_from_origin; the clone-directory basename is
+# only a last-resort fallback when no origin is set). This name is resolved
+# ONCE here and handed to init-wiki.sh via --repo-name, so the namespace is
+# derived in exactly one place (F1).
+REPO_ROOT=$(lw_repo_root)
+REPO_NAME=$(lw_name_from_origin "$REPO_ROOT")
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 CLAUDE_MD_TEMPLATE="$REPO_ROOT/CLAUDE.md.template"
 README_MD="$REPO_ROOT/README.md"
@@ -169,17 +180,15 @@ if [[ "${#FEATURES_LIST[@]}" -gt 0 ]]; then
     fi
 fi
 
-# Derive OWNER (GitHub org or user) from the origin URL, so the generated
-# README's clone commands use the real owner instead of a literal <owner>
-# placeholder. Falls back to a literal "<owner>" if origin is not set yet
-# (e.g. the user cloned somewhere private and has not pushed).
-ORIGIN_URL=$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null || true)
+# Derive OWNER (org or user) from the origin URL, so the generated README's
+# clone commands use the real owner instead of a literal <owner> placeholder.
+# lw_owner_from_url is host-agnostic (https / scp-style ssh / ssh:// with
+# port), replacing the github.com-only strip this used to do. Falls back to a
+# literal "<owner>" if origin is not set yet (e.g. the user cloned somewhere
+# private and has not pushed).
+ORIGIN_URL=$(lw_origin_url "$REPO_ROOT" 2>/dev/null) || ORIGIN_URL=""
 if [[ -n "$ORIGIN_URL" ]]; then
-    OWNER_REPO="${ORIGIN_URL%.git}"
-    OWNER_REPO="${OWNER_REPO#git@github.com:}"
-    OWNER_REPO="${OWNER_REPO#https://github.com/}"
-    OWNER_REPO="${OWNER_REPO#http://github.com/}"
-    OWNER="${OWNER_REPO%%/*}"
+    OWNER=$(lw_owner_from_url "$ORIGIN_URL")
 else
     OWNER="<owner>"
 fi
@@ -353,6 +362,9 @@ sed \
 
 # Replace the {{AGENT_NOTE}} line with the agent-specific block (or remove if none).
 # Using python for the multi-line substitution because sed across newlines is fragile.
+# F14: the CLAUDE.md-editing python3 heredocs here and below are a separate
+# migration (toward a shared text helper); intentionally not undertaken in the
+# chunk-03 shared-lib pass.
 python3 - "$TMP" "$AGENT_NOTE" "$CLAUDE_MD" <<'PYEOF'
 import sys, pathlib
 src, note, dst = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -398,16 +410,16 @@ else
         #   3. If not, pushes a one-commit seed (Home.md) directly to it.
         #      init-wiki.sh will then patch its namespaced files on top.
 
-        ORIGIN_URL=$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null || true)
+        ORIGIN_URL=$(lw_origin_url "$REPO_ROOT" 2>/dev/null) || ORIGIN_URL=""
         if [[ -z "$ORIGIN_URL" ]]; then
             echo "Error: --github-wiki requires a git remote 'origin' on the main repo." >&2
             echo "       Push the project repo to GitHub first, then re-run." >&2
             exit 1
         fi
-        case "$ORIGIN_URL" in
-            *.git) WIKI_REMOTE_URL="${ORIGIN_URL%.git}.wiki.git" ;;
-            *)     WIKI_REMOTE_URL="${ORIGIN_URL}.wiki.git" ;;
-        esac
+        # lw_wiki_url strips/appends the suffix correctly for both the .git and
+        # suffix-less forms (the old case-on-suffix did this inline), and fails
+        # loud on a non-GitHub host rather than emitting a wrong URL (D1).
+        WIKI_REMOTE_URL=$(lw_wiki_url "$ORIGIN_URL")
 
         # Use the main repo's own origin protocol for the seed push, so it
         # reuses whatever auth already cloned the main repo: an SSH key if
@@ -417,19 +429,23 @@ else
         # who clone over HTTPS via gh and have no SSH key configured.
         WIKI_PUSH_URL="$WIKI_REMOTE_URL"
 
+        # The wiki does not exist yet, so there is no remote default branch to
+        # detect; this seed push CREATES it. GitHub renders a wiki from its
+        # default branch, which it initializes as 'master' for wikis, so we
+        # bootstrap onto that name deliberately (one variable, not a literal
+        # repeated across init + push). init-wiki.sh then clones the now-real
+        # wiki and detects this same branch via lw_default_branch (F5).
+        WIKI_SEED_BRANCH="master"
+
         if ! git ls-remote "$WIKI_PUSH_URL" >/dev/null 2>&1; then
             echo "GitHub Wiki not initialized yet at $WIKI_REMOTE_URL"
             echo "Bootstrapping with a seed Home.md via direct push (over SSH) ..."
 
             # Best-effort: ensure has_wiki=true on the main repo (idempotent;
-            # default is already true, so this is just defensive).
-            # Extract OWNER/REPO from ORIGIN_URL with bash parameter expansion
-            # (portable across GNU and BSD sed; sed -E with +? was not).
+            # default is already true, so this is just defensive). lw_repo_slug
+            # yields owner/repo host-agnostically, replacing the inline strip.
             if command -v gh >/dev/null 2>&1; then
-                REPO_SLUG="${ORIGIN_URL%.git}"
-                REPO_SLUG="${REPO_SLUG#git@github.com:}"
-                REPO_SLUG="${REPO_SLUG#https://github.com/}"
-                REPO_SLUG="${REPO_SLUG#http://github.com/}"
+                REPO_SLUG=$(lw_repo_slug "$ORIGIN_URL")
                 gh api "repos/$REPO_SLUG" -X PATCH -F has_wiki=true >/dev/null 2>&1 || true
             fi
 
@@ -444,17 +460,20 @@ else
             # even with valid auth and has_wiki=true. That is not a bug in
             # this script — it is a GitHub Wiki architecture constraint.
             # The fallback message below points the user at the UI URL.
+            # `git init -q` + `symbolic-ref` sets the initial branch portably;
+            # `git init -b <branch>` needs git >= 2.28, which we do not assume.
             if (
                 TMP=$(mktemp -d) \
                 && cd "$TMP" \
-                && git init -b master -q \
+                && git init -q \
+                && git symbolic-ref HEAD "refs/heads/$WIKI_SEED_BRANCH" \
                 && printf '# Home\n\nBootstrapped by llm-wiki-memory-template/scripts/instantiate.sh.\n' > Home.md \
                 && git add Home.md \
                 && git \
                     -c user.email=instantiate@llm-wiki-memory-template \
                     -c user.name="instantiate.sh" \
                     commit -m "Initialize wiki" -q \
-                && git push -q "$WIKI_PUSH_URL" master:master \
+                && git push -q "$WIKI_PUSH_URL" "$WIKI_SEED_BRANCH:$WIKI_SEED_BRANCH" \
                 && cd / \
                 && rm -rf "$TMP"
             ); then
@@ -484,9 +503,12 @@ else
             fi
         fi
 
-        "$REPO_ROOT/wiki/init-wiki.sh" --github ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
+        # Hand the once-resolved name to init-wiki via --repo-name so the
+        # namespace is derived in exactly one place (F1); without it init-wiki
+        # would re-derive from origin and could disagree on a fork/rename.
+        "$REPO_ROOT/wiki/init-wiki.sh" --repo-name "$REPO_NAME" --github ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
     else
-        "$REPO_ROOT/wiki/init-wiki.sh" ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
+        "$REPO_ROOT/wiki/init-wiki.sh" --repo-name "$REPO_NAME" ${INIT_AGENT_ARGS[@]+"${INIT_AGENT_ARGS[@]}"}
     fi
 fi
 
