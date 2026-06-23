@@ -383,6 +383,27 @@ if [[ -f "$README_MD_TEMPLATE" ]]; then
     echo "Wrote README.md (project-specific; the template's own README was replaced)"
 fi
 
+# --- Strip template-development-only rules ---
+# .claude/rules/ holds guidance for contributors working ON the template
+# itself (e.g. observe-the-failure.md), not behavior a derived project needs.
+# Remove only the named dev-only rules, never the whole directory, so any
+# consumer-facing rule a project adds under .claude/rules/ survives and this
+# list stays easy to extend later. update-from-template.sh's ALWAYS_FILES does
+# not re-add these.
+CLAUDE_RULES_DIR="$REPO_ROOT/.claude/rules"
+DEV_ONLY_RULES=(observe-the-failure.md)
+for _rule in "${DEV_ONLY_RULES[@]}"; do
+    if [[ -f "$CLAUDE_RULES_DIR/$_rule" ]]; then
+        rm -f "$CLAUDE_RULES_DIR/$_rule"
+        echo "Removed .claude/rules/$_rule (template-development-only; not propagated to derived projects)"
+    fi
+done
+# Tidy up only if our removals emptied the directory; leave it in place when a
+# consumer-facing rule is present.
+if [[ -d "$CLAUDE_RULES_DIR" ]] && [[ -z "$(ls -A "$CLAUDE_RULES_DIR" 2>/dev/null)" ]]; then
+    rmdir "$CLAUDE_RULES_DIR"
+fi
+
 # --- Bootstrap the wiki ---
 if [[ -d "$REPO_ROOT/wiki/${REPO_NAME}.wiki" ]]; then
     echo "Wiki sub-repo already present at wiki/${REPO_NAME}.wiki/, skipping init-wiki.sh"
