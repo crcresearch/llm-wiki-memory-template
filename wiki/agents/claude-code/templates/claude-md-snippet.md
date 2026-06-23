@@ -1,16 +1,17 @@
 <!--
   Template: Memory boundary + Wiki maintenance behavior subsections for CLAUDE.md.
-  Injected by wiki/agents/claude-code/setup.sh into the ## Wiki section,
-  immediately before the ### Knowledge Graph subsection.
-  Idempotency: setup.sh checks two markers independently:
-    "### Memory boundary"          (added in PR #28)
-    "### Wiki maintenance behavior" (original marker)
-  A derived project missing either marker triggers injection of the
-  corresponding subsection; both present → setup.sh skips.
-  When extending this snippet with a new subsection, add a matching
-  marker check in setup.sh, do not just rely on the existing one.
+  wiki/agents/{claude-code,cursor}/setup.sh inject each subsection into the
+  ## Wiki section, immediately before the ### Knowledge Graph subsection,
+  wrapped in paired sentinels for idempotency (lw:memory-boundary and
+  lw:wiki-maintenance). setup.sh extracts the body BETWEEN each sentinel pair
+  below and re-wraps it via lw_inject_block, so this header comment (outside any
+  pair) is never injected. Projects created before this format carry bare "###"
+  headings; setup.sh's shim wraps those in sentinels on the next run so
+  re-injection stays idempotent. When adding a subsection, give it its own
+  sentinel pair and a matching inject call in both setup.sh scripts.
 -->
 
+<!-- lw:memory-boundary -->
 ### Memory boundary
 
 This project uses two persistent memory layers; mis-allocation drops content into ambiguity.
@@ -19,7 +20,9 @@ This project uses two persistent memory layers; mis-allocation drops content int
 - **Wiki holds**: project-specific knowledge, syntheses, decisions, experiment results. Persists across all sessions for *this project*, regardless of user.
 
 When a fact emerges and the destination is unclear, ask: does it follow the user across projects, or does it stay with the project across users? User-shaped goes to Claude-memory; project-shaped goes to the wiki. If both, file the project-shaped half to the wiki and let the user-shaped half live in Claude-memory.
+<!-- /lw:memory-boundary -->
 
+<!-- lw:wiki-maintenance -->
 ### Wiki maintenance behavior
 
 The wiki is this project's durable memory. Read it to recall context; write to it to remember. Apply this rule in both directions, proactively, without waiting to be asked.
@@ -39,3 +42,4 @@ Execute these without asking — local commits in the wiki repo are trivially re
 Honest reporting: bad results and contradicted claims get filed truthfully, not polished. Per the global rule, never report accuracy from projections, only from real script outputs. See `wiki/agents/discipline-gates.md` for the canonical "Universal Rationalizations (Always Wrong)" table that names the failure modes the Verification Gate catches.
 
 Claude Code users have project-level slash commands available for explicit invocation: `/wiki-experiment`, `/wiki-source`, `/wiki-lint`. See `.claude/commands/`. The project also ships the same procedures as model-side skills at `.claude/skills/` (referenced by the slash commands). The slash commands are a safety net: the proactive behavior described above is the default, the slash commands exist for cases where the user wants to force the action explicitly.
+<!-- /lw:wiki-maintenance -->

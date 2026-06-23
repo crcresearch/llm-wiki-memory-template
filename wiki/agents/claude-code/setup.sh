@@ -109,66 +109,55 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
 fi
 
 # --- Step 2: patch CLAUDE.md ---
-# The snippet at $SNIPPET_FILE contains TWO subsections, each with an
-# independent idempotency marker:
-#   "### Memory boundary"          (PR #28 — Claude-memory vs wiki layout)
-#   "### Wiki maintenance behavior" (original)
-# A derived project may have one but not the other (e.g., setup.sh was run
-# before the boundary subsection existed). Each marker is checked
-# separately and injected when missing.
+# The snippet at $SNIPPET_FILE carries TWO subsections, each delimited by a
+# paired sentinel (<!-- lw:memory-boundary -->, <!-- lw:wiki-maintenance -->).
+# Idempotency is the presence of the opening sentinel, not a prose-heading grep
+# (which false-negatived on wording drift, duplicating, and false-positived on
+# the old leaked comment, F7). Each subsection injects independently, so a
+# project that has one but not the other still gets the missing one.
 SNIPPET_FILE="$TEMPLATES_DIR/claude-md-snippet.md"
-MARKER_MAINTENANCE="### Wiki maintenance behavior"
-MARKER_BOUNDARY="### Memory boundary"
+KG_ANCHOR="### Knowledge Graph"
 
-# Extract the whole snippet body once, with comments stripped and
-# placeholders substituted.
-if [[ -f "$SNIPPET_FILE" ]]; then
-    SNIPPET_BODY=$(grep -v '^<!--' "$SNIPPET_FILE" | grep -v '^-->' | sed "s/\${REPO_NAME}/$REPO_NAME/g")
-fi
-
-# Extract just the Memory boundary subsection (between its header and the
-# next ### header), in case we need to inject it alone.
-extract_boundary_only() {
-    awk '
-        /^### Memory boundary/ { capture = 1 }
-        /^### Wiki maintenance behavior/ { capture = 0 }
-        capture { print }
-    ' <<<"$SNIPPET_BODY"
-}
-
-inject_before_kg_or_append() {
-    local content="$1"
-    local label="$2"
-    if grep -qF "### Knowledge Graph" "$CLAUDE_MD"; then
-        # lw_insert_before is the shared BSD-safe injector (tempfile +
-        # getline, not awk -v); cursor/setup.sh routes through the same
-        # helper so both overlays share one injection path.
-        lw_insert_before "$CLAUDE_MD" "### Knowledge Graph" "$content"
-        lw_record_change "CLAUDE.md: injected '$label' before '### Knowledge Graph'"
-    else
-        printf '\n%s\n' "$content" >> "$CLAUDE_MD"
-        lw_record_change "CLAUDE.md: appended '$label' at end"
-    fi
+# Body of one subsection, read from BETWEEN its sentinel pair in the template
+# (so the template's header comment never leaks in), with ${REPO_NAME}
+# substituted. lw_inject_block re-wraps this body in the same sentinels.
+extract_block() {
+    awk -v open="<!-- lw:$1 -->" -v endm="<!-- /lw:$1 -->" '
+        $0 == open { grab=1; next }
+        $0 == endm { grab=0 }
+        grab       { print }
+    ' "$SNIPPET_FILE" | sed "s/\${REPO_NAME}/$REPO_NAME/g"
 }
 
 if [[ ! -f "$CLAUDE_MD" ]]; then
     echo "WARNING: CLAUDE.md not found at $CLAUDE_MD. Skipping CLAUDE.md patch." >&2
     lw_record_skip "CLAUDE.md: not found (skipped)"
+elif [[ ! -f "$SNIPPET_FILE" ]]; then
+    lw_record_skip "CLAUDE.md: template snippet not found at $SNIPPET_FILE (skipped)"
 else
-    HAS_MAINTENANCE=$(grep -qF "$MARKER_MAINTENANCE" "$CLAUDE_MD" && echo true || echo false)
-    HAS_BOUNDARY=$(grep -qF "$MARKER_BOUNDARY" "$CLAUDE_MD" && echo true || echo false)
-
-    if ! $HAS_MAINTENANCE; then
-        # First-run case: inject the entire snippet (both subsections).
-        inject_before_kg_or_append "$SNIPPET_BODY" "Memory boundary + Wiki maintenance behavior"
-    elif ! $HAS_BOUNDARY; then
-        # Partial-state case: maintenance present from an earlier setup.sh
-        # run, boundary subsection missing (added in PR #28). Inject just
-        # the boundary subsection.
-        inject_before_kg_or_append "$(extract_boundary_only)" "Memory boundary"
-    else
-        lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
+    patched=false
+    # Migrate any pre-sentinel prose sections in place first (wrap, preserving
+    # local edits), so the sentinel-based injection below recognizes them and
+    # does not duplicate.
+    if lw_wrap_section "$CLAUDE_MD" memory-boundary "### Memory boundary"; then
+        lw_record_change "CLAUDE.md: migrated legacy 'Memory boundary' section to sentinels"; patched=true
     fi
+    if lw_wrap_section "$CLAUDE_MD" wiki-maintenance "### Wiki maintenance behavior"; then
+        lw_record_change "CLAUDE.md: migrated legacy 'Wiki maintenance behavior' section to sentinels"; patched=true
+    fi
+
+    # Inject each still-missing subsection. memory-boundary precedes
+    # wiki-maintenance; anchor it on the latter's sentinel when present, else
+    # the Knowledge Graph subsection.
+    MB_ANCHOR="$KG_ANCHOR"
+    grep -qF '<!-- lw:wiki-maintenance -->' "$CLAUDE_MD" 2>/dev/null && MB_ANCHOR='<!-- lw:wiki-maintenance -->'
+    if lw_inject_block "$CLAUDE_MD" memory-boundary "$(extract_block memory-boundary)" "$MB_ANCHOR"; then
+        lw_record_change "CLAUDE.md: injected 'Memory boundary' subsection"; patched=true
+    fi
+    if lw_inject_block "$CLAUDE_MD" wiki-maintenance "$(extract_block wiki-maintenance)" "$KG_ANCHOR"; then
+        lw_record_change "CLAUDE.md: injected 'Wiki maintenance behavior' subsection"; patched=true
+    fi
+    $patched || lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
 fi
 
 # --- Step 3a: verify slash commands present ---

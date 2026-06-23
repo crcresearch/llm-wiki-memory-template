@@ -196,3 +196,40 @@ lw_call "lw_sed_inplace '${SED_LN}a\\
 assert_contains "sed_inplace: a-backslash append inserted the line" "$SEDF" '^- appended line$'
 assert "sed_inplace: append lands right after the target line" \
     "awk '/HEADING/{h=NR} /^- appended line\$/{a=NR} END{exit !(h>0 && a==h+1)}' '$SEDF'"
+
+# --- text.sh: lw_replace_block (update body between an existing sentinel) ---
+RB="$ROOT/replace.md"
+printf 'top\n<!-- lw:demo -->\nOLD-BODY\n<!-- /lw:demo -->\nbottom\n' > "$RB"
+lw_call "lw_replace_block '$RB' demo 'NEW-BODY'" >/dev/null 2>&1
+assert_contains "replace_block: new body present"        "$RB" '^NEW-BODY$'
+assert "replace_block: old body replaced"                "! grep -qF 'OLD-BODY' '$RB'"
+assert_contains "replace_block: text above the block intact" "$RB" '^top$'
+assert_contains "replace_block: text below the block intact" "$RB" '^bottom$'
+assert_contains "replace_block: closing sentinel kept"   "$RB" '<!-- /lw:demo -->'
+# Absent sentinel: no-op, nonzero, file untouched.
+printf 'alpha\nbeta\n' > "$RB"
+lw_call "lw_replace_block '$RB' demo 'X'" >/dev/null 2>&1; RC=$?
+assert "replace_block: absent sentinel returns non-zero"   "[ $RC -ne 0 ]"
+assert "replace_block: absent sentinel leaves file unchanged" "! grep -qF 'X' '$RB'"
+
+# --- text.sh: lw_wrap_section (migrate a legacy prose section to sentinels) ---
+WS="$ROOT/wrap.md"
+printf '# Doc\n\n### Memory boundary\n\nbody line\n\n### Next\n\ntail\n' > "$WS"
+lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
+assert "wrap_section: wraps an existing section (exit 0)" "[ $RC -eq 0 ]"
+assert_contains "wrap_section: opening sentinel added" "$WS" '<!-- lw:memory-boundary -->'
+assert_contains "wrap_section: closing sentinel added" "$WS" '<!-- /lw:memory-boundary -->'
+assert_contains "wrap_section: section body preserved" "$WS" '^body line$'
+assert "wrap_section: opening sentinel precedes the heading" \
+    "awk '/<!-- lw:memory-boundary -->/{s=NR} /^### Memory boundary\$/{h=NR} END{exit !(s>0 && s<h)}' '$WS'"
+assert "wrap_section: closing sentinel precedes the next heading" \
+    "awk '/<!-- \\/lw:memory-boundary -->/{c=NR} /^### Next\$/{n=NR} END{exit !(c>0 && c<n)}' '$WS'"
+# Idempotent: re-run is a no-op because the sentinel now exists.
+lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
+assert "wrap_section: re-run with sentinel present returns non-zero" "[ $RC -ne 0 ]"
+assert_eq "wrap_section: still exactly one opening sentinel after re-run" "1" \
+    "$(grep -cF '<!-- lw:memory-boundary -->' "$WS")"
+# Heading absent: nothing to wrap.
+printf 'no heading here\n' > "$WS"
+lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
+assert "wrap_section: absent heading returns non-zero" "[ $RC -ne 0 ]"
