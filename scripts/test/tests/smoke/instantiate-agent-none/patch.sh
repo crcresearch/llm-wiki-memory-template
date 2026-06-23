@@ -34,6 +34,14 @@ else
     exit 0
 fi
 
+# instantiate now resolves the name from origin (F1, chunk 03). Network-clone
+# mode leaves origin pointing at the canonical template, which would make the
+# derived name 'llm-wiki-memory-template' instead of the basename this test
+# asserts. Drop the remote so the name falls back deterministically to the
+# clone-dir basename in both network and local modes; this test is about the
+# --agent=none set -u regression (issue #9), not naming (see instantiate-naming).
+git -C "$T" remote remove origin 2>/dev/null || true
+
 if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"

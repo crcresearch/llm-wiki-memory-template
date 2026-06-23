@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # init-wiki.sh — Bootstrap or update an LLM-maintained wiki for any project.
 #
@@ -35,7 +36,12 @@
 #   3. Add the new pages to index_<repo>.md and append a log_<repo>.md entry.
 #
 # Flags:
-#   --name "Display Name"   custom project name (default: repo name)
+#   --name "Display Name"   human-facing display title only (PROJECT_NAME);
+#                           does NOT change the namespace (default: repo name)
+#   --repo-name "slug"      override the namespace (REPO_NAME: wiki dir and
+#                           file prefixes). Default: derived from the origin
+#                           repo. instantiate.sh passes this so the name is
+#                           resolved in exactly one place.
 #   --github                clone an existing GitHub wiki instead of init'ing locally
 #   --agent "name"          coding assistant running this (e.g. claude-code,
 #                           cursor); recorded in the create log entry's by: line
@@ -46,12 +52,14 @@ set -euo pipefail
 
 # --- Parse arguments ---
 PROJECT_NAME=""
+REPO_NAME_OVERRIDE=""
 USE_GITHUB=false
 WIKI_AGENT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --name) PROJECT_NAME="$2"; shift 2 ;;
+        --repo-name) REPO_NAME_OVERRIDE="$2"; shift 2 ;;
         --github) USE_GITHUB=true; shift ;;
         --agent) WIKI_AGENT="$2"; shift 2 ;;
         -h|--help)
@@ -62,9 +70,26 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Detect project info ---
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-REPO_NAME=$(basename "$REPO_ROOT")
+# --- Load shared library ---
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../scripts/lib/common.sh
+source "$HERE/../scripts/lib/common.sh"
+
+# --- Detect project identity ---
+# Two distinct names, kept separate on purpose so they cannot silently
+# diverge (F3):
+#   REPO_NAME    namespace: the wiki directory and every file prefix.
+#   PROJECT_NAME display title shown in page headings; --name sets ONLY this.
+# At creation time the wiki does not exist yet, so the namespace is derived
+# from the origin repo (lw_name_from_origin; the directory basename is
+# incidental and only a last-resort fallback). --repo-name lets instantiate.sh
+# hand down an already-resolved name so it is derived in exactly one place.
+REPO_ROOT=$(lw_repo_root)
+if [[ -n "$REPO_NAME_OVERRIDE" ]]; then
+    REPO_NAME="$REPO_NAME_OVERRIDE"
+else
+    REPO_NAME=$(lw_name_from_origin "$REPO_ROOT")
+fi
 
 if [[ -z "$PROJECT_NAME" ]]; then
     PROJECT_NAME="$REPO_NAME"
@@ -113,12 +138,14 @@ append_section_if_missing() {
 # --- Create or clone wiki (create mode only) ---
 if [[ "$MODE" == "create" ]]; then
     if $USE_GITHUB; then
-        REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
-        if [[ -z "$REMOTE_URL" ]]; then
+        if ! REMOTE_URL=$(lw_origin_url "$REPO_ROOT"); then
             echo "Error: No git remote 'origin' found. Can't derive GitHub wiki URL."
             exit 1
         fi
-        WIKI_URL=$(echo "$REMOTE_URL" | sed 's/\.git$/.wiki.git/')
+        # lw_wiki_url strips/appends the suffix correctly for both the .git
+        # and suffix-less forms (the old sed was a no-op on a suffix-less
+        # origin), and fails loud on a non-GitHub host (D1).
+        WIKI_URL=$(lw_wiki_url "$REMOTE_URL")
         echo "Cloning GitHub wiki from $WIKI_URL ..."
         mkdir -p "$REPO_ROOT/wiki"
         git clone "$WIKI_URL" "$WIKI_DIR" 2>/dev/null || {
@@ -581,15 +608,13 @@ Also check during lint:
 
     # Replace old "No YAML frontmatter" instruction if present
     if grep -qF "No YAML frontmatter" "$SCHEMA_FILE"; then
-        sed -i '' 's/No YAML frontmatter\. No tags\. Simple markdown that renders on GitHub wikis\./See the Frontmatter section below for frontmatter conventions./' "$SCHEMA_FILE" 2>/dev/null || \
-        sed -i 's/No YAML frontmatter\. No tags\. Simple markdown that renders on GitHub wikis\./See the Frontmatter section below for frontmatter conventions./' "$SCHEMA_FILE"
+        lw_sed_inplace 's/No YAML frontmatter\. No tags\. Simple markdown that renders on GitHub wikis\./See the Frontmatter section below for frontmatter conventions./' "$SCHEMA_FILE"
         UPDATED_SECTIONS+=("Replaced 'No YAML frontmatter' directive")
     fi
 
     # Replace old HTML-comment frontmatter instruction if present
     if grep -qF "HTML comment" "$SCHEMA_FILE"; then
-        sed -i '' 's/wrapped in an HTML comment so it renders cleanly on GitHub wikis/standard YAML frontmatter/' "$SCHEMA_FILE" 2>/dev/null || \
-        sed -i 's/wrapped in an HTML comment so it renders cleanly on GitHub wikis/standard YAML frontmatter/' "$SCHEMA_FILE"
+        lw_sed_inplace 's/wrapped in an HTML comment so it renders cleanly on GitHub wikis/standard YAML frontmatter/' "$SCHEMA_FILE"
         UPDATED_SECTIONS+=("Switched from HTML-comment to standard frontmatter")
     fi
 
@@ -701,7 +726,10 @@ fi
 # placeholders as scripts/instantiate.sh: {{REPO_NAME}}, {{PROJECT_NAME}})
 # and written into the wiki sub-repo with the .template suffix stripped.
 # Idempotent on update mode: re-stamping overwrites with the same content.
-SCRIPT_DIR_INIT="$(cd "$(dirname "$0")" && pwd)"
+# Anchored on BASH_SOURCE (= $HERE), not $0: a $0-based dirname resolves to
+# "." when the script is invoked by bare name via PATH, which would miss the
+# *.md.template files sitting next to this script (F10).
+SCRIPT_DIR_INIT="$HERE"
 TEMPLATES_STAMPED=()
 shopt -s nullglob
 for tpl in "$SCRIPT_DIR_INIT"/*.md.template; do
@@ -764,13 +792,9 @@ WIKIIDXEOF
         if ! grep -qF "[[${home_page}]]" "$index_file"; then
             # Find the Wikis section and append, or just append
             if grep -qF "## Wikis" "$index_file"; then
-                # Append after the Wikis heading (find line number, insert after)
-                local line_num
-                line_num=$(grep -n "## Wikis" "$index_file" | tail -1 | cut -d: -f1)
-                sed -i '' "${line_num}a\\
-- [[${home_page}]] — ${description}" "$index_file" 2>/dev/null || \
-                sed -i "${line_num}a\\
-- [[${home_page}]] — ${description}" "$index_file"
+                # Append directly under the Wikis heading. Uses lw_append_after
+                # (awk) because BSD/macOS sed rejects the 'Na\' append form.
+                lw_append_after "$index_file" "## Wikis" "- [[${home_page}]] — ${description}"
             else
                 printf '\n## Wikis\n- [[%s]] — %s\n' "${home_page}" "${description}" >> "$index_file"
             fi
@@ -817,12 +841,9 @@ GPIDXEOF
             echo "Created $grandparent_index"
         elif ! grep -qF "[[${index_basename}]]" "$grandparent_index"; then
             if grep -qF "## Collections" "$grandparent_index"; then
-                local gp_line
-                gp_line=$(grep -n "## Collections" "$grandparent_index" | tail -1 | cut -d: -f1)
-                sed -i '' "${gp_line}a\\
-- [[${index_basename}]] — ${parent_name} wikis" "$grandparent_index" 2>/dev/null || \
-                sed -i "${gp_line}a\\
-- [[${index_basename}]] — ${parent_name} wikis" "$grandparent_index"
+                # Append directly under the Collections heading. Uses
+                # lw_append_after (awk); BSD/macOS sed rejects 'Na\'.
+                lw_append_after "$grandparent_index" "## Collections" "- [[${index_basename}]] — ${parent_name} wikis"
             else
                 printf '\n## Collections\n- [[%s]] — %s wikis\n' "${index_basename}" "${parent_name}" >> "$grandparent_index"
             fi
@@ -867,8 +888,7 @@ if [[ -f "$CLAUDE_MD" ]]; then
         # Wiki section exists — check for missing content within it
 
         if grep -qF "missing cross-references." "$CLAUDE_MD" && ! grep -qF "missing frontmatter" "$CLAUDE_MD"; then
-            sed -i '' 's/missing cross-references\./missing cross-references, and missing frontmatter./' "$CLAUDE_MD" 2>/dev/null || \
-            sed -i 's/missing cross-references\./missing cross-references, and missing frontmatter./' "$CLAUDE_MD"
+            lw_sed_inplace 's/missing cross-references\./missing cross-references, and missing frontmatter./' "$CLAUDE_MD"
             CLAUDE_UPDATED+=("Updated Lint line to include frontmatter checks")
         fi
 
@@ -971,4 +991,12 @@ else
 fi
 echo ""
 echo "If using GitHub wiki, push with:"
-echo "  cd $WIKI_DIR && git push origin master"
+# Detect the branch instead of hardcoding 'master': prefer the wiki remote's
+# default branch (set when --github cloned it), fall back to the wiki repo's
+# actual current branch, then to 'main'. lw_default_branch returns non-zero
+# when undetectable so the fallback is explicit, never a silent master/main
+# guess (F5).
+PUSH_BRANCH=$(lw_default_branch origin "$WIKI_DIR" 2>/dev/null) \
+    || PUSH_BRANCH=$(git -C "$WIKI_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null) \
+    || PUSH_BRANCH=main
+echo "  cd $WIKI_DIR && git push origin $PUSH_BRANCH"

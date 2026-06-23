@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 #
 # check-template-version.sh — report drift between this project and the
 # llm-wiki template repo. Read-only: applies no changes.
@@ -28,16 +29,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) \
-    || { echo "Error: not in a git repository." >&2; exit 1; }
-REPO_NAME=$(basename "$REPO_ROOT")
+# --- Load shared library ---
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$HERE/lib/common.sh"
+
+REPO_ROOT=$(lw_repo_root)
+# Post-clone authoritative name: the on-disk wiki, not the clone-dir basename
+# (F1/F2). Fails loud when the wiki is absent, which is correct for an
+# already-instantiated project.
+REPO_NAME=$(lw_discover_wiki_name "$REPO_ROOT")
 cd "$REPO_ROOT"
 
-if ! git remote get-url template >/dev/null 2>&1; then
-    git remote add template "$TEMPLATE_URL"
-fi
-git fetch --quiet template main
-TEMPLATE_SHA=$(git rev-parse --short template/main)
+# Add the 'template' remote when absent; fail loud if it already points at a
+# different repo (F6). Detect the template's default branch (F5).
+lw_ensure_remote template "$TEMPLATE_URL"
+TEMPLATE_BRANCH=$(lw_default_branch template) || TEMPLATE_BRANCH=main
+git fetch --quiet template "$TEMPLATE_BRANCH"
+TEMPLATE_REF="template/$TEMPLATE_BRANCH"
+TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
 
 # Same file list logic as update-from-template.sh (kept duplicated rather
 # than sourced so each script remains standalone).
@@ -46,7 +56,11 @@ ALWAYS_FILES=(
     "wiki/agents/discipline-gates.md" "wiki/agents/verification-gate.md"
     "wiki/agents/wiki-write-protocol.md"
     "scripts/update-from-template.sh" "scripts/check-template-version.sh"
-    "scripts/lib/install-feature.sh" "scripts/enable-feature.sh"
+    "scripts/lib/install-feature.sh"
+    "scripts/lib/common.sh" "scripts/lib/report.sh" "scripts/lib/sys.sh"
+    "scripts/lib/git.sh" "scripts/lib/identity.sh" "scripts/lib/text.sh"
+    "scripts/lib/claude.sh"
+    "scripts/enable-feature.sh"
     "scripts/disable-feature.sh" "features/README.md"
     "scripts/wiki-write-protocol/README.md"
     "scripts/wiki-write-protocol/protocol.sh"
@@ -66,6 +80,7 @@ ALWAYS_FILES=(
 # One-shot files (self-delete or consumed at end of bootstrap; not synced).
 # Listed for documentation only; see scripts/update-from-template.sh and
 # wiki/agents/README.md for the one-shot pattern.
+# shellcheck disable=SC2034  # documentation-only; intentionally not iterated
 ONE_SHOT_FILES=(
     "scripts/instantiate.sh"
     "CLAUDE.md.template"
@@ -119,23 +134,23 @@ NOT_IN_TEMPLATE=()
 LOCAL_MISSING=()
 
 for f in "${FILES[@]}"; do
-    if ! git cat-file -e "template/main:$f" 2>/dev/null; then
+    if ! git cat-file -e "$TEMPLATE_REF:$f" 2>/dev/null; then
         NOT_IN_TEMPLATE+=("$f"); continue
     fi
     # Materialize via temp file so the trailing newline survives the hash.
     TEMPLATE_TMP=$(mktemp)
-    git show "template/main:$f" > "$TEMPLATE_TMP"
+    git show "$TEMPLATE_REF:$f" > "$TEMPLATE_TMP"
     if needs_substitution "$f"; then
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$TEMPLATE_TMP"
         rm -f "${TEMPLATE_TMP}.bak"
     fi
-    TEMPLATE_HASH=$(sha256sum "$TEMPLATE_TMP" | awk '{print $1}')
+    TEMPLATE_HASH=$(lw_sha256 "$TEMPLATE_TMP")
     rm -f "$TEMPLATE_TMP"
 
     if [[ ! -f "$f" ]]; then
         LOCAL_MISSING+=("$f"); continue
     fi
-    LOCAL_HASH=$(sha256sum "$f" | awk '{print $1}')
+    LOCAL_HASH=$(lw_sha256 "$f")
     if [[ "$LOCAL_HASH" == "$TEMPLATE_HASH" ]]; then
         IN_SYNC+=("$f")
     else
