@@ -46,6 +46,14 @@ else
     exit 0
 fi
 
+# Point origin at a derived-style URL so REPO_NAME resolves to template-comms
+# (not the upstream template's own name, llm-wiki-memory-template). After F1
+# was fixed in #42, instantiate.sh derives REPO_NAME from origin via
+# lw_name_from_origin; the smoke wiki-path assertions assume REPO_NAME =
+# basename($T). Same approach as scripts/test/tests/smoke/instantiate-naming/.
+git -C "$T" remote remove origin 2>/dev/null || true
+git -C "$T" remote add origin "https://github.com/test-user/template-comms.git"
+
 # Inject our local feature into the cloned template's features/ directory.
 # Idempotent: only copy if not already there from a prior run.
 if [ ! -d "$T/features/agent-comms" ]; then
