@@ -8,9 +8,13 @@ template.
 ## Status
 
 Etapa 1 of the feature-flag architecture (RFC #13, PR #17) shipped the
-install/uninstall infrastructure and this empty `features/` directory.
-No real features ship here yet. The first candidate is the Socratic
-tutor (#7) or the future agent-memory tooling.
+install/uninstall infrastructure and this `features/` directory.
+
+**First real feature**: `agent-comms` (cross-agent `ask` primitive +
+federation enrollment). v0.1.0 scope is intentionally narrow — see
+[`features/agent-comms/CLAUDE.section.md`](agent-comms/CLAUDE.section.md)
+for the user-facing contract and [`features/agent-comms/feature.json`](agent-comms/feature.json)
+for the system-deps manifest.
 
 ## Structure of a feature
 
