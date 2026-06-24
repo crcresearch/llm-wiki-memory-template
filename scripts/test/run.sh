@@ -138,6 +138,9 @@ fi
 SANDBOX=$(sandbox_setup)
 echo "Sandbox: $SANDBOX"
 
+# Pin one hermetic git identity for every test and script-under-test.
+sandbox_git_env
+
 # Cleanup on exit unless --no-cleanup
 cleanup() {
     if [ "$CLEANUP" -eq 1 ]; then

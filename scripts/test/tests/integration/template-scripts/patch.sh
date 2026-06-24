@@ -2,9 +2,8 @@
 # Patch: fixtures for the template sync scripts (update-from-template.sh,
 # check-template-version.sh) migrated onto the shared library (chunk 04).
 #
-# Inputs:  SANDBOX env var (from run.sh).
+# Inputs:  SANDBOX env var (from run.sh); git identity from sandbox_git_env.
 # Effects: creates $SANDBOX/template-scripts/ with:
-#   gitconfig        sandbox identity + init.defaultBranch=main
 #   template-main/   a stand-in template repo, default branch 'main', holding
 #                    one substituted file (.claude/commands/wiki-experiment.md
 #                    with a literal {{REPO_NAME}})
@@ -26,18 +25,11 @@ set -uo pipefail
 STAGE="$SANDBOX/template-scripts"
 mkdir -p "$STAGE"
 
-GITCFG="$STAGE/gitconfig"
-cat > "$GITCFG" <<'EOF'
-[user]
-	name = tmpl test
-	email = tmpl-test@example.test
-[init]
-	defaultBranch = main
-EOF
-
-# git with the sandbox-pinned global config (so commits succeed and the default
-# branch is deterministic regardless of the host's git config).
-g() { GIT_CONFIG_GLOBAL="$GITCFG" GIT_CONFIG_SYSTEM=/dev/null git "$@"; }
+# Thin alias; identity/default-branch come from the harness-wide hermetic git
+# env (sandbox_git_env), so the helpers below read cleanly. Branches that an
+# assertion checks are set explicitly via symbolic-ref, since init.defaultBranch
+# is honoured only on git >=2.28.
+g() { git "$@"; }
 
 # Seed a template-content repo at $1 on branch $2 with the one file the sync
 # scripts will substitute.

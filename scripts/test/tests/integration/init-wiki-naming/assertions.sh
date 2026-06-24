@@ -7,21 +7,19 @@
 #     stamped (F10 regression guard);
 #   - the printed push instruction names the detected branch, not 'master' (F5).
 #
-# Hermetic: GIT_CONFIG_GLOBAL pins identity + init.defaultBranch=trunk, so the
-# created wiki repo lands on 'trunk' and the F5 assertion can distinguish a
-# detected branch from a hardcoded one. Create mode needs no network.
+# Hermetic: git identity comes from sandbox_git_env; the wiki repo is pre-staged
+# on 'trunk' by patch.sh so the F5 assertion can distinguish a detected branch
+# from a hardcoded one. Create mode needs no network.
 
 STAGE="$SANDBOX/init-wiki-naming"
 # assertions.sh is sourced by run.sh, so $HERE = scripts/test/; two up = repo root.
 REPO_ROOT_IW="$(cd "$HERE/../.." && pwd)"
 INITWIKI="$REPO_ROOT_IW/wiki/init-wiki.sh"
-GITCFG="$STAGE/gitconfig"
 
 assert "init-wiki.sh exists"         "[ -f '$INITWIKI' ]"
 assert "init-wiki.sh passes bash -n" "bash -n '$INITWIKI'"
 
-OUT="$( cd "$STAGE/clonedir" && GIT_CONFIG_GLOBAL="$GITCFG" GIT_CONFIG_SYSTEM=/dev/null \
-        bash "$INITWIKI" --agent test 2>&1 )"
+OUT="$( cd "$STAGE/clonedir" && bash "$INITWIKI" --agent test 2>&1 )"
 RC=$?
 # Fail loud if the run itself errored, so the file/branch checks below cannot
 # pass for an unrelated setup reason.

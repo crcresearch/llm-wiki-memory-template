@@ -51,28 +51,22 @@ clone_template() {
         # Local-clone mode: copy the working tree (preserving .git would
         # confuse instantiate.sh which expects to commit fresh state).
         # We re-init git so the derivative looks like a fresh checkout.
+        # Identity and default branch come from the harness-wide hermetic git
+        # env (sandbox_git_env), so no per-repo config is set here.
         cp -R "$local_clone" "$target"
         rm -rf "$target/.git"
         (
             cd "$target"
-            git -c init.defaultBranch=main init --quiet
-            git config user.email "smoke-test@example.test"
-            git config user.name "Smoke Test"
+            git init --quiet
             git add -A
             git commit -q -m "imported from local template clone for smoke test"
         )
         return 0
     fi
 
-    # Network-clone mode
+    # Network-clone mode. Commit author comes from the harness-wide hermetic
+    # git env (sandbox_git_env); nothing to configure per-repo.
     if git clone --quiet "$repo" "$target" 2>/dev/null; then
-        # Reset git config so commits made during the smoke test have a
-        # known author.
-        (
-            cd "$target"
-            git config user.email "smoke-test@example.test"
-            git config user.name "Smoke Test"
-        )
         return 0
     fi
 
