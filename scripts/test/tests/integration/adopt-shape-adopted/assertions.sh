@@ -62,4 +62,4 @@ assert "host's own .claude/ overlay preserved (no churn from adopt)" \
 assert "host kept its own init-wiki.sh content" \
     "grep -qF 'do not let update-from-template silently overwrite' '$HOST/wiki/init-wiki.sh'"
 assert "stub announces no writes occurred" \
-    "grep -qF 'This is a stub. No files in' '$OUT'"
+    "grep -qF 'Dry-run only. No files in' '$OUT'"

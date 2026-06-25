@@ -106,25 +106,29 @@ parse_grants_file() {
 }
 
 # --- Argument parsing -------------------------------------------------------
-DRY_RUN=1   # forced on for the stub
+APPLY=0      # default: dry-run; --apply opts in to mutating the host
 TARGET=""
 AGENT="claude-code"
 FEATURES=""
 
 usage() {
     cat <<'EOF'
-Usage: adopt.sh [--target=PATH] [--agent=NAME] [--features=LIST] [--dry-run] [--help]
+Usage: adopt.sh [--target=PATH] [--apply] [--agent=NAME] [--features=LIST] [--help]
 
-STUB. Classifies the ADD allowlist against a target repo and reports
-what adoption WOULD do. Does not modify the target. TOUCH grants,
-feature install, wiki init, and overlay setup are deferred to later
-iterations.
+Classifies the ADD allowlist against a target repo. With --apply, also
+copies every ADD entry into the target (never overwrites; REFUSE entries
+are left alone) and writes .llm-wiki-adopt-log.md with the manifest of
+what was created. Default is dry-run. TOUCH grants, wiki init, overlay
+setup, and feature install are deferred to later iterations.
 
 Options:
   --target=PATH      Repo to adopt into (default: current directory)
+  --apply            Actually create ADD entries in the target. Refused
+                     if the target's working tree has uncommitted changes
+                     (host owner should commit first so the diff is clean)
   --agent=NAME       claude-code | none | cursor (cursor: not yet supported)
-  --features=LIST    Comma-separated feature names (ignored by the stub)
-  --dry-run          Forced on; included for forward compatibility
+  --features=LIST    Comma-separated feature names (parsed but not installed)
+  --dry-run          Default; included for forward compatibility
   --help, -h         Show this help
 
 See the design at
@@ -135,7 +139,8 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)            usage; exit 0 ;;
-        --dry-run)            DRY_RUN=1; shift ;;
+        --apply)              APPLY=1; shift ;;
+        --dry-run)            APPLY=0; shift ;;
         --target=*)           TARGET="${1#*=}"; shift ;;
         --target)             TARGET="${2:-}"; shift 2 ;;
         --agent=*)            AGENT="${1#*=}"; shift ;;
@@ -302,8 +307,14 @@ else
     grants_status="not present (host did not author one; all pre-existing files default to NEVER-TOUCH)"
 fi
 
+if [[ "$APPLY" -eq 1 ]]; then
+    MODE_BANNER="adopt.sh --apply"
+else
+    MODE_BANNER="adopt.sh --dry-run"
+fi
+
 cat <<EOF
-adopt.sh --dry-run
+$MODE_BANNER
 
 Target:           $TARGET
 Resolved:         $PROJECT_NAME   (lw_name_from_origin)
@@ -390,13 +401,72 @@ fi
 
 cat <<'EOF'
 NOT IMPLEMENTED YET (stub limitation, not absent from the design)
-  - Actual TOUCH payloads (this stub classifies grants but does not compute or inject content)
+  - Actual TOUCH apply (managed-block / append-only / merge); classification only
   - Wiki sub-repo initialization (delegate to init-wiki.sh create-mode)
   - Agent overlay setup (.claude/ files via wiki/agents/claude-code/setup.sh)
   - Feature install via --features (use install_feature from scripts/lib/)
-  - Apply mode (this stub is dry-run only)
-  - Adoption manifest (.llm-wiki-adopt-log.md) written on apply
 EOF
+echo ""
+
+# --- Apply mode -------------------------------------------------------------
+# Phase 1: ADD apply only. Refuses to touch the host if the working tree
+# has uncommitted changes (so the host owner can review the resulting diff
+# cleanly via `git status` / `git diff` after the run). TOUCH apply is
+# deferred to Phase 2 and is currently still classification-only above.
+if [[ "$APPLY" -eq 0 ]]; then
+    echo "Dry-run only. No files in $TARGET were modified."
+    echo "Re-run with --apply to create the ADD entries above."
+    exit 0
+fi
+
+# Safety guard: refuse to write into a dirty working tree.
+if [[ -n "$(git -C "$TARGET" status --porcelain 2>/dev/null)" ]]; then
+    lw_die "target has uncommitted changes in its working tree; commit or stash before --apply"
+fi
+
+# Honor the same per-path rules the dry-run reported: ADD entries get
+# copied (host did not have them; no overwrite risk); SKIP entries are
+# byte-equal already (no-op); REFUSE entries are left alone (host
+# divergence is sacred). Tracking what was actually applied so the
+# manifest reflects on-disk truth, not the dry-run intent.
+APPLIED_ADDS=()
+for path in "${ACT_ADD[@]}"; do
+    src="$TEMPLATE_ROOT/$path"
+    dst="$TARGET/$path"
+    mkdir -p "$(dirname "$dst")"
+    cp -p "$src" "$dst"
+    APPLIED_ADDS+=("$path")
+done
+
+# --- Write the adoption manifest --------------------------------------------
+# Records what happened on disk: signals matched, overlay detected, ADD
+# paths actually created, classification counts. Append-only across
+# multiple --apply runs (each run is its own entry).
+ADOPT_LOG="$TARGET/.llm-wiki-adopt-log.md"
+TODAY=$(date +%Y-%m-%d)
+overlay_for_log="${DETECTED_OVERLAYS[*]:-none}"
+overlay_for_log="${overlay_for_log// /, }"
+# Decide on the heading BEFORE the redirect opens the file (>> creates the
+# file if absent before the inner commands run, so a check inside the block
+# would always see it as existing).
+FIRST_ENTRY=0
+[[ -f "$ADOPT_LOG" ]] || FIRST_ENTRY=1
+{
+    (( FIRST_ENTRY )) && printf '# llm-wiki adopt log\n\n'
+    printf '## [%s] adopt --apply (phase 1: ADD only)\n' "$TODAY"
+    printf -- '- project: %s\n' "$PROJECT_NAME"
+    printf -- '- agent: %s\n' "$AGENT"
+    printf -- '- signals matched: %s of 3 (%s)\n' \
+        "$ADOPTION_COUNT" "${ADOPTION_SIGNALS[*]:-none}"
+    printf -- '- overlay(s) detected: %s\n' "$overlay_for_log"
+    printf -- '- ADDed (%s files):\n' "${#APPLIED_ADDS[@]}"
+    for p in "${APPLIED_ADDS[@]}"; do printf '  - %s\n' "$p"; done
+    printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
+    printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
+    printf '\n'
+} >> "$ADOPT_LOG"
 
 echo ""
-echo "This is a stub. No files in $TARGET were modified."
+echo "Applied: ${#APPLIED_ADDS[@]} file(s) created in $TARGET"
+echo "Manifest written to .llm-wiki-adopt-log.md"
+echo "Review the result with: git -C $TARGET status && git -C $TARGET diff"

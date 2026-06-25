@@ -92,7 +92,7 @@ assert "no Status section emitted on virgin host" \
 
 # --- Stub markers (no apply, no creep) ---
 assert "stub announces no writes occurred" \
-    "grep -qF 'This is a stub. No files in' '$OUT'"
+    "grep -qF 'Dry-run only. No files in' '$OUT'"
 assert "NOT IMPLEMENTED YET section present" \
     "grep -qF 'NOT IMPLEMENTED YET' '$OUT'"
 
