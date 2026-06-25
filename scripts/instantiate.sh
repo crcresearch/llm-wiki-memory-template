@@ -621,6 +621,29 @@ if [[ "${#FEATURES_LIST[@]}" -gt 0 ]]; then
     done
 fi
 
+# --- Seed the template sync log ---
+# Subsequent update-from-template.sh runs append to .llm-wiki-template-log.md.
+# Seed it here with the instantiation entry so the file exists from day one
+# and downstream tooling (e.g., adopt.sh's "already adopted" detection) has
+# an authoritative marker that this repo came from the template, rather than
+# having to wait for the first update to create the file. Format mirrors the
+# entries update-from-template.sh writes (same heading style + bullet list)
+# so a reader of the log sees one consistent history.
+LOG_FILE="$REPO_ROOT/.llm-wiki-template-log.md"
+if [[ ! -f "$LOG_FILE" ]]; then
+    TODAY=$(date +%Y-%m-%d)
+    FEATURES_NOTE="${FEATURES:-none}"
+    {
+        echo "# llm-wiki template sync log"
+        echo ""
+        echo "## [$TODAY] instantiated from llm-wiki-memory-template - agent=$AGENT, features=$FEATURES_NOTE"
+        echo "- project: $PROJECT_NAME"
+        echo "- repo: $REPO_NAME"
+        echo ""
+    } > "$LOG_FILE"
+    echo "Wrote .llm-wiki-template-log.md (initial instantiation entry)"
+fi
+
 # --- Final checklist ---
 echo ""
 echo "================ Instantiation complete ================"
