@@ -39,6 +39,12 @@ assert "manifest reports CLAUDE.md managed-block as applied via overlay setup.sh
     "grep -qF 'CLAUDE.md (managed-block): applied via wiki/agents/claude-code/setup.sh' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest reports settings.json merge as applied via setup.sh --hook" \
     "grep -qF '.claude/settings.json (merge): applied via wiki/agents/claude-code/setup.sh --hook' '$HOST/.llm-wiki-adopt-log.md'"
+# Guard against the false-positive that the previous version of this test
+# allowed: a 'failed' entry in any manifest run would prove the assertion
+# above is insufficient on its own (the grep only requires the 'applied'
+# string to appear once across the whole manifest).
+assert "manifest does NOT report settings.json merge as failed in any run" \
+    "! grep -qF '.claude/settings.json (merge): failed' '$HOST/.llm-wiki-adopt-log.md'"
 
 # --- Phase 3: settings.json now has the SessionStart hook (via jq merge) ---
 assert "host .claude/settings.json now references session-start.sh" \

@@ -31,10 +31,14 @@ ADD_ALLOWLIST=(
     wiki/agents/discipline-gates.md
     wiki/agents/verification-gate.md
     # Claude Code overlay (needed for Phase 2B managed-block apply via
-    # wiki/agents/claude-code/setup.sh). For now the catalog is fixed;
-    # future iterations may make it conditional on --agent.
+    # wiki/agents/claude-code/setup.sh, and Phase 3 merge via
+    # setup.sh --hook). For now the catalog is fixed; future iterations
+    # may make it conditional on --agent.
     wiki/agents/claude-code/setup.sh
     wiki/agents/claude-code/templates/claude-md-snippet.md
+    wiki/agents/claude-code/templates/session-start-hook.sh
+    wiki/agents/claude-code/templates/posttooluse-hook.sh
+    wiki/agents/claude-code/templates/memory-seed.md
     scripts/lib/common.sh
     scripts/lib/git.sh
     scripts/lib/identity.sh
