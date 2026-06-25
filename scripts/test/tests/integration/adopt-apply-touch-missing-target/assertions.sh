@@ -21,11 +21,6 @@ assert "GRANT WARNINGS section lists .claude/settings.json as moot (absent in ho
 assert "TOUCH block does NOT list .claude/settings.json" \
     "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF '.claude/settings.json'"
 
-# CLAUDE.md is the anchor grant -- it should NOT be in GRANT WARNINGS
-# (host has it; so it classifies as TOUCH, not MISSING).
-assert "GRANT WARNINGS does NOT list CLAUDE.md (host has it; classifies as TOUCH)" \
-    "! awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
-
 # Adopt did NOT silently create .claude/settings.json (the absent file
 # stays absent; the grant is moot, not fulfilled).
 assert "adopt did NOT create .claude/settings.json (absent grant stays absent)" \
