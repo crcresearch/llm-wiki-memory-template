@@ -51,3 +51,8 @@ assert "nudge is a valid SessionStart additionalContext object" \
 # Driven by a dedicated harness that exercises try_clone directly with real git.
 assert "try_clone staging+rename: partial-clone & race safety" \
     "python3 '$HERE/tests/unit/ensure-wiki/clone_mechanics_test.py' '$HOOK'"
+
+# --- Update mechanics (clean-FF, dirty gate, divergence, own-repo guard) ---
+# Exercises update_wiki directly against real git (and jj when present).
+assert "update_wiki fast-forward: clean-FF, dirty gate, divergence, guard" \
+    "python3 '$HERE/tests/unit/ensure-wiki/update_mechanics_test.py' '$HOOK'"
