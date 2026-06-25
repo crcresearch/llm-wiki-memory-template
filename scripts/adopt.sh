@@ -70,6 +70,25 @@ known_grant_sentinel() {
     esac
 }
 
+# Payload content for append-only grants. Inserted between paired
+# lw_inject_block sentinels at the target's end-of-file. The host owner
+# can delete the block (sentinels included) to remove the rules cleanly;
+# adopt's re-run is no-op when the opening sentinel is already present
+# (lw_inject_block returns 1 in that case).
+#
+# Currently only .gitignore has a non-empty payload. Other append-only
+# entries would just need a case clause below.
+known_grant_payload() {
+    case "$1" in
+        .gitignore)
+            cat <<'EOF'
+# wiki sub-repo: separate git remote, not part of the host's tracked tree
+wiki/*.wiki/
+EOF
+            ;;
+    esac
+}
+
 # --- parse_grants_file ------------------------------------------------------
 # Minimal YAML reader for the .llm-wiki-adopt-grants.yml host file. Accepts
 # only the flat 'grants:' dictionary; anything else is ignored. Each emitted
@@ -401,10 +420,11 @@ fi
 
 cat <<'EOF'
 NOT IMPLEMENTED YET (stub limitation, not absent from the design)
-  - Actual TOUCH apply (managed-block / append-only / merge); classification only
-  - Wiki sub-repo initialization (delegate to init-wiki.sh create-mode)
-  - Agent overlay setup (.claude/ files via wiki/agents/claude-code/setup.sh)
-  - Feature install via --features (use install_feature from scripts/lib/)
+  - TOUCH apply managed-block (Phase 2B; will delegate to overlay setup.sh)
+  - TOUCH apply merge (Phase 3; jq deep-merge for .claude/settings.json)
+  - Wiki sub-repo initialization (Phase 2B; delegate to init-wiki.sh)
+  - Agent overlay setup (Phase 2B; via wiki/agents/<overlay>/setup.sh)
+  - Feature install via --features (Phase 3; install_feature from scripts/lib/)
 EOF
 echo ""
 
@@ -444,6 +464,49 @@ if [[ ${#ACT_ADD[@]} -gt 0 ]]; then
     done
 fi
 
+# --- TOUCH apply (Phase 2A: append-only only) -------------------------------
+# For valid TOUCH entries, dispatch by mechanism:
+#   append-only   -> lw_inject_block with the per-target payload at EOF
+#   managed-block -> deferred to Phase 2B (overlay setup.sh orchestration)
+#   merge         -> deferred to Phase 3 (jq deep-merge)
+#
+# Each entry's status is captured for the manifest. Status strings:
+#   applied         -- adopt wrote the sentinel-paired block
+#   already-present -- adopt detected the opening sentinel and left it alone
+#   deferred        -- the mechanism is not implemented in this phase yet
+APPLIED_TOUCHES=()
+if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
+    for entry in "${ACT_TOUCH[@]}"; do
+        t_path="${entry%%|*}"
+        rest="${entry#*|}"
+        t_type="${rest%%|*}"
+        t_sent="${rest#*|}"
+        case "$t_type" in
+            append-only)
+                payload="$(known_grant_payload "$t_path")"
+                # lw_inject_block wraps its second arg in '<!-- lw:KEY -->'
+                # internally, so we pass the key WITHOUT the lw: prefix that
+                # known_grant_sentinel returns for display purposes.
+                bare_key="${t_sent#lw:}"
+                # lw_inject_block returns 0 on inject, 1 if opening sentinel
+                # already present (idempotency). Both are "the rule is now in
+                # the file"; we just label them differently in the manifest.
+                if lw_inject_block "$TARGET/$t_path" "$bare_key" "$payload" ""; then
+                    APPLIED_TOUCHES+=("$t_path ($t_type): applied")
+                else
+                    APPLIED_TOUCHES+=("$t_path ($t_type): already-present")
+                fi
+                ;;
+            managed-block)
+                APPLIED_TOUCHES+=("$t_path ($t_type): deferred -- Phase 2B (overlay setup.sh orchestration)")
+                ;;
+            merge)
+                APPLIED_TOUCHES+=("$t_path ($t_type): deferred -- Phase 3 (jq deep-merge)")
+                ;;
+        esac
+    done
+fi
+
 # --- Write the adoption manifest --------------------------------------------
 # Records what happened on disk: signals matched, overlay detected, ADD
 # paths actually created, classification counts. Append-only across
@@ -472,6 +535,10 @@ FIRST_ENTRY=0
     fi
     printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
     printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
+    printf -- '- TOUCH applied (%s):\n' "${#APPLIED_TOUCHES[@]}"
+    if [[ ${#APPLIED_TOUCHES[@]} -gt 0 ]]; then
+        for t in "${APPLIED_TOUCHES[@]}"; do printf '  - %s\n' "$t"; done
+    fi
     printf '\n'
 } >> "$ADOPT_LOG"
 

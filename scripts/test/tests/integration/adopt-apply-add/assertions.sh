@@ -56,8 +56,10 @@ assert "manifest lists each ADDed path under the ADDed bullet" \
     "grep -qF -- '  - wiki/init-wiki.sh' '$HOST/.llm-wiki-adopt-log.md'"
 
 # --- Stub markers (TOUCH apply still deferred) ---
-assert "NOT IMPLEMENTED YET still names TOUCH apply as deferred" \
-    "grep -qF 'Actual TOUCH apply' '$OUT1'"
+assert "NOT IMPLEMENTED YET still names managed-block apply as deferred (Phase 2B)" \
+    "grep -qF 'TOUCH apply managed-block' '$OUT1'"
+assert "NOT IMPLEMENTED YET still names merge apply as deferred (Phase 3)" \
+    "grep -qF 'TOUCH apply merge' '$OUT1'"
 
 # --- Second run: idempotent at the file level ---
 assert "second --apply produced an output file" "[ -f '$OUT2' ]"
