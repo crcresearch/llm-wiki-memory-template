@@ -84,6 +84,12 @@ assert "host .gitignore preserved" \
 assert "host src/main.py preserved" \
     "grep -qF 'hello' '$HOST/src/main.py'"
 
+# --- Virgin host: no 'already adopted' Status section ---
+# This fixture has none of the adoption markers, so the dry-run must not
+# emit a Status line. Counter-test for adopt-shape-adopted's positive case.
+assert "no Status section emitted on virgin host" \
+    "! grep -qE '^Status:.*already adopted' '$OUT'"
+
 # --- Stub markers (no apply, no creep) ---
 assert "stub announces no writes occurred" \
     "grep -qF 'This is a stub. No files in' '$OUT'"

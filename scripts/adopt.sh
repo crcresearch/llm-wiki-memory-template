@@ -179,6 +179,25 @@ esac
 # --- Resolve identity -------------------------------------------------------
 PROJECT_NAME="$(lw_name_from_origin "$TARGET")"
 
+# --- Detect 'already adopted' markers ---------------------------------------
+# Cheap, conservative signals that the target has already taken on the
+# llm-wiki pattern (via instantiate.sh originally, or via a prior adopt.sh
+# apply). When any are present, the dry-run surfaces a Status section
+# advising the host owner about the semantic difference between adopt.sh
+# (ADD-only; never overwrites) and update-from-template.sh (overwrites
+# files in its sync list). The advice intentionally surfaces the trade-off
+# rather than just routing.
+ADOPTION_MARKERS=()
+if [[ -f "$TARGET/.llm-wiki-template-log.md" ]]; then
+    ADOPTION_MARKERS+=(".llm-wiki-template-log.md (created by instantiate.sh)")
+fi
+if [[ -f "$TARGET/.llm-wiki-adopt-log.md" ]]; then
+    ADOPTION_MARKERS+=(".llm-wiki-adopt-log.md (created by a prior adopt.sh apply)")
+fi
+if [[ -d "$TARGET/wiki/$PROJECT_NAME.wiki/.git" ]]; then
+    ADOPTION_MARKERS+=("wiki/$PROJECT_NAME.wiki/.git (wiki sub-repo initialized)")
+fi
+
 # --- Classify each path -----------------------------------------------------
 # For each ADD_ALLOWLIST entry:
 #   not present in target  -> ADD
@@ -255,8 +274,27 @@ Template:         $TEMPLATE_ROOT
 Agent overlay:    $AGENT
 Features:         ${FEATURES:-<none>}
 Grants file:      $grants_status
-
 EOF
+
+if [[ ${#ADOPTION_MARKERS[@]} -gt 0 ]]; then
+    # First marker on the Status line; any additional markers folded in.
+    echo "Status:           already adopted (${ADOPTION_MARKERS[0]})"
+    if [[ ${#ADOPTION_MARKERS[@]} -gt 1 ]]; then
+        for marker in "${ADOPTION_MARKERS[@]:1}"; do
+            echo "                  also found: $marker"
+        done
+    fi
+    # Advice: route to update-from-template AND surface the semantic gotcha.
+    # Future refactor will reword 'sync list' to 'TEMPLATE_SHARED_INFRA'
+    # once scripts/lib/template-manifest.sh exists; everything else stays.
+    cat <<'EOF'
+                  for incremental sync of template-owned files, see scripts/update-from-template.sh
+                  note: that script OVERWRITES files in its sync list. The REFUSE entries
+                  below mark places where overwriting would discard local changes — review
+                  before using update-from-template.sh on them.
+EOF
+fi
+echo ""
 
 echo "ADD  (would create ${#ACT_ADD[@]} files)"
 if [[ ${#ACT_ADD[@]} -eq 0 ]]; then
