@@ -522,7 +522,7 @@ FIRST_ENTRY=0
 [[ -f "$ADOPT_LOG" ]] || FIRST_ENTRY=1
 {
     (( FIRST_ENTRY )) && printf '# llm-wiki adopt log\n\n'
-    printf '## [%s] adopt --apply (phase 1: ADD only)\n' "$TODAY"
+    printf '## [%s] adopt --apply (phases 1, 2A)\n' "$TODAY"
     printf -- '- project: %s\n' "$PROJECT_NAME"
     printf -- '- agent: %s\n' "$AGENT"
     printf -- '- signals matched: %s of 3 (%s)\n' \
