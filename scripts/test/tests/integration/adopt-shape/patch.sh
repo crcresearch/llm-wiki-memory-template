@@ -51,6 +51,19 @@ mkdir -p "$HOST/wiki/agents"
 echo "# Host-modified discipline gates (must not be overwritten)" \
     > "$HOST/wiki/agents/discipline-gates.md"
 
+# Author a grants file with three deliberately-chosen entries:
+#   .gitignore     -> append-only       host file present, grant valid    -> TOUCH
+#   Makefile       -> managed-block     not in KNOWN_GRANTS                -> INVALID
+#   CLAUDE.md      -> managed-block     not present in host                -> MISSING
+# This covers each of the three classification outcomes adopt distinguishes.
+cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
+# Adopt grants for the synthetic host (fixture).
+grants:
+  .gitignore:  append-only      # valid; host file exists -> TOUCH
+  Makefile:    managed-block    # unknown target in template -> INVALID
+  CLAUDE.md:   managed-block    # valid type but host has no CLAUDE.md -> MISSING
+EOF
+
 ADOPT="$TEMPLATE_ROOT/scripts/adopt.sh"
 OUTFILE="$STAGE/adopt-output.txt"
 

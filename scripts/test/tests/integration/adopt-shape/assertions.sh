@@ -24,8 +24,8 @@ assert "prints dry-run banner" \
     "grep -qF 'adopt.sh --dry-run' '$OUT'"
 assert "resolves identity from origin (example-host, not host basename)" \
     "grep -qF 'Resolved:         example-host' '$OUT'"
-assert "names TOUCH grants as deferred (forward-compat reminder)" \
-    "grep -qF 'TOUCH grants:     not implemented yet' '$OUT'"
+assert "header reports the grants file was detected" \
+    "grep -qE 'Grants file:.*\\.llm-wiki-adopt-grants\\.yml \\(3 grant\\(s\\) found\\)' '$OUT'"
 
 # --- ADD: forced-absent paths from the allowlist appear ---
 # awk slices the ADD block ("ADD ..." line up to the next blank) so the
@@ -52,6 +52,29 @@ assert "REFUSE block lists wiki/agents/discipline-gates.md (host-modified)" \
     "awk '/^REFUSE/,/^\$/' '$OUT' | grep -qF 'wiki/agents/discipline-gates.md'"
 assert "REFUSE block does NOT list llm-wiki.md" \
     "! awk '/^REFUSE/,/^\$/' '$OUT' | grep -qF 'llm-wiki.md'"
+
+# --- TOUCH classification ---
+# .gitignore is the only valid+present grant -> TOUCH block lists it with
+# its append-only operation and the lw:wiki-rules sentinel label.
+assert "TOUCH block lists .gitignore with append-only mechanism" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qE '~ +\\.gitignore +append-only'"
+assert "TOUCH block shows the lw:wiki-rules sentinel for .gitignore" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'sentinel lw:wiki-rules'"
+
+# Makefile is unknown to the template -> INVALID, not TOUCH.
+assert "TOUCH block does NOT list Makefile (unknown to template)" \
+    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'Makefile'"
+assert "GRANT WARNINGS section lists Makefile as unknown" \
+    "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'Makefile' && \\
+     awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'unknown grant target'"
+
+# CLAUDE.md grant is valid in type but the host does not have one ->
+# MISSING, not TOUCH.
+assert "TOUCH block does NOT list CLAUDE.md (absent in host)" \
+    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
+assert "GRANT WARNINGS section lists CLAUDE.md as moot" \
+    "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md' && \\
+     awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'absent in host'"
 
 # --- Host-authored content untouched (no apply) ---
 assert "host README.md preserved (still says 'Example Host')" \

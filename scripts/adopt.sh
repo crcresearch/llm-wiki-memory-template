@@ -44,6 +44,67 @@ ADD_ALLOWLIST=(
     scripts/disable-feature.sh
 )
 
+# --- KNOWN_GRANTS -----------------------------------------------------------
+# Per-target operation the template knows how to perform.  Hosts opt in by
+# listing a target in .llm-wiki-adopt-grants.yml with the matching grant
+# type. Anything not enumerated here can only be classified as REFUSE-by-
+# default (no grant), even if a host's grants file mentions it.  Bash 3.2
+# compatible: case lookups instead of associative arrays.
+known_grant_type() {
+    case "$1" in
+        CLAUDE.md)              echo "managed-block" ;;
+        .gitignore)             echo "append-only" ;;
+        .claude/settings.json)  echo "merge" ;;
+        *)                      echo "" ;;
+    esac
+}
+
+# Sentinel label used by managed-block / append-only mechanisms for each
+# granted target. Reported in the dry-run so reviewers see exactly what
+# region adopt would maintain.
+known_grant_sentinel() {
+    case "$1" in
+        CLAUDE.md)   echo "lw:wiki-section" ;;
+        .gitignore)  echo "lw:wiki-rules"  ;;
+        *)           echo ""               ;;
+    esac
+}
+
+# --- parse_grants_file ------------------------------------------------------
+# Minimal YAML reader for the .llm-wiki-adopt-grants.yml host file. Accepts
+# only the flat 'grants:' dictionary; anything else is ignored. Each emitted
+# line has the form '<path>|<type>'. Comments (#) and blank lines are
+# stripped. Robust against trailing whitespace; not robust against quoted
+# keys, multi-line values, or nested structures (deliberately out of scope:
+# the grants file is meant to be tiny and hand-authored).
+parse_grants_file() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    awk '
+        # toggle in_grants only on top-level "grants:" key, not on nested ones
+        /^grants:[[:space:]]*$/ { in_grants = 1; next }
+        # any other top-level key (line starting with non-space, non-#) closes the section
+        /^[^[:space:]#]/ { in_grants = 0; next }
+        # within grants, look for "  key: value" lines
+        in_grants && /^[[:space:]]+[^[:space:]#]/ {
+            sub(/^[[:space:]]+/, "")
+            sub(/[[:space:]]*#.*$/, "")
+            sub(/[[:space:]]+$/, "")
+            if (length($0) == 0) next
+            # split on the first ":"
+            colon = index($0, ":")
+            if (colon == 0) next
+            key = substr($0, 1, colon - 1)
+            val = substr($0, colon + 1)
+            # trim both
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+            if (length(key) == 0 || length(val) == 0) next
+            printf "%s|%s\n", key, val
+        }
+    ' "$file"
+}
+
 # --- Argument parsing -------------------------------------------------------
 DRY_RUN=1   # forced on for the stub
 TARGET=""
@@ -144,7 +205,47 @@ for path in "${ADD_ALLOWLIST[@]}"; do
     fi
 done
 
+# --- Classify TOUCH grants --------------------------------------------------
+# Reads $TARGET/.llm-wiki-adopt-grants.yml. For each entry:
+#   target unknown to template     -> TOUCH_INVALID (refuse the grant)
+#   type mismatches template's op  -> TOUCH_INVALID (refuse with reason)
+#   target absent in host          -> TOUCH_MISSING (grant moot)
+#   otherwise                      -> TOUCH (planned, payload still deferred)
+GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
+ACT_TOUCH=()           # "path|type|sentinel"  (sentinel may be empty for 'merge')
+ACT_TOUCH_INVALID=()   # "path  (reason)"
+ACT_TOUCH_MISSING=()   # "path  (reason)"
+N_GRANTS=0
+
+if [[ -f "$GRANTS_FILE" ]]; then
+    while IFS='|' read -r g_path g_type; do
+        [[ -z "$g_path" ]] && continue
+        N_GRANTS=$((N_GRANTS + 1))
+        expected="$(known_grant_type "$g_path")"
+        if [[ -z "$expected" ]]; then
+            ACT_TOUCH_INVALID+=("$g_path  (unknown grant target; template has no operation for it)")
+            continue
+        fi
+        if [[ "$g_type" != "$expected" ]]; then
+            ACT_TOUCH_INVALID+=("$g_path  (type mismatch: grant says '$g_type', template knows '$expected')")
+            continue
+        fi
+        if [[ ! -e "$TARGET/$g_path" ]]; then
+            ACT_TOUCH_MISSING+=("$g_path  (granted but absent in host; grant is moot)")
+            continue
+        fi
+        sentinel="$(known_grant_sentinel "$g_path")"
+        ACT_TOUCH+=("$g_path|$g_type|$sentinel")
+    done < <(parse_grants_file "$GRANTS_FILE")
+fi
+
 # --- Print report -----------------------------------------------------------
+if [[ -f "$GRANTS_FILE" ]]; then
+    grants_status="$(basename "$GRANTS_FILE") ($N_GRANTS grant(s) found)"
+else
+    grants_status="not present (host did not author one; all pre-existing files default to NEVER-TOUCH)"
+fi
+
 cat <<EOF
 adopt.sh --dry-run
 
@@ -153,8 +254,7 @@ Resolved:         $PROJECT_NAME   (lw_name_from_origin)
 Template:         $TEMPLATE_ROOT
 Agent overlay:    $AGENT
 Features:         ${FEATURES:-<none>}
-
-TOUCH grants:     not implemented yet (this stub does ADD classification only)
+Grants file:      $grants_status
 
 EOF
 
@@ -182,9 +282,35 @@ else
 fi
 echo ""
 
+echo "TOUCH (host-owned, granted — ${#ACT_TOUCH[@]} files)"
+if [[ ${#ACT_TOUCH[@]} -eq 0 ]]; then
+    echo "  (none)"
+else
+    for entry in "${ACT_TOUCH[@]}"; do
+        # entry = "path|type|sentinel"
+        t_path="${entry%%|*}"
+        rest="${entry#*|}"
+        t_type="${rest%%|*}"
+        t_sent="${rest#*|}"
+        if [[ -n "$t_sent" ]]; then
+            printf "  ~ %-32s %s (sentinel %s)\n" "$t_path" "$t_type" "$t_sent"
+        else
+            printf "  ~ %-32s %s\n" "$t_path" "$t_type"
+        fi
+    done
+fi
+echo ""
+
+if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 || ${#ACT_TOUCH_MISSING[@]} -gt 0 ]]; then
+    echo "GRANT WARNINGS (entries in grants file that did not produce a TOUCH)"
+    for p in "${ACT_TOUCH_INVALID[@]}"; do echo "  ! $p"; done
+    for p in "${ACT_TOUCH_MISSING[@]}"; do echo "  ? $p"; done
+    echo ""
+fi
+
 cat <<'EOF'
 NOT IMPLEMENTED YET (stub limitation, not absent from the design)
-  - TOUCH grants (.llm-wiki-adopt-grants.yml: managed-block / append-only / merge)
+  - Actual TOUCH payloads (this stub classifies grants but does not compute or inject content)
   - Wiki sub-repo initialization (delegate to init-wiki.sh create-mode)
   - Agent overlay setup (.claude/ files via wiki/agents/claude-code/setup.sh)
   - Feature install via --features (use install_feature from scripts/lib/)
