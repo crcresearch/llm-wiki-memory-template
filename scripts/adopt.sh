@@ -179,24 +179,41 @@ esac
 # --- Resolve identity -------------------------------------------------------
 PROJECT_NAME="$(lw_name_from_origin "$TARGET")"
 
-# --- Detect 'already adopted' markers ---------------------------------------
-# Cheap, conservative signals that the target has already taken on the
-# llm-wiki pattern (via instantiate.sh originally, or via a prior adopt.sh
-# apply). When any are present, the dry-run surfaces a Status section
-# advising the host owner about the semantic difference between adopt.sh
-# (ADD-only; never overwrites) and update-from-template.sh (overwrites
-# files in its sync list). The advice intentionally surfaces the trade-off
-# rather than just routing.
-ADOPTION_MARKERS=()
-if [[ -f "$TARGET/.llm-wiki-template-log.md" ]]; then
-    ADOPTION_MARKERS+=(".llm-wiki-template-log.md (created by instantiate.sh)")
+# --- Detect 'already adopted' via composite signals -------------------------
+# No single marker is decisive. The template-log file is only written by
+# update-from-template.sh's first run; the wiki sub-repo lives in a separate
+# remote and may not be cloned alongside the parent; any single file present
+# could be coincidence. Combining independent signals — each one specific to
+# the pattern in a different way — reduces both false positives (a single
+# coincidental match) and false negatives (a single marker missing locally).
+#
+# Signals checked, in order:
+#   A: llm-wiki.md byte-identical to template
+#      (strong: file unique to the pattern; byte-equal -> came from template)
+#   B: <!-- lw:wiki-section --> sentinel inside CLAUDE.md
+#      (strong: that sentinel is exclusively injected by the agent overlay)
+#   C: wiki/init-wiki.sh present in target
+#      (moderate: specific file from the pattern; may be host-modified)
+#
+# Threshold: at least 2 of 3 signals must match. A single signal can be
+# coincidence; two independent signals from different parts of the pattern
+# make the inference reliable.
+ADOPTION_SIGNALS=()
+
+if [[ -f "$TARGET/llm-wiki.md" ]] \
+    && cmp -s "$TEMPLATE_ROOT/llm-wiki.md" "$TARGET/llm-wiki.md"; then
+    ADOPTION_SIGNALS+=("llm-wiki.md byte-identical to template")
 fi
-if [[ -f "$TARGET/.llm-wiki-adopt-log.md" ]]; then
-    ADOPTION_MARKERS+=(".llm-wiki-adopt-log.md (created by a prior adopt.sh apply)")
+if [[ -f "$TARGET/CLAUDE.md" ]] \
+    && grep -qF "<!-- lw:wiki-section -->" "$TARGET/CLAUDE.md"; then
+    ADOPTION_SIGNALS+=("CLAUDE.md contains the lw:wiki-section sentinel")
 fi
-if [[ -d "$TARGET/wiki/$PROJECT_NAME.wiki/.git" ]]; then
-    ADOPTION_MARKERS+=("wiki/$PROJECT_NAME.wiki/.git (wiki sub-repo initialized)")
+if [[ -e "$TARGET/wiki/init-wiki.sh" ]]; then
+    ADOPTION_SIGNALS+=("wiki/init-wiki.sh present")
 fi
+
+ADOPTION_THRESHOLD=2
+ADOPTION_COUNT=${#ADOPTION_SIGNALS[@]}
 
 # --- Classify each path -----------------------------------------------------
 # For each ADD_ALLOWLIST entry:
@@ -276,14 +293,11 @@ Features:         ${FEATURES:-<none>}
 Grants file:      $grants_status
 EOF
 
-if [[ ${#ADOPTION_MARKERS[@]} -gt 0 ]]; then
-    # First marker on the Status line; any additional markers folded in.
-    echo "Status:           already adopted (${ADOPTION_MARKERS[0]})"
-    if [[ ${#ADOPTION_MARKERS[@]} -gt 1 ]]; then
-        for marker in "${ADOPTION_MARKERS[@]:1}"; do
-            echo "                  also found: $marker"
-        done
-    fi
+if [[ "$ADOPTION_COUNT" -ge "$ADOPTION_THRESHOLD" ]]; then
+    echo "Status:           already adopted ($ADOPTION_COUNT of 3 indicators matched)"
+    for sig in "${ADOPTION_SIGNALS[@]}"; do
+        echo "                  - $sig"
+    done
     # Advice: route to update-from-template AND surface the semantic gotcha.
     # Future refactor will reword 'sync list' to 'TEMPLATE_SHARED_INFRA'
     # once scripts/lib/template-manifest.sh exists; everything else stays.

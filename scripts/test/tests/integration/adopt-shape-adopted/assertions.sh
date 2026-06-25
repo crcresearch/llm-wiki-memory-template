@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Assertions: adopt.sh against a host that has already adopted the wiki
-# pattern. Verifies the 'already adopted' detection, the Status block in
-# the report, and that the advice is honest about update-from-template's
-# overwrite semantics and how it relates to the REFUSE entries below.
+# pattern (three composite signals present, threshold met). Verifies the
+# composite detection, the Status block content, and that the advice is
+# honest about update-from-template's overwrite semantics and how it
+# relates to the REFUSE entries below.
 
 STAGE="$SANDBOX/adopt-shape-adopted"
 HOST="$STAGE/host"
@@ -13,15 +14,19 @@ assert "patch produced an output file" "[ -f '$OUT' ]"
 assert "resolves identity from origin (adopted-host)" \
     "grep -qF 'Resolved:         adopted-host' '$OUT'"
 
-# --- Status section: detection + named marker(s) ---
+# --- Status section: composite detection fired with all 3 signals ---
 assert "Status line announces 'already adopted'" \
     "grep -qE '^Status:.*already adopted' '$OUT'"
-assert "Status line names .llm-wiki-template-log.md (first marker)" \
-    "grep -qF '.llm-wiki-template-log.md' '$OUT'"
-assert "Status block surfaces the second marker via 'also found:'" \
-    "grep -qE 'also found:.*adopted-host\\.wiki/\\.git' '$OUT'"
+assert "Status line reports the indicator count (3 of 3)" \
+    "grep -qF '3 of 3 indicators matched' '$OUT'"
+assert "Status block lists signal A: llm-wiki.md byte-identical" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'llm-wiki.md byte-identical to template'"
+assert "Status block lists signal B: lw:wiki-section sentinel in CLAUDE.md" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md contains the lw:wiki-section sentinel'"
+assert "Status block lists signal C: wiki/init-wiki.sh present" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'wiki/init-wiki.sh present'"
 
-# --- Advice: route + semantic caveat (Path 1, not Path 2) ---
+# --- Advice: route + semantic caveat (Path 1) ---
 assert "advice routes to scripts/update-from-template.sh" \
     "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'scripts/update-from-template.sh'"
 assert "advice names the OVERWRITES gotcha explicitly" \
@@ -44,8 +49,11 @@ assert "Status line appears exactly once (not duplicated)" \
     "[ '$status_count' -eq 1 ]"
 
 # --- Stub still doesn't apply ---
-assert "host README.md preserved" "grep -qF 'Adopted Host' '$HOST/README.md'"
-assert "host .gitignore preserved" "grep -qF '*.pyc' '$HOST/.gitignore'"
+assert "host README.md preserved" \
+    "grep -qF 'Adopted Host' '$HOST/README.md'"
+assert "host CLAUDE.md preserved (sentinel still there, prose unchanged)" \
+    "grep -qF 'lw:wiki-section' '$HOST/CLAUDE.md' && \\
+     grep -qF 'Host-authored project guidance' '$HOST/CLAUDE.md'"
 assert "host kept its own init-wiki.sh content" \
     "grep -qF 'do not let update-from-template silently overwrite' '$HOST/wiki/init-wiki.sh'"
 assert "stub announces no writes occurred" \
