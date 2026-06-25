@@ -6,10 +6,10 @@
 # the 3-of-3 case the other fixture exercises.
 #
 # Signals staged:
-#   A: llm-wiki.md byte-identical to template      -> present
-#   B: CLAUDE.md exists but DOES NOT contain the
-#      lw:wiki-section sentinel                     -> absent
-#   C: wiki/init-wiki.sh present                    -> present
+#   A: llm-wiki.md byte-identical to template                       -> present
+#   B: wiki/agents/discipline-gates.md byte-identical to template   -> absent
+#      (fixture deliberately omits this file so Signal B fails)
+#   C: wiki/init-wiki.sh present                                    -> present
 #
 # Result: 2 of 3 signals -> threshold met -> Status fires with
 # '2 of 3 indicators matched', and signal B's bullet is absent from the
@@ -36,16 +36,16 @@ echo "*.pyc"                 > "$HOST/.gitignore"
 # Signal A: llm-wiki.md byte-identical to template.
 cp "$TEMPLATE_ROOT/llm-wiki.md" "$HOST/llm-wiki.md"
 
-# Signal B intentionally OFF: CLAUDE.md exists but has plain host content
-# without the lw:wiki-section sentinel. Simulates a host that authored its
-# own CLAUDE.md without going through the agent overlay's setup, OR a
-# project instantiated with --agent=none.
+# Signal B intentionally OFF: the host does NOT have a copy of
+# wiki/agents/discipline-gates.md. Simulates a partial adoption / partial
+# template drift where the host has the root pattern but never sync'd the
+# shared overlay-agnostic files. (Host owns its own CLAUDE.md without any
+# pattern markers — included to verify adopt does not depend on it.)
 cat > "$HOST/CLAUDE.md" <<'EOF'
 # Partial Host
 
-This CLAUDE.md is entirely host-authored. No managed block, no sentinel.
-The agent overlay was either skipped at instantiation time or this repo
-predates the lw:wiki-section convention.
+This CLAUDE.md is entirely host-authored. The agent overlay was either
+skipped at instantiation or this repo predates the wiki-pattern overlay.
 
 Project description, conventions, and notes for the LLM go here.
 EOF

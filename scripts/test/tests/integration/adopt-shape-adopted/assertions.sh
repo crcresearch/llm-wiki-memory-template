@@ -21,10 +21,16 @@ assert "Status line reports the indicator count (3 of 3)" \
     "grep -qF '3 of 3 indicators matched' '$OUT'"
 assert "Status block lists signal A: llm-wiki.md byte-identical" \
     "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'llm-wiki.md byte-identical to template'"
-assert "Status block lists signal B: lw:wiki-section sentinel in CLAUDE.md" \
-    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md contains the lw:wiki-section sentinel'"
+assert "Status block lists signal B: wiki/agents/discipline-gates.md byte-identical" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'wiki/agents/discipline-gates.md byte-identical to template'"
 assert "Status block lists signal C: wiki/init-wiki.sh present" \
     "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'wiki/init-wiki.sh present'"
+
+# --- Overlay metadata (catalog lookup; informational, not a signal) ---
+assert "Overlay metadata line reports claude-code (from .claude/ presence)" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'Overlay(s) detected: claude-code'"
+assert "Overlay metadata does NOT report cursor (host has no .cursor/)" \
+    "! awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'cursor'"
 
 # --- Advice: route + semantic caveat (Path 1) ---
 assert "advice routes to scripts/update-from-template.sh" \
@@ -51,9 +57,8 @@ assert "Status line appears exactly once (not duplicated)" \
 # --- Stub still doesn't apply ---
 assert "host README.md preserved" \
     "grep -qF 'Adopted Host' '$HOST/README.md'"
-assert "host CLAUDE.md preserved (sentinel still there, prose unchanged)" \
-    "grep -qF 'lw:wiki-section' '$HOST/CLAUDE.md' && \\
-     grep -qF 'Host-authored project guidance' '$HOST/CLAUDE.md'"
+assert "host's own .claude/ overlay preserved (no churn from adopt)" \
+    "[ -f '$HOST/.claude/commands/example.md' ]"
 assert "host kept its own init-wiki.sh content" \
     "grep -qF 'do not let update-from-template silently overwrite' '$HOST/wiki/init-wiki.sh'"
 assert "stub announces no writes occurred" \

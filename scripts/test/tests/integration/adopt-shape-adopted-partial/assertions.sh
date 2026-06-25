@@ -30,8 +30,12 @@ assert "Status block lists signal A: llm-wiki.md byte-identical" \
     "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'llm-wiki.md byte-identical to template'"
 assert "Status block lists signal C: wiki/init-wiki.sh present" \
     "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'wiki/init-wiki.sh present'"
-assert "Status block does NOT list signal B (no sentinel in host's CLAUDE.md)" \
-    "! awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'lw:wiki-section sentinel'"
+assert "Status block does NOT list signal B (host has no wiki/agents/discipline-gates.md)" \
+    "! awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'wiki/agents/discipline-gates.md byte-identical'"
+
+# --- Overlay metadata: host has no .claude/ or .cursor/ -> none ---
+assert "Overlay metadata line reports 'none' when host has no overlay" \
+    "awk '/^Status:/,/^\$/' '$OUT' | grep -qF 'Overlay(s) detected: none'"
 
 # --- Advice block follows (same shape as the 3-of-3 case) ---
 assert "advice routes to scripts/update-from-template.sh" \
@@ -50,7 +54,5 @@ assert "host README.md preserved" \
     "grep -qF 'Partial Host' '$HOST/README.md'"
 assert "host CLAUDE.md preserved (host prose still there)" \
     "grep -qF 'entirely host-authored' '$HOST/CLAUDE.md'"
-assert "host CLAUDE.md still has no sentinel (adopt did not inject)" \
-    "! grep -qF '<!-- lw:wiki-section -->' '$HOST/CLAUDE.md'"
 assert "host kept its own init-wiki.sh content" \
     "grep -qF 'diverged from template' '$HOST/wiki/init-wiki.sh'"

@@ -187,26 +187,33 @@ PROJECT_NAME="$(lw_name_from_origin "$TARGET")"
 # the pattern in a different way — reduces both false positives (a single
 # coincidental match) and false negatives (a single marker missing locally).
 #
-# Signals checked, in order:
+# Signals checked, all harness-agnostic (they come from the pattern itself,
+# not from any specific agent overlay):
 #   A: llm-wiki.md byte-identical to template
 #      (strong: file unique to the pattern; byte-equal -> came from template)
-#   B: <!-- lw:wiki-section --> sentinel inside CLAUDE.md
-#      (strong: that sentinel is exclusively injected by the agent overlay)
+#   B: wiki/agents/discipline-gates.md byte-identical to template
+#      (strong: shared overlay-agnostic file from ALWAYS_FILES; present
+#       regardless of which overlay the host chose, including --agent=none)
 #   C: wiki/init-wiki.sh present in target
 #      (moderate: specific file from the pattern; may be host-modified)
 #
 # Threshold: at least 2 of 3 signals must match. A single signal can be
 # coincidence; two independent signals from different parts of the pattern
 # make the inference reliable.
+#
+# Which overlay the host happens to be running (claude-code, cursor, etc.)
+# is reported separately as metadata, not as a detection signal — see the
+# DETECTED_OVERLAYS block below.
 ADOPTION_SIGNALS=()
 
 if [[ -f "$TARGET/llm-wiki.md" ]] \
     && cmp -s "$TEMPLATE_ROOT/llm-wiki.md" "$TARGET/llm-wiki.md"; then
     ADOPTION_SIGNALS+=("llm-wiki.md byte-identical to template")
 fi
-if [[ -f "$TARGET/CLAUDE.md" ]] \
-    && grep -qF "<!-- lw:wiki-section -->" "$TARGET/CLAUDE.md"; then
-    ADOPTION_SIGNALS+=("CLAUDE.md contains the lw:wiki-section sentinel")
+if [[ -f "$TARGET/wiki/agents/discipline-gates.md" ]] \
+    && cmp -s "$TEMPLATE_ROOT/wiki/agents/discipline-gates.md" \
+              "$TARGET/wiki/agents/discipline-gates.md"; then
+    ADOPTION_SIGNALS+=("wiki/agents/discipline-gates.md byte-identical to template")
 fi
 if [[ -e "$TARGET/wiki/init-wiki.sh" ]]; then
     ADOPTION_SIGNALS+=("wiki/init-wiki.sh present")
@@ -214,6 +221,19 @@ fi
 
 ADOPTION_THRESHOLD=2
 ADOPTION_COUNT=${#ADOPTION_SIGNALS[@]}
+
+# --- Detect which overlay (if any) is present (metadata, not a signal) ------
+# Catalog approach mirroring how vulnerability scanners detect package
+# managers: each overlay leaves a canonical mark in a canonical path.
+# Presence here is informational; the adoption decision above does not
+# depend on which overlay is configured.
+DETECTED_OVERLAYS=()
+if [[ -d "$TARGET/.claude" ]] || [[ -f "$TARGET/wiki/agents/claude-code/setup.sh" ]]; then
+    DETECTED_OVERLAYS+=("claude-code")
+fi
+if [[ -d "$TARGET/.cursor" ]] || [[ -f "$TARGET/wiki/agents/cursor/setup.sh" ]]; then
+    DETECTED_OVERLAYS+=("cursor")
+fi
 
 # --- Classify each path -----------------------------------------------------
 # For each ADD_ALLOWLIST entry:
@@ -298,6 +318,14 @@ if [[ "$ADOPTION_COUNT" -ge "$ADOPTION_THRESHOLD" ]]; then
     for sig in "${ADOPTION_SIGNALS[@]}"; do
         echo "                  - $sig"
     done
+    # Overlay metadata (catalog-style detection; separate from the
+    # adopted/not-adopted decision above).
+    if [[ ${#DETECTED_OVERLAYS[@]} -eq 0 ]]; then
+        echo "                  Overlay(s) detected: none"
+    else
+        overlay_list="$(IFS=','; printf '%s' "${DETECTED_OVERLAYS[*]}")"
+        echo "                  Overlay(s) detected: ${overlay_list//,/, }"
+    fi
     # Advice: route to update-from-template AND surface the semantic gotcha.
     # Future refactor will reword 'sync list' to 'TEMPLATE_SHARED_INFRA'
     # once scripts/lib/template-manifest.sh exists; everything else stays.
