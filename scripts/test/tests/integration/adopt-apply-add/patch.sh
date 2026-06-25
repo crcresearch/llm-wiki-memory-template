@@ -53,10 +53,27 @@ fi
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test add -A
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test commit -q -m "after first apply"
 
+# Second --apply uses --force because after the first apply, the host
+# now satisfies the composite adoption detector (>= 2 of 3 signals).
+# Without --force, adopt would advise to use update-from-template.sh.
+# The --force flag here keeps the historical idempotency test alive.
 OUTFILE2="$STAGE/apply-run2.txt"
-if ! bash "$ADOPT" --target="$HOST" --apply > "$OUTFILE2" 2>&1; then
-    echo "  WARN: second adopt.sh --apply exited non-zero." >&2
+if ! bash "$ADOPT" --target="$HOST" --apply --force > "$OUTFILE2" 2>&1; then
+    echo "  WARN: second adopt.sh --apply --force exited non-zero." >&2
     sed 's/^/    /' "$OUTFILE2" >&2
 fi
+
+# Third --apply WITHOUT --force exercises the new advisory abort.
+OUTFILE3="$STAGE/apply-run3-noforce.txt"
+NOFORCE_RC=0
+bash "$ADOPT" --target="$HOST" --apply > "$OUTFILE3" 2>&1 || NOFORCE_RC=$?
+# Manifest is now appended by the run2 --force apply, so the tree is dirty
+# again. Commit so the run3 (no --force) exits on the adoption check, not
+# on the dirty-tree check (we want to test the adoption-detect path).
+git -C "$HOST" -c user.email=test@x.invalid -c user.name=test add -A
+git -C "$HOST" -c user.email=test@x.invalid -c user.name=test commit -q -m "after second apply" \
+    >/dev/null 2>&1 || true
+bash "$ADOPT" --target="$HOST" --apply > "$OUTFILE3" 2>&1 || NOFORCE_RC=$?
+echo "$NOFORCE_RC" > "$STAGE/noforce-rc.txt"
 
 echo "  adopt-apply-add patch applied: host at $HOST"

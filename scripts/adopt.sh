@@ -131,6 +131,7 @@ parse_grants_file() {
 
 # --- Argument parsing -------------------------------------------------------
 APPLY=0      # default: dry-run; --apply opts in to mutating the host
+FORCE=0      # opt-out of the "already adopted -> abort" advisory
 TARGET=""
 AGENT="claude-code"
 FEATURES=""
@@ -148,8 +149,12 @@ setup, and feature install are deferred to later iterations.
 Options:
   --target=PATH      Repo to adopt into (default: current directory)
   --apply            Actually create ADD entries in the target. Refused
-                     if the target's working tree has uncommitted changes
-                     (host owner should commit first so the diff is clean)
+                     if the target's working tree has uncommitted changes,
+                     OR if the target already shows the adoption pattern
+                     (use scripts/update-from-template.sh for that case).
+  --force            Bypass the 'already adopted' advisory abort. Useful
+                     only for the rare case where you really do want adopt
+                     mode against a host that already has the pattern.
   --agent=NAME       claude-code | none | cursor (cursor: not yet supported)
   --features=LIST    Comma-separated feature names (parsed but not installed)
   --dry-run          Default; included for forward compatibility
@@ -165,6 +170,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)            usage; exit 0 ;;
         --apply)              APPLY=1; shift ;;
         --dry-run)            APPLY=0; shift ;;
+        --force)              FORCE=1; shift ;;
         --target=*)           TARGET="${1#*=}"; shift ;;
         --target)             TARGET="${2:-}"; shift 2 ;;
         --agent=*)            AGENT="${1#*=}"; shift ;;
@@ -444,6 +450,34 @@ fi
 # Safety guard: refuse to write into a dirty working tree.
 if [[ -n "$(git -C "$TARGET" status --porcelain 2>/dev/null)" ]]; then
     lw_die "target has uncommitted changes in its working tree; commit or stash before --apply"
+fi
+
+# --- Advisory abort: 'already adopted' hosts route to update-from-template ---
+# adopt.sh is for FIRST-TIME adoption. When the composite detector finds the
+# pattern already present (>= ADOPTION_THRESHOLD signals), the right tool is
+# update-from-template.sh, which knows about ALWAYS_FILES and handles drift
+# between template versions. Re-running adopt --apply on an adopted host
+# would re-trigger Phase 1 ADD (no-op for SKIPs, REFUSE for divergences),
+# Phase 2A (idempotent), and Phase 2B (which invokes host's possibly-drifted
+# init-wiki.sh / overlay setup.sh, with brittle results). Cleaner to refuse
+# and route. --force is the escape hatch when the user really means it.
+if [[ "$ADOPTION_COUNT" -ge "$ADOPTION_THRESHOLD" && "$FORCE" -eq 0 ]]; then
+    {
+        echo ""
+        echo "ERROR: this repo has already adopted the wiki-memory pattern."
+        echo "       adopt.sh is for first-time adoption only."
+        echo ""
+        echo "       Detected $ADOPTION_COUNT of 3 indicators:"
+        for sig in "${ADOPTION_SIGNALS[@]}"; do
+            printf '         - %s\n' "$sig"
+        done
+        echo ""
+        echo "For ongoing sync of template-owned files, use:"
+        echo "       bash scripts/update-from-template.sh"
+        echo ""
+        echo "If you really need to force adopt mode against this repo, pass --force."
+    } >&2
+    exit 1
 fi
 
 # Honor the same per-path rules the dry-run reported: ADD entries get

@@ -63,13 +63,27 @@ assert "manifest records init-wiki status" \
 assert "manifest records overlay setup status" \
     "grep -qE -- '- overlay setup: (applied|skipped)' '$HOST/.llm-wiki-adopt-log.md'"
 
-# --- Second run: idempotent at the file level ---
-assert "second --apply produced an output file" "[ -f '$OUT2' ]"
-assert "second --apply reports 0 files created" \
+# --- Second run with --force: still idempotent at the file level ---
+assert "second --apply --force produced an output file" "[ -f '$OUT2' ]"
+assert "second --apply --force reports 0 files created" \
     "grep -qE 'Applied: 0 file' '$OUT2'"
-# Manifest is appended on every run; should now have TWO entries.
+
+# --- Third run without --force: advisory abort fires ---
+OUT3="$STAGE/apply-run3-noforce.txt"
+NOFORCE_RC_FILE="$STAGE/noforce-rc.txt"
+assert "third --apply without --force exits non-zero" \
+    "[ \"\$(cat '$NOFORCE_RC_FILE')\" != 0 ]"
+assert "third --apply without --force prints the advisory" \
+    "grep -qF 'this repo has already adopted' '$OUT3'"
+assert "third --apply without --force routes user to update-from-template.sh" \
+    "grep -qF 'bash scripts/update-from-template.sh' '$OUT3'"
+assert "third --apply without --force mentions --force as the escape hatch" \
+    "grep -qF -- '--force' '$OUT3'"
+
+# Manifest grew by exactly one entry per run that wrote it. First run wrote,
+# second run --force wrote, third run aborted before manifest write.
 manifest_entries=$(grep -cE '^## \[.*\] adopt --apply' "$HOST/.llm-wiki-adopt-log.md" || true)
-assert "manifest has two entries after two --apply runs" \
+assert "manifest has two entries (first run + second --force; third aborted)" \
     "[ '$manifest_entries' -eq 2 ]"
 
 # --- Dirty tree guard: simulate a dirty tree and confirm --apply refuses ---

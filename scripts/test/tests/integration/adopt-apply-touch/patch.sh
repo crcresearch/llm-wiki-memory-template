@@ -79,20 +79,25 @@ git -C "$HOST" -c user.email=test@x.invalid -c user.name=test commit -q -m "init
 ADOPT="$TEMPLATE_ROOT/scripts/adopt.sh"
 
 # --- First --apply run ---
+# This fixture stages Signal A (llm-wiki.md byte-equal) + Signal C
+# (wiki/init-wiki.sh present) so the composite detector says 'adopted'
+# from the start. --force keeps the apply path exercised; this test is
+# about the TOUCH apply mechanics, not the advisory-abort behaviour
+# (which has its own test, adopt-apply-blocked).
 OUT1="$STAGE/apply-run1.txt"
-if ! bash "$ADOPT" --target="$HOST" --apply > "$OUT1" 2>&1; then
-    echo "  WARN: first adopt.sh --apply exited non-zero." >&2
+if ! bash "$ADOPT" --target="$HOST" --apply --force > "$OUT1" 2>&1; then
+    echo "  WARN: first adopt.sh --apply --force exited non-zero." >&2
     sed 's/^/    /' "$OUT1" >&2
 fi
 
-# --- Second --apply run (idempotency on the lw_inject_block path) ---
+# --- Second --apply run --force (idempotency on the lw_inject_block path) ---
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test add -A
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test commit -q -m "after first apply" \
     >/dev/null 2>&1 || true   # may be empty if first run had no effect
 
 OUT2="$STAGE/apply-run2.txt"
-if ! bash "$ADOPT" --target="$HOST" --apply > "$OUT2" 2>&1; then
-    echo "  WARN: second adopt.sh --apply exited non-zero." >&2
+if ! bash "$ADOPT" --target="$HOST" --apply --force > "$OUT2" 2>&1; then
+    echo "  WARN: second adopt.sh --apply --force exited non-zero." >&2
     sed 's/^/    /' "$OUT2" >&2
 fi
 
