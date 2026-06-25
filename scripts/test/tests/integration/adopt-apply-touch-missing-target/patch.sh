@@ -43,12 +43,12 @@ which is intentionally NOT present on disk.
 expected position; not the focus of this fixture.)
 EOF
 
-# Grants: one target that exists (CLAUDE.md -> TOUCH) and one that
-# does NOT exist (.claude/settings.json -> TOUCH_MISSING). The MISSING
-# entry is the one this fixture exercises.
+# Single grant targeting an absent file. Keeping the grants file to a
+# single MISSING entry keeps the fixture focused on TOUCH_MISSING and
+# avoids interaction with the CLAUDE.md / overlay setup path (which is
+# already covered by adopt-apply-virgin-with-claude).
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 grants:
-  CLAUDE.md:              managed-block
   .claude/settings.json:  merge
 EOF
 
