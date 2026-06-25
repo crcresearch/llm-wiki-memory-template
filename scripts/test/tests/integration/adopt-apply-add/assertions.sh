@@ -46,8 +46,8 @@ assert "manifest .llm-wiki-adopt-log.md exists" \
     "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 assert "manifest has the top-level heading" \
     "grep -qF '# llm-wiki adopt log' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest names this run as 'adopt --apply (phases 1, 2A)'" \
-    "grep -qF 'adopt --apply (phases 1, 2A)' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest names this run as 'adopt --apply (phases 1, 2A, 2B)'" \
+    "grep -qF 'adopt --apply (phases 1, 2A, 2B)' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records project name" \
     "grep -qF -- '- project: apply-host' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records the signal count" \
@@ -56,10 +56,12 @@ assert "manifest lists each ADDed path under the ADDed bullet" \
     "grep -qF -- '  - wiki/init-wiki.sh' '$HOST/.llm-wiki-adopt-log.md'"
 
 # --- Stub markers (TOUCH apply still deferred) ---
-assert "NOT IMPLEMENTED YET still names managed-block apply as deferred (Phase 2B)" \
-    "grep -qF 'TOUCH apply managed-block' '$OUT1'"
 assert "NOT IMPLEMENTED YET still names merge apply as deferred (Phase 3)" \
     "grep -qF 'TOUCH apply merge' '$OUT1'"
+assert "manifest records init-wiki status" \
+    "grep -qE -- '- init-wiki: (applied|already-present|skipped)' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest records overlay setup status" \
+    "grep -qE -- '- overlay setup: (applied|skipped)' '$HOST/.llm-wiki-adopt-log.md'"
 
 # --- Second run: idempotent at the file level ---
 assert "second --apply produced an output file" "[ -f '$OUT2' ]"

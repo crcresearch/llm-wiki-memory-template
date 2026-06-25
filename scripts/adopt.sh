@@ -30,6 +30,11 @@ ADD_ALLOWLIST=(
     wiki/init-wiki.sh
     wiki/agents/discipline-gates.md
     wiki/agents/verification-gate.md
+    # Claude Code overlay (needed for Phase 2B managed-block apply via
+    # wiki/agents/claude-code/setup.sh). For now the catalog is fixed;
+    # future iterations may make it conditional on --agent.
+    wiki/agents/claude-code/setup.sh
+    wiki/agents/claude-code/templates/claude-md-snippet.md
     scripts/lib/common.sh
     scripts/lib/git.sh
     scripts/lib/identity.sh
@@ -420,10 +425,7 @@ fi
 
 cat <<'EOF'
 NOT IMPLEMENTED YET (stub limitation, not absent from the design)
-  - TOUCH apply managed-block (Phase 2B; will delegate to overlay setup.sh)
   - TOUCH apply merge (Phase 3; jq deep-merge for .claude/settings.json)
-  - Wiki sub-repo initialization (Phase 2B; delegate to init-wiki.sh)
-  - Agent overlay setup (Phase 2B; via wiki/agents/<overlay>/setup.sh)
   - Feature install via --features (Phase 3; install_feature from scripts/lib/)
 EOF
 echo ""
@@ -464,7 +466,62 @@ if [[ ${#ACT_ADD[@]} -gt 0 ]]; then
     done
 fi
 
-# --- TOUCH apply (Phase 2A: append-only only) -------------------------------
+# --- Wiki sub-repo init (Phase 2B) ------------------------------------------
+# init-wiki.sh is now in the host (copied by ADD). It auto-detects create vs
+# update mode based on the presence of wiki/<repo>.wiki/, so calling it is
+# safe whether or not the sub-repo exists. Captures status for the manifest
+# but does NOT abort adopt on failure: a host that can't init wiki still
+# benefits from the ADDed files and any append-only TOUCH that already ran.
+INIT_WIKI_STATUS="not-run"
+INIT_WIKI_DETAIL=""
+WIKI_SUBREPO_DIR="$TARGET/wiki/$PROJECT_NAME.wiki"
+if [[ -d "$WIKI_SUBREPO_DIR/.git" ]]; then
+    INIT_WIKI_STATUS="already-present"
+    INIT_WIKI_DETAIL="wiki/$PROJECT_NAME.wiki/ already initialised"
+elif [[ -f "$TARGET/wiki/init-wiki.sh" ]]; then
+    init_wiki_rc=0
+    (cd "$TARGET" && bash wiki/init-wiki.sh --repo-name "$PROJECT_NAME" >/dev/null 2>&1) || init_wiki_rc=$?
+    if [[ $init_wiki_rc -eq 0 ]]; then
+        INIT_WIKI_STATUS="applied"
+        INIT_WIKI_DETAIL="ran wiki/init-wiki.sh --repo-name $PROJECT_NAME"
+    else
+        INIT_WIKI_STATUS="failed"
+        INIT_WIKI_DETAIL="wiki/init-wiki.sh exited $init_wiki_rc"
+    fi
+else
+    INIT_WIKI_STATUS="skipped"
+    INIT_WIKI_DETAIL="wiki/init-wiki.sh not present in target after ADD"
+fi
+
+# --- Overlay setup (Phase 2B) -----------------------------------------------
+# wiki/agents/<AGENT>/setup.sh is now in the host (copied by ADD). It is
+# idempotent (lw_inject_block no-ops when sentinels are present), so safe
+# to invoke even on subsequent --apply runs. Skipped entirely when
+# --agent=none.
+OVERLAY_SETUP_STATUS="not-run"
+OVERLAY_SETUP_DETAIL=""
+if [[ "$AGENT" == "none" ]]; then
+    OVERLAY_SETUP_STATUS="skipped"
+    OVERLAY_SETUP_DETAIL="--agent=none, no overlay to set up"
+else
+    OVERLAY_SETUP_PATH="$TARGET/wiki/agents/$AGENT/setup.sh"
+    if [[ -f "$OVERLAY_SETUP_PATH" ]]; then
+        overlay_rc=0
+        (cd "$TARGET" && bash "$OVERLAY_SETUP_PATH" >/dev/null 2>&1) || overlay_rc=$?
+        if [[ $overlay_rc -eq 0 ]]; then
+            OVERLAY_SETUP_STATUS="applied"
+            OVERLAY_SETUP_DETAIL="ran wiki/agents/$AGENT/setup.sh"
+        else
+            OVERLAY_SETUP_STATUS="failed"
+            OVERLAY_SETUP_DETAIL="wiki/agents/$AGENT/setup.sh exited $overlay_rc"
+        fi
+    else
+        OVERLAY_SETUP_STATUS="skipped"
+        OVERLAY_SETUP_DETAIL="wiki/agents/$AGENT/setup.sh not present in target after ADD"
+    fi
+fi
+
+# --- TOUCH apply (Phase 2A append-only, Phase 2B managed-block) -------------
 # For valid TOUCH entries, dispatch by mechanism:
 #   append-only   -> lw_inject_block with the per-target payload at EOF
 #   managed-block -> deferred to Phase 2B (overlay setup.sh orchestration)
@@ -498,7 +555,16 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                 fi
                 ;;
             managed-block)
-                APPLIED_TOUCHES+=("$t_path ($t_type): deferred -- Phase 2B (overlay setup.sh orchestration)")
+                # The overlay setup.sh owns CLAUDE.md sentinel injection
+                # (and analogous host files for non-claude overlays). Adopt
+                # delegates; the result mirrors the overlay's outcome.
+                if [[ "$OVERLAY_SETUP_STATUS" == "applied" ]]; then
+                    APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh")
+                elif [[ "$OVERLAY_SETUP_STATUS" == "skipped" ]]; then
+                    APPLIED_TOUCHES+=("$t_path ($t_type): skipped ($OVERLAY_SETUP_DETAIL)")
+                else
+                    APPLIED_TOUCHES+=("$t_path ($t_type): $OVERLAY_SETUP_STATUS ($OVERLAY_SETUP_DETAIL)")
+                fi
                 ;;
             merge)
                 APPLIED_TOUCHES+=("$t_path ($t_type): deferred -- Phase 3 (jq deep-merge)")
@@ -522,7 +588,7 @@ FIRST_ENTRY=0
 [[ -f "$ADOPT_LOG" ]] || FIRST_ENTRY=1
 {
     (( FIRST_ENTRY )) && printf '# llm-wiki adopt log\n\n'
-    printf '## [%s] adopt --apply (phases 1, 2A)\n' "$TODAY"
+    printf '## [%s] adopt --apply (phases 1, 2A, 2B)\n' "$TODAY"
     printf -- '- project: %s\n' "$PROJECT_NAME"
     printf -- '- agent: %s\n' "$AGENT"
     printf -- '- signals matched: %s of 3 (%s)\n' \
@@ -535,6 +601,8 @@ FIRST_ENTRY=0
     fi
     printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
     printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
+    printf -- '- init-wiki: %s (%s)\n' "$INIT_WIKI_STATUS" "$INIT_WIKI_DETAIL"
+    printf -- '- overlay setup: %s (%s)\n' "$OVERLAY_SETUP_STATUS" "$OVERLAY_SETUP_DETAIL"
     printf -- '- TOUCH applied (%s):\n' "${#APPLIED_TOUCHES[@]}"
     if [[ ${#APPLIED_TOUCHES[@]} -gt 0 ]]; then
         for t in "${APPLIED_TOUCHES[@]}"; do printf '  - %s\n' "$t"; done

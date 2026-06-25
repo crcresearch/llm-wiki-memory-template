@@ -31,16 +31,37 @@ assert "host's '.env' rule preserved" \
 assert "manifest exists" "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 assert "manifest lists .gitignore TOUCH as applied (first run)" \
     "grep -qF '.gitignore (append-only): applied' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest reports CLAUDE.md managed-block as deferred to Phase 2B" \
-    "grep -qF 'CLAUDE.md (managed-block): deferred' '$HOST/.llm-wiki-adopt-log.md'"
+# Phase 2B: managed-block now delegates to overlay setup.sh. With the
+# claude-code overlay copied via ADD and init-wiki creating the wiki
+# sub-repo, the overlay setup runs successfully and the manifest records
+# the managed-block TOUCH as applied via the overlay rather than deferred.
+assert "manifest reports CLAUDE.md managed-block as applied via overlay setup.sh" \
+    "grep -qF 'CLAUDE.md (managed-block): applied via wiki/agents/claude-code/setup.sh' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest reports settings.json merge as deferred to Phase 3" \
     "grep -qF '.claude/settings.json (merge): deferred' '$HOST/.llm-wiki-adopt-log.md'"
 
+# --- Phase 2B: init-wiki + overlay setup status in manifest ---
+assert "manifest records init-wiki as applied on first run" \
+    "grep -qF -- '- init-wiki: applied' '$STAGE/apply-run1.txt' || \\
+     grep -qF -- '- init-wiki: applied' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest records init-wiki as already-present on second run" \
+    "grep -qF -- '- init-wiki: already-present' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest records overlay setup status as applied" \
+    "grep -qF -- '- overlay setup: applied' '$HOST/.llm-wiki-adopt-log.md'"
+
+# --- Phase 2B: wiki sub-repo created in host ---
+assert "wiki sub-repo created at wiki/touch-host.wiki/" \
+    "[ -d '$HOST/wiki/touch-host.wiki/.git' ]"
+
+# --- Phase 2B: CLAUDE.md now has overlay-injected sentinels ---
+assert "host CLAUDE.md now has lw:memory-boundary sentinel (injected by overlay setup)" \
+    "grep -qF '<!-- lw:memory-boundary -->' '$HOST/CLAUDE.md'"
+assert "host CLAUDE.md now has lw:wiki-maintenance sentinel" \
+    "grep -qF '<!-- lw:wiki-maintenance -->' '$HOST/CLAUDE.md'"
+
 # --- Host's prose (CLAUDE.md, README.md) untouched in this phase ---
-assert "host CLAUDE.md preserved (managed-block deferred, did not inject)" \
+assert "host CLAUDE.md prose preserved above injected blocks" \
     "grep -qF 'Host-authored project guidance' '$HOST/CLAUDE.md'"
-assert "host CLAUDE.md has NO lw:wiki-section sentinel yet (Phase 2B job)" \
-    "! grep -qF '<!-- lw:wiki-section -->' '$HOST/CLAUDE.md'"
 assert "host README preserved" \
     "grep -qF 'Host-authored README' '$HOST/README.md'"
 
