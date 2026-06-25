@@ -428,8 +428,15 @@ echo ""
 
 if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 || ${#ACT_TOUCH_MISSING[@]} -gt 0 ]]; then
     echo "GRANT WARNINGS (entries in grants file that did not produce a TOUCH)"
-    for p in "${ACT_TOUCH_INVALID[@]}"; do echo "  ! $p"; done
-    for p in "${ACT_TOUCH_MISSING[@]}"; do echo "  ? $p"; done
+    # Bash 3.2 (macOS default) treats "${arr[@]}" on an empty declared
+    # array as an unbound variable under set -u, so each for-loop needs
+    # its own ${#arr[@]} guard. Same pattern as the ACT_ADD loop below.
+    if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 ]]; then
+        for p in "${ACT_TOUCH_INVALID[@]}"; do echo "  ! $p"; done
+    fi
+    if [[ ${#ACT_TOUCH_MISSING[@]} -gt 0 ]]; then
+        for p in "${ACT_TOUCH_MISSING[@]}"; do echo "  ? $p"; done
+    fi
     echo ""
 fi
 
