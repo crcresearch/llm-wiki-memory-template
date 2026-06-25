@@ -43,6 +43,73 @@ wm_open=$(grep -cF '<!-- lw:wiki-maintenance -->' "$HOST/CLAUDE.md" || true)
 assert "lw:wiki-maintenance opening sentinel appears exactly once" \
     "[ '$wm_open' -eq 1 ]"
 
+# --- Sentinel positioning: both blocks land BEFORE the ### Knowledge Graph anchor ---
+mb_line=$(grep -n '<!-- lw:memory-boundary -->' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+wm_open_line=$(grep -n '<!-- lw:wiki-maintenance -->' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+kg_line=$(grep -n '^### Knowledge Graph' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+assert "lw:memory-boundary sits BEFORE the ### Knowledge Graph anchor" \
+    "[ '$mb_line' -lt '$kg_line' ]"
+assert "lw:wiki-maintenance sits BEFORE the ### Knowledge Graph anchor" \
+    "[ '$wm_open_line' -lt '$kg_line' ]"
+# The anchor used is the HOST's pre-adoption anchor, not one init-wiki
+# happens to add as a fallback. Locking onto the host's distinctive
+# comment ensures we are checking the right anchor.
+assert "host's pre-adoption KG anchor and its comment are still adjacent" \
+    "grep -A2 '^### Knowledge Graph' '$HOST/CLAUDE.md' | grep -qF '(Anchor where the overlay'"
+# Memory-boundary precedes wiki-maintenance (overlay's own ordering contract).
+assert "memory-boundary precedes wiki-maintenance" \
+    "[ '$mb_line' -lt '$wm_open_line' ]"
+# Both sentinels are INSIDE the host's '## Wiki' section (after the heading).
+host_wiki_heading=$(grep -n '^## Wiki$' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+assert "sentinels are inside the host's '## Wiki' section (after the heading)" \
+    "[ '$host_wiki_heading' -lt '$mb_line' ]"
+
+# --- Host content ordering (full-line exact-match grep -qFx) ---
+# The substring assertions above can be fooled by adjacent edits; grep -Fx
+# locks each marker line to byte-equal-line presence, and the line-number
+# checks below lock their ordering.
+assert "host title is byte-exact preserved" \
+    "grep -qFx '# Virgin Claude Host' '$HOST/CLAUDE.md'"
+assert "host preamble line is byte-exact preserved" \
+    "grep -qFx 'This CLAUDE.md was authored by the project owner before adoption.' '$HOST/CLAUDE.md'"
+assert "host's '## Wiki' heading is byte-exact preserved" \
+    "grep -qFx '## Wiki' '$HOST/CLAUDE.md'"
+assert "host's '## Project conventions' heading is byte-exact preserved" \
+    "grep -qFx '## Project conventions' '$HOST/CLAUDE.md'"
+assert "host's closing prose line is byte-exact preserved" \
+    "grep -qFx 'These conventions are host-authored and must survive adoption unchanged.' '$HOST/CLAUDE.md'"
+
+title_line=$(grep -nFx '# Virgin Claude Host' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+preamble_line=$(grep -nFx 'This CLAUDE.md was authored by the project owner before adoption.' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+conventions_line=$(grep -nFx '## Project conventions' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+closing_line=$(grep -nFx 'These conventions are host-authored and must survive adoption unchanged.' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+assert "host content order: title -> preamble" \
+    "[ '$title_line' -lt '$preamble_line' ]"
+assert "host content order: preamble -> '## Wiki' heading" \
+    "[ '$preamble_line' -lt '$host_wiki_heading' ]"
+assert "host content order: '## Wiki' -> '## Project conventions'" \
+    "[ '$host_wiki_heading' -lt '$conventions_line' ]"
+assert "host content order: '## Project conventions' -> closing line" \
+    "[ '$conventions_line' -lt '$closing_line' ]"
+
+# --- init-wiki also writes to CLAUDE.md: documentation referencing SCHEMA file ---
+# init-wiki's 'Updated CLAUDE.md: + Knowledge Graph subsection' step injects
+# wiki-related documentation. Verify the injection happened by looking for
+# the SCHEMA reference it uses (the wiki sub-repo name is substituted in).
+assert "init-wiki added documentation referencing the SCHEMA file" \
+    "grep -qF 'SCHEMA_virgin-claude-host.md' '$HOST/CLAUDE.md'"
+assert "init-wiki added the wiki sub-repo path reference" \
+    "grep -qF 'wiki/virgin-claude-host.wiki' '$HOST/CLAUDE.md'"
+# init-wiki's content lands AFTER all host content (appended at end).
+# The phrase 'Read `wiki/.../SCHEMA_*.md` before making wiki changes' is
+# unique to init-wiki's CLAUDE.md update step (the wiki-maintenance
+# sentinel block uses different phrasing).
+init_wiki_line=$(grep -nF 'before making wiki changes' "$HOST/CLAUDE.md" | head -1 | cut -d: -f1)
+assert "init-wiki added the 'before making wiki changes' guidance line" \
+    "[ -n '$init_wiki_line' ]"
+assert "init-wiki documentation lands AFTER host's closing line" \
+    "[ '$closing_line' -lt '$init_wiki_line' ]"
+
 # --- Manifest captures the managed-block apply via overlay setup.sh ---
 assert "manifest exists" "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 assert "manifest records CLAUDE.md managed-block applied via setup.sh" \
