@@ -68,12 +68,18 @@ known_grant_type() {
     esac
 }
 
-# Sentinel label used by managed-block / append-only mechanisms for each
-# granted target. Reported in the dry-run so reviewers see exactly what
-# region adopt would maintain.
+# Sentinel label used by append-only mechanisms for each granted target.
+# Reported in the dry-run so reviewers see exactly what region adopt
+# would maintain.
+#
+# managed-block grants (CLAUDE.md) deliberately return empty: those
+# grants delegate to the overlay's setup.sh, which injects TWO separate
+# sentinel-paired blocks (lw:memory-boundary, lw:wiki-maintenance), not
+# a single "lw:wiki-section" wrapper. Adopt does not own those names
+# and should not claim one in the dry-run report. The empty return
+# makes the report omit the parenthetical instead of lying about it.
 known_grant_sentinel() {
     case "$1" in
-        CLAUDE.md)   echo "lw:wiki-section" ;;
         .gitignore)  echo "lw:wiki-rules"  ;;
         *)           echo ""               ;;
     esac
