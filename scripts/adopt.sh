@@ -431,8 +431,7 @@ fi
 
 cat <<'EOF'
 NOT IMPLEMENTED YET (stub limitation, not absent from the design)
-  - TOUCH apply merge (Phase 3; jq deep-merge for .claude/settings.json)
-  - Feature install via --features (Phase 3; install_feature from scripts/lib/)
+  - Feature install via --features (install_feature from scripts/lib/)
 EOF
 echo ""
 
@@ -601,7 +600,27 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                 fi
                 ;;
             merge)
-                APPLIED_TOUCHES+=("$t_path ($t_type): deferred -- Phase 3 (jq deep-merge)")
+                # Mirror Phase 2B's pattern: delegate to overlay setup.sh
+                # with the flag that performs the jq deep-merge for this
+                # target. For claude-code's .claude/settings.json today
+                # that flag is --hook, which is idempotent (the script
+                # checks for the hook name before merging).
+                if [[ "$AGENT" == "none" ]]; then
+                    APPLIED_TOUCHES+=("$t_path ($t_type): skipped (--agent=none, no overlay to merge through)")
+                else
+                    merge_overlay="$TARGET/wiki/agents/$AGENT/setup.sh"
+                    if [[ ! -f "$merge_overlay" ]]; then
+                        APPLIED_TOUCHES+=("$t_path ($t_type): skipped (wiki/agents/$AGENT/setup.sh not present)")
+                    else
+                        merge_rc=0
+                        (cd "$TARGET" && bash "$merge_overlay" --hook >/dev/null 2>&1) || merge_rc=$?
+                        if [[ $merge_rc -eq 0 ]]; then
+                            APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh --hook")
+                        else
+                            APPLIED_TOUCHES+=("$t_path ($t_type): failed (setup.sh --hook exited $merge_rc)")
+                        fi
+                    fi
+                fi
                 ;;
         esac
     done
@@ -622,7 +641,7 @@ FIRST_ENTRY=0
 [[ -f "$ADOPT_LOG" ]] || FIRST_ENTRY=1
 {
     (( FIRST_ENTRY )) && printf '# llm-wiki adopt log\n\n'
-    printf '## [%s] adopt --apply (phases 1, 2A, 2B)\n' "$TODAY"
+    printf '## [%s] adopt --apply (phases 1, 2A, 2B, 3)\n' "$TODAY"
     printf -- '- project: %s\n' "$PROJECT_NAME"
     printf -- '- agent: %s\n' "$AGENT"
     printf -- '- signals matched: %s of 3 (%s)\n' \

@@ -37,8 +37,14 @@ assert "manifest lists .gitignore TOUCH as applied (first run)" \
 # the managed-block TOUCH as applied via the overlay rather than deferred.
 assert "manifest reports CLAUDE.md managed-block as applied via overlay setup.sh" \
     "grep -qF 'CLAUDE.md (managed-block): applied via wiki/agents/claude-code/setup.sh' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest reports settings.json merge as deferred to Phase 3" \
-    "grep -qF '.claude/settings.json (merge): deferred' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest reports settings.json merge as applied via setup.sh --hook" \
+    "grep -qF '.claude/settings.json (merge): applied via wiki/agents/claude-code/setup.sh --hook' '$HOST/.llm-wiki-adopt-log.md'"
+
+# --- Phase 3: settings.json now has the SessionStart hook (via jq merge) ---
+assert "host .claude/settings.json now references session-start.sh" \
+    "grep -qF 'session-start.sh' '$HOST/.claude/settings.json'"
+assert "host's own 'permissions.allow.Bash' key survived the merge" \
+    "grep -qF 'Bash' '$HOST/.claude/settings.json'"
 
 # --- Phase 2B: init-wiki + overlay setup status in manifest ---
 assert "manifest records init-wiki as applied on first run" \
