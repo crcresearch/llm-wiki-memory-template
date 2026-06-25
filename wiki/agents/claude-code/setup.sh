@@ -194,18 +194,21 @@ fi
 
 # --- Step 4: install SessionStart hooks (--hook) ---
 # Two SessionStart hooks ship together, registered as separate matcher groups:
-#   1. ensure-wiki.py    — clones the wiki sub-repo if it is absent, using the
-#                          same VCS that manages this repo (jj/git/...). Matched
-#                          to startup+resume, the only sources where a fresh
-#                          checkout may still lack the wiki.
+#   1. ensure-wiki.py    — clones the wiki sub-repo if it is absent, else
+#                          fast-forwards it to upstream when the checkout is
+#                          clean. Uses the same VCS that manages this repo
+#                          (jj/git/...). Matched to startup+resume, the only
+#                          sources where a fresh checkout may still lack the wiki.
 #   2. session-start.sh  — surfaces the wiki index + recent log into context.
 #                          Left unmatched (all sources) so it re-injects after
 #                          /clear and /compact, when context was just lost.
 # ensure-wiki.py is runtime-detecting and needs no ${REPO_NAME} substitution, so
 # it is copied verbatim. It is registered behind a `command -v python3` guard so
 # a host without python3 degrades to a silent no-op instead of erroring at
-# session start. The clone is idempotent and exits fast when the wiki already
-# exists, so there is no need to order it before the surfacing hook.
+# session start. It is registered first so its fast-forward lands before the
+# surfacing hook reads the index and log; both bail quietly when the wiki is
+# absent, dirty, or already current, so a host that runs the two concurrently
+# only risks surfacing a one-session-stale index, never a broken session.
 if $WITH_HOOK; then
     ENSURE_TEMPLATE="$TEMPLATES_DIR/ensure-wiki.py"
     ENSURE_DEST="$HOOKS_DIR/ensure-wiki.py"

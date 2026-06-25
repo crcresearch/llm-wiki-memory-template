@@ -37,6 +37,10 @@ from typing import List, Optional
 # How long the clone may take before we give up and fall back to nudging.
 CLONE_TIMEOUT_SECONDS = 30
 
+# How long any single update network/merge step may take. Bounds session
+# start the same way CLONE_TIMEOUT_SECONDS bounds the first clone.
+UPDATE_TIMEOUT_SECONDS = 30
+
 
 def git(*args: str) -> Optional[str]:
     """Run a git command, returning stripped stdout or None on any failure."""
@@ -59,9 +63,9 @@ def detect_clone_command(repo_root: Path, url: str, dest: str) -> Optional[List[
     checkout and .jj must win. Returns None if no known VCS marker is found.
 
     The jj clone passes --colocate so the wiki gets a working .git alongside
-    .jj, keeping the wiki git-operable (the surfacing hook's `git -C wiki
-    commit` guidance drives it through git) regardless of the jj version's
-    clone default.
+    .jj. The surfacing hook's `git -C wiki commit` guidance and the in-place
+    fast-forward in update_wiki both drive the wiki through git, so the wiki
+    must be git-operable regardless of the jj version's clone default.
     """
     if (repo_root / ".jj").is_dir():
         return ["jj", "git", "clone", "--colocate", url, dest]
@@ -174,6 +178,97 @@ def repo_name_from_origin(origin: str) -> Optional[str]:
     return name or None
 
 
+def update_wiki(wiki_dir: Path) -> Optional[str]:
+    """Fast-forward an already-present wiki checkout to upstream when safe.
+
+    Returns None when the hook should stay silent (advanced, already current,
+    not git-backed, or the user has local changes to leave alone). Returns a
+    short message when the wiki is behind but cannot be fast-forwarded
+    (unpushed local commits or divergence the user must resolve).
+
+    Safety rests on two independent git-level guards, both verified against a
+    colocated jj wiki. A clean `git status --porcelain` reads the working tree
+    off disk, so it catches edits jj has not snapshotted into @ (jj only
+    snapshots when a jj command runs in the wiki, which this hook never does),
+    and a committed-but-unpushed change reads as clean here but is caught by
+    --ff-only below. `merge --ff-only` advances on a true fast-forward and
+    refuses an ahead or diverged checkout. For a colocated jj wiki the moved
+    ref is imported by jj on its next command; a plain-git wiki advances its
+    branch directly. A Sapling/hg wiki has no working .git and bails at the
+    first command.
+    """
+    env = {
+        **os.environ,
+        # Never block on a terminal/SSH credential prompt at session start.
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+    }
+
+    def g(*args: str, timeout: Optional[int] = None):
+        try:
+            return subprocess.run(
+                ["git", "-C", str(wiki_dir), *args],
+                capture_output=True,
+                text=True,
+                check=True,
+                env=env,
+                timeout=timeout,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+
+    # The wiki must be its OWN git repo root (plain git, or jj colocated). A
+    # bare --is-inside-work-tree would walk up and match the main repo when the
+    # wiki dir is not itself a checkout, so fetch/merge could then operate on
+    # the wrong repository; comparing the toplevel rules that out.
+    top = g("rev-parse", "--show-toplevel")
+    if top is None or Path(top.stdout.strip()).resolve() != wiki_dir.resolve():
+        return None
+
+    # Any local change -> early out, before any network. Leaves in-progress
+    # work untouched and avoids a session-start nudge while the user is mid-edit.
+    status = g("status", "--porcelain")
+    if status is None:
+        return None
+    if status.stdout.strip():
+        return None
+
+    # Default branch, detected not guessed (mirrors lw_default_branch in
+    # scripts/lib/git.sh). A jj clone does not populate origin/HEAD, so fall
+    # back to asking the remote; a non-GitHub or single-branch wiki still
+    # resolves to its one branch.
+    branch = None
+    sref = g("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    if sref and sref.stdout.strip():
+        branch = sref.stdout.strip().split("/", 1)[-1]
+    else:
+        show = g("remote", "show", "origin", timeout=UPDATE_TIMEOUT_SECONDS)
+        if show:
+            for line in show.stdout.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("HEAD branch:"):
+                    branch = stripped.split(":", 1)[1].strip()
+                    break
+    if not branch or branch == "(unknown)":
+        return None
+
+    # Network, time-bounded and non-interactive so session start never hangs.
+    if g("fetch", "origin", branch, timeout=UPDATE_TIMEOUT_SECONDS) is None:
+        return None
+
+    upstream = f"origin/{branch}"
+    if g("merge", "--ff-only", upstream, timeout=UPDATE_TIMEOUT_SECONDS) is not None:
+        # Advanced, or already up to date.
+        return None
+
+    # Behind but not fast-forwardable: unpushed local commits or divergence.
+    return (
+        f"The wiki at {wiki_dir.name}/ is behind upstream but could not be "
+        f"fast-forwarded (unpushed local commits or divergence). Reconcile it "
+        f"with the wiki's own VCS before relying on its memory."
+    )
+
+
 def emit(message: str) -> None:
     json.dump(
         {
@@ -208,10 +303,15 @@ def main() -> int:
 
     # The wiki lives alongside the repo, as its own checkout.
     wiki_rel = f"wiki/{repo_name}.wiki"
-    if (repo_root / wiki_rel).is_dir():
-        # Already present: nothing to do. The canonical path is only ever
-        # created by the atomic rename in try_clone, so its existence means a
-        # complete checkout, never a half-written clone.
+    wiki_dir = repo_root / wiki_rel
+    if wiki_dir.is_dir():
+        # Already present (the canonical path is only ever created by the
+        # atomic rename in try_clone, so its existence means a complete
+        # checkout, never a half-written clone). Try to fast-forward it to
+        # upstream; stay silent unless it is behind and cannot be advanced.
+        message = update_wiki(wiki_dir)
+        if message:
+            emit(message)
         return 0
 
     # The wiki URL is GitHub-only (see github_wiki_url); a non-GitHub host means
