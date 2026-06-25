@@ -430,13 +430,19 @@ fi
 # divergence is sacred). Tracking what was actually applied so the
 # manifest reflects on-disk truth, not the dry-run intent.
 APPLIED_ADDS=()
-for path in "${ACT_ADD[@]}"; do
-    src="$TEMPLATE_ROOT/$path"
-    dst="$TARGET/$path"
-    mkdir -p "$(dirname "$dst")"
-    cp -p "$src" "$dst"
-    APPLIED_ADDS+=("$path")
-done
+# Guard the for-loop expansion: bash 3.2 (macOS default) treats
+# "${arr[@]}" on an empty declared array as an unbound variable under
+# set -u, so a second --apply on a fully-adopted host (ACT_ADD empty)
+# would die before reaching the manifest write. ${#arr[@]} is safe.
+if [[ ${#ACT_ADD[@]} -gt 0 ]]; then
+    for path in "${ACT_ADD[@]}"; do
+        src="$TEMPLATE_ROOT/$path"
+        dst="$TARGET/$path"
+        mkdir -p "$(dirname "$dst")"
+        cp -p "$src" "$dst"
+        APPLIED_ADDS+=("$path")
+    done
+fi
 
 # --- Write the adoption manifest --------------------------------------------
 # Records what happened on disk: signals matched, overlay detected, ADD
@@ -460,7 +466,10 @@ FIRST_ENTRY=0
         "$ADOPTION_COUNT" "${ADOPTION_SIGNALS[*]:-none}"
     printf -- '- overlay(s) detected: %s\n' "$overlay_for_log"
     printf -- '- ADDed (%s files):\n' "${#APPLIED_ADDS[@]}"
-    for p in "${APPLIED_ADDS[@]}"; do printf '  - %s\n' "$p"; done
+    # Same bash 3.2 guard as the apply loop above.
+    if [[ ${#APPLIED_ADDS[@]} -gt 0 ]]; then
+        for p in "${APPLIED_ADDS[@]}"; do printf '  - %s\n' "$p"; done
+    fi
     printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
     printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
     printf '\n'
