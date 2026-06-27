@@ -163,8 +163,14 @@ Usage: adopt.sh [--target=PATH] [--apply] [--agent=NAME] [--features=LIST] [--he
 Classifies the ADD allowlist against a target repo. With --apply, also
 copies every ADD entry into the target (never overwrites; REFUSE entries
 are left alone) and writes .llm-wiki-adopt-log.md with the manifest of
-what was created. Default is dry-run. TOUCH grants, wiki init, overlay
-setup, and feature install are deferred to later iterations.
+what was created. Default is dry-run.
+
+TOUCH grants: by default adopt applies the three standard grants
+(CLAUDE.md managed-block, .gitignore append-only, .claude/settings.json
+merge) -- the integration touchpoints the wiki-memory pattern needs to
+function as designed. To customise, commit a .llm-wiki-adopt-grants.yml
+at the host repo root before --apply; it overrides the defaults entirely
+(an empty 'grants:' map opts out of all touches).
 
 Options:
   --target=PATH      Repo to adopt into (default: current directory)
@@ -329,12 +335,30 @@ done
 # already behaved this way via the init-wiki side-channel; this brings
 # .gitignore and .claude/settings.json into the same shape. Reported
 # as design inconsistency by Chris Sweet on PR #51 (items 3, 4, 5).
+#
+# When the host did not author a .llm-wiki-adopt-grants.yml, adopt uses
+# DEFAULT_GRANTS: the three standard grants that every wiki-memory
+# adopter has historically wanted (CLAUDE.md managed-block, .gitignore
+# append-only, .claude/settings.json merge). Without this default the
+# adoption is partial: wiki sub-repo shows untracked forever, and the
+# SessionStart hook is never registered, so claude-code does not
+# auto-pull the wiki at session start. The host can override by
+# committing an explicit .llm-wiki-adopt-grants.yml -- including an
+# empty 'grants:' map to opt out of all touches.
+DEFAULT_GRANTS=(
+    "CLAUDE.md|managed-block"
+    ".gitignore|append-only"
+    ".claude/settings.json|merge"
+)
+
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
 ACT_TOUCH=()           # "path|type|sentinel|was_absent"
 ACT_TOUCH_INVALID=()   # "path  (reason)"
 N_GRANTS=0
+GRANTS_SOURCE="defaults"   # "defaults" or "file"
 
 if [[ -f "$GRANTS_FILE" ]]; then
+    GRANTS_SOURCE="file"
     while IFS='|' read -r g_path g_type; do
         [[ -z "$g_path" ]] && continue
         N_GRANTS=$((N_GRANTS + 1))
@@ -355,13 +379,30 @@ if [[ -f "$GRANTS_FILE" ]]; then
         fi
         ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
     done < <(parse_grants_file "$GRANTS_FILE")
+else
+    # No grants file: classify the standard defaults as TOUCH. Same
+    # classification path as the file branch, just with the defaults
+    # array as the source. known_grant_type / known_grant_sentinel
+    # remain the single source of truth for vocabulary.
+    for entry in "${DEFAULT_GRANTS[@]}"; do
+        g_path="${entry%%|*}"
+        g_type="${entry#*|}"
+        N_GRANTS=$((N_GRANTS + 1))
+        sentinel="$(known_grant_sentinel "$g_path")"
+        if [[ -e "$TARGET/$g_path" ]]; then
+            was_absent=0
+        else
+            was_absent=1
+        fi
+        ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
+    done
 fi
 
 # --- Print report -----------------------------------------------------------
-if [[ -f "$GRANTS_FILE" ]]; then
+if [[ "$GRANTS_SOURCE" == "file" ]]; then
     grants_status="$(basename "$GRANTS_FILE") ($N_GRANTS grant(s) found)"
 else
-    grants_status="not present (host did not author one; all pre-existing files default to NEVER-TOUCH)"
+    grants_status="defaults ($N_GRANTS standard grants; no .llm-wiki-adopt-grants.yml found; commit one to override)"
 fi
 
 if [[ "$APPLY" -eq 1 ]]; then
