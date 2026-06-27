@@ -31,6 +31,26 @@ assert "ADD: scripts/update-from-template.sh created in host" \
 assert "ADD: scripts/lib/ directory created (mkdir -p worked)" \
     "[ -d '$HOST/scripts/lib' ]"
 
+# Slash commands and skills referenced by the CLAUDE.md template the
+# overlay installs. Without these on disk, /wiki-experiment etc. fail
+# at runtime. PR #51 item #2.
+assert "ADD: .claude/commands/wiki-experiment.md created in host" \
+    "[ -f '$HOST/.claude/commands/wiki-experiment.md' ]"
+assert "ADD: .claude/commands/wiki-source.md created in host" \
+    "[ -f '$HOST/.claude/commands/wiki-source.md' ]"
+assert "ADD: .claude/commands/wiki-lint.md created in host" \
+    "[ -f '$HOST/.claude/commands/wiki-lint.md' ]"
+assert "ADD: .claude/skills/wiki-experiment.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-experiment.md' ]"
+assert "ADD: .claude/skills/wiki-source.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-source.md' ]"
+assert "ADD: .claude/skills/wiki-lint.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-lint.md' ]"
+assert "ADD: .claude/commands/ directory created (mkdir -p worked)" \
+    "[ -d '$HOST/.claude/commands' ]"
+assert "ADD: .claude/skills/ directory created (mkdir -p worked)" \
+    "[ -d '$HOST/.claude/skills' ]"
+
 # Byte-equal to template (cp -p preserves content/perms).
 assert "ADD: copied wiki/init-wiki.sh is byte-equal to template" \
     "cmp -s '$TEMPLATE_ROOT_AA/wiki/init-wiki.sh' '$HOST/wiki/init-wiki.sh'"

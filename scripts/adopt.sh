@@ -39,6 +39,16 @@ ADD_ALLOWLIST=(
     wiki/agents/claude-code/templates/session-start-hook.sh
     wiki/agents/claude-code/templates/posttooluse-hook.sh
     wiki/agents/claude-code/templates/memory-seed.md
+    # Slash commands and model-side skills referenced by the CLAUDE.md
+    # template the overlay installs. Without these on disk, the agent
+    # reads CLAUDE.md, tries /wiki-experiment / /wiki-source / /wiki-lint,
+    # and fails. Reported by Chris Sweet against PR #51 (item #2).
+    .claude/commands/wiki-experiment.md
+    .claude/commands/wiki-source.md
+    .claude/commands/wiki-lint.md
+    .claude/skills/wiki-experiment.md
+    .claude/skills/wiki-source.md
+    .claude/skills/wiki-lint.md
     scripts/lib/common.sh
     scripts/lib/git.sh
     scripts/lib/identity.sh

@@ -25,8 +25,10 @@ assert "TOUCH block does NOT list .claude/settings.json" \
 # stays absent; the grant is moot, not fulfilled).
 assert "adopt did NOT create .claude/settings.json (absent grant stays absent)" \
     "[ ! -f '$HOST/.claude/settings.json' ]"
-assert "adopt did NOT create the .claude/ directory" \
-    "[ ! -d '$HOST/.claude' ]"
+# .claude/ itself may now exist because adopt copies .claude/commands/
+# and .claude/skills/ as part of ADD_ALLOWLIST (PR #51 item #2). That
+# is unrelated to the granted .claude/settings.json target. Assert
+# only what the grant decision controls: settings.json absence.
 
 # adopt --apply completed end-to-end (manifest written).
 assert "manifest exists (adopt --apply completed)" \
