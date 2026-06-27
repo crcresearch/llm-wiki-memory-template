@@ -61,7 +61,13 @@ def tip(bare, branch="master"):
 def make_upstream(base, name):
     """Bare 'master' wiki remote with one commit; return (bare_path, seed_path)."""
     bare = base / f"{name}.git"
-    git("init", "-q", "--bare", "-b", "master", str(bare))
+    # `git init -b <branch>` was added in git 2.28; on 2.25 (Ubuntu 20.04
+    # default, one of the CI matrix entries) the flag is rejected and the bare
+    # repo is never created, cascading every later step into FileNotFoundError.
+    # `git init --bare` then explicit `symbolic-ref HEAD` is portable to 2.7+
+    # and forces the branch name regardless of `init.defaultBranch`.
+    git("init", "-q", "--bare", str(bare))
+    git("-C", str(bare), "symbolic-ref", "HEAD", "refs/heads/master")
     seed = base / f"{name}.seed"
     git("clone", "-q", str(bare), str(seed))
     (seed / "index.md").write_text("A\n")
