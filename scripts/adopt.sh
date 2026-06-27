@@ -39,6 +39,7 @@ ADD_ALLOWLIST=(
     wiki/agents/claude-code/templates/session-start-hook.sh
     wiki/agents/claude-code/templates/posttooluse-hook.sh
     wiki/agents/claude-code/templates/memory-seed.md
+    wiki/agents/claude-code/templates/ensure-wiki.py
     # Slash commands and model-side skills referenced by the CLAUDE.md
     # template the overlay installs. Without these on disk, the agent
     # reads CLAUDE.md, tries /wiki-experiment / /wiki-source / /wiki-lint,

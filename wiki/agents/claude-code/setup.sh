@@ -38,10 +38,14 @@
 #         procedures referenced by the slash commands).
 #
 #   --hook:
-#     4. Installs .claude/hooks/session-start.sh from the template,
-#        substituting ${REPO_NAME}.
-#     5. Registers the hook in .claude/settings.json (creating or updating
-#        the file conservatively).
+#     4. Installs two SessionStart hooks:
+#          - .claude/hooks/ensure-wiki.py (copied verbatim; clones the wiki
+#            sub-repo if absent, using the same VCS as this repo).
+#          - .claude/hooks/session-start.sh (from the template, substituting
+#            ${REPO_NAME}; surfaces the wiki index + recent log).
+#     5. Registers both in .claude/settings.json (creating or updating the
+#        file conservatively) as separate SessionStart groups: ensure-wiki
+#        matched to startup+resume, session-start.sh on all sources.
 #
 #   --seed-memory:
 #     6. Computes the per-user Claude Code memory directory for this repo
@@ -188,12 +192,41 @@ else
     lw_record_skip ".claude/skills/: MISSING — ${SKILLS_MISSING[*]} (these should be committed in the repo)"
 fi
 
-# --- Step 4: install SessionStart hook (--hook) ---
+# --- Step 4: install SessionStart hooks (--hook) ---
+# Two SessionStart hooks ship together, registered as separate matcher groups:
+#   1. ensure-wiki.py    — clones the wiki sub-repo if it is absent, else
+#                          fast-forwards it to upstream when the checkout is
+#                          clean. Uses the same VCS that manages this repo
+#                          (jj/git/...). Matched to startup+resume, the only
+#                          sources where a fresh checkout may still lack the wiki.
+#   2. session-start.sh  — surfaces the wiki index + recent log into context.
+#                          Left unmatched (all sources) so it re-injects after
+#                          /clear and /compact, when context was just lost.
+# ensure-wiki.py is runtime-detecting and needs no ${REPO_NAME} substitution, so
+# it is copied verbatim. It is registered behind a `command -v python3` guard so
+# a host without python3 degrades to a silent no-op instead of erroring at
+# session start. It is registered first so its fast-forward lands before the
+# surfacing hook reads the index and log; both bail quietly when the wiki is
+# absent, dirty, or already current, so a host that runs the two concurrently
+# only risks surfacing a one-session-stale index, never a broken session.
 if $WITH_HOOK; then
+    ENSURE_TEMPLATE="$TEMPLATES_DIR/ensure-wiki.py"
+    ENSURE_DEST="$HOOKS_DIR/ensure-wiki.py"
     HOOK_TEMPLATE="$TEMPLATES_DIR/session-start-hook.sh"
     HOOK_DEST="$HOOKS_DIR/session-start.sh"
+    # Registered command for ensure-wiki.py: a missing python3 interpreter
+    # short-circuits to `true` (exit 0) rather than failing the hook.
+    ENSURE_CMD="command -v python3 >/dev/null 2>&1 && python3 .claude/hooks/ensure-wiki.py || true"
 
     mkdir -p "$HOOKS_DIR"
+
+    if [[ -f "$ENSURE_DEST" ]]; then
+        lw_record_skip ".claude/hooks/ensure-wiki.py: already present (not overwritten)"
+    else
+        cp "$ENSURE_TEMPLATE" "$ENSURE_DEST"
+        chmod +x "$ENSURE_DEST"
+        lw_record_change ".claude/hooks/ensure-wiki.py: installed"
+    fi
 
     if [[ -f "$HOOK_DEST" ]]; then
         lw_record_skip ".claude/hooks/session-start.sh: already present (not overwritten)"
@@ -203,12 +236,18 @@ if $WITH_HOOK; then
         lw_record_change ".claude/hooks/session-start.sh: installed"
     fi
 
-    # --- Step 5: register hook in settings.json ---
+    # --- Step 5: register both hooks in settings.json as separate groups ---
     if [[ ! -f "$SETTINGS_JSON" ]]; then
         cat > "$SETTINGS_JSON" <<JSONEOF
 {
   "hooks": {
     "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          { "type": "command", "command": "$ENSURE_CMD" }
+        ]
+      },
       {
         "hooks": [
           { "type": "command", "command": ".claude/hooks/session-start.sh" }
@@ -218,25 +257,37 @@ if $WITH_HOOK; then
   }
 }
 JSONEOF
-        lw_record_change ".claude/settings.json: created with SessionStart hook"
-    elif grep -qF '"session-start.sh"' "$SETTINGS_JSON"; then
-        lw_record_skip ".claude/settings.json: SessionStart hook already registered (skipped)"
-    elif command -v jq >/dev/null 2>&1; then
-        TMP=$(mktemp)
-        jq '. + {
-          "hooks": (
-            (.hooks // {}) + {
-              "SessionStart": (
-                (.hooks.SessionStart // []) + [
-                  {"hooks": [{"type": "command", "command": ".claude/hooks/session-start.sh"}]}
-                ]
-              )
-            }
-          )
-        }' "$SETTINGS_JSON" > "$TMP" && mv "$TMP" "$SETTINGS_JSON"
-        lw_record_change ".claude/settings.json: merged SessionStart hook (via jq)"
+        lw_record_change ".claude/settings.json: created with SessionStart hooks (ensure-wiki, session-start)"
+    elif ! command -v jq >/dev/null 2>&1; then
+        lw_record_skip ".claude/settings.json: exists but SessionStart hooks not registered, and jq not found. Manual edit needed: see $HOOKS_DIR"
     else
-        lw_record_skip ".claude/settings.json: exists but SessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST"
+        # Register each hook as its OWN SessionStart group, appended to the
+        # array. Folding them into an existing entry (as a previous version
+        # did, always into index 0) makes them inherit that entry's matcher, so
+        # a user whose first SessionStart entry is scoped to, say, "resume"
+        # would never get ensure-wiki on startup. ensure-wiki is matched to
+        # startup+resume (the sources where a fresh checkout may still lack the
+        # wiki); the surfacing hook is left unmatched so it re-injects the wiki
+        # index on every source, including /clear and /compact. Each is added
+        # only if its command is not already registered.
+        _register_ss_hook() {  # $1=command  $2=matcher (""=all sources)  $3=label  $4=dedup key
+            local cmd="$1" matcher="$2" label="$3" key="$4" tmp
+            if grep -qF "$key" "$SETTINGS_JSON"; then
+                lw_record_skip ".claude/settings.json: $label hook already registered (skipped)"
+                return 0
+            fi
+            tmp=$(mktemp)
+            jq --arg cmd "$cmd" --arg matcher "$matcher" '
+              .hooks = (.hooks // {})
+              | .hooks.SessionStart = ((.hooks.SessionStart // []) + [
+                  (if $matcher == "" then {} else {matcher: $matcher} end)
+                  + {hooks: [{type: "command", command: $cmd}]}
+                ])
+            ' "$SETTINGS_JSON" > "$tmp" && mv "$tmp" "$SETTINGS_JSON"
+            lw_record_change ".claude/settings.json: merged $label SessionStart hook (via jq)"
+        }
+        _register_ss_hook "$ENSURE_CMD" "startup|resume" "ensure-wiki.py" ".claude/hooks/ensure-wiki.py"
+        _register_ss_hook ".claude/hooks/session-start.sh" "" "session-start.sh" ".claude/hooks/session-start.sh"
     fi
 fi
 
@@ -353,6 +404,7 @@ if lw_changed_p; then
     NEXT+=("Review the changes above. Repo-tracked files that may have been modified:")
     NEXT+=("  - CLAUDE.md (only if 'Wiki maintenance behavior' subsection was missing)")
     NEXT+=("  - .claude/settings.json (only if SessionStart hook was merged in)")
+    NEXT+=("  - .claude/hooks/ensure-wiki.py (new, only if --hook was passed)")
     NEXT+=("  - .claude/hooks/session-start.sh (new, only if --hook was passed)")
     NEXT+=("These are per-team policy decisions; stage and commit selectively:")
     NEXT+=("  git add <files>")
