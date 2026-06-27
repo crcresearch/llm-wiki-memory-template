@@ -502,6 +502,7 @@ fi
 # divergence is sacred). Tracking what was actually applied so the
 # manifest reflects on-disk truth, not the dry-run intent.
 APPLIED_ADDS=()
+FAILED_ADDS=()
 # Guard the for-loop expansion: bash 3.2 (macOS default) treats
 # "${arr[@]}" on an empty declared array as an unbound variable under
 # set -u, so a second --apply on a fully-adopted host (ACT_ADD empty)
@@ -510,9 +511,17 @@ if [[ ${#ACT_ADD[@]} -gt 0 ]]; then
     for path in "${ACT_ADD[@]}"; do
         src="$TEMPLATE_ROOT/$path"
         dst="$TARGET/$path"
-        mkdir -p "$(dirname "$dst")"
-        cp -p "$src" "$dst"
-        APPLIED_ADDS+=("$path")
+        # Capture RC instead of trusting the command unconditionally:
+        # cp -p can fail (permissions, disk full, read-only mount,
+        # destination path blocked by a non-directory) and without
+        # set -e the script kept going and recorded the path in
+        # APPLIED_ADDS regardless. The manifest would then lie about
+        # disk state. mkdir -p can fail for the same reasons.
+        if mkdir -p "$(dirname "$dst")" 2>/dev/null && cp -p "$src" "$dst" 2>/dev/null; then
+            APPLIED_ADDS+=("$path")
+        else
+            FAILED_ADDS+=("$path")
+        fi
     done
 fi
 
@@ -669,6 +678,13 @@ FIRST_ENTRY=0
     if [[ ${#APPLIED_ADDS[@]} -gt 0 ]]; then
         for p in "${APPLIED_ADDS[@]}"; do printf '  - %s\n' "$p"; done
     fi
+    # FAILED_ADDS surfaces cp / mkdir -p failures that the apply loop
+    # captured. Silent on the happy path (block omitted when empty);
+    # explicit when something went wrong so the manifest stays honest.
+    if [[ ${#FAILED_ADDS[@]} -gt 0 ]]; then
+        printf -- '- ADD FAILED (%s files; cp or mkdir -p returned non-zero):\n' "${#FAILED_ADDS[@]}"
+        for p in "${FAILED_ADDS[@]}"; do printf '  - %s\n' "$p"; done
+    fi
     printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
     printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
     printf -- '- init-wiki: %s (%s)\n' "$INIT_WIKI_STATUS" "$INIT_WIKI_DETAIL"
@@ -681,6 +697,11 @@ FIRST_ENTRY=0
 } >> "$ADOPT_LOG"
 
 echo ""
-echo "Applied: ${#APPLIED_ADDS[@]} file(s) created in $TARGET"
+if [[ ${#FAILED_ADDS[@]} -gt 0 ]]; then
+    echo "Applied: ${#APPLIED_ADDS[@]} file(s) created, ${#FAILED_ADDS[@]} FAILED in $TARGET"
+    echo "Review ADD FAILED block in .llm-wiki-adopt-log.md for the failing paths."
+else
+    echo "Applied: ${#APPLIED_ADDS[@]} file(s) created in $TARGET"
+fi
 echo "Manifest written to .llm-wiki-adopt-log.md"
 echo "Review the result with: git -C $TARGET status && git -C $TARGET diff"
