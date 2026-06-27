@@ -68,13 +68,16 @@ assert "GRANT WARNINGS section lists Makefile as unknown" \
     "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'Makefile' && \\
      awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'unknown grant target'"
 
-# CLAUDE.md grant is valid in type but the host does not have one ->
-# MISSING, not TOUCH.
-assert "TOUCH block does NOT list CLAUDE.md (absent in host)" \
-    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
-assert "GRANT WARNINGS section lists CLAUDE.md as moot" \
-    "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md' && \\
-     awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'absent in host'"
+# CLAUDE.md grant is valid in type and host does not have one ->
+# regular TOUCH marked '[absent; will create from canonical]'. The
+# old MISSING-as-moot behaviour was replaced after Chris Sweet's
+# end-to-end review (PR #51 items 3, 4, 5).
+assert "TOUCH block LISTS CLAUDE.md (regular TOUCH, no longer moot when absent)" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
+assert "TOUCH row for CLAUDE.md marks '[absent; will create from canonical]'" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -q 'CLAUDE.md.*\\[absent; will create from canonical\\]'"
+assert "GRANT WARNINGS section does NOT list CLAUDE.md (absence is not a warning)" \
+    "! awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
 
 # --- Host-authored content untouched (no apply) ---
 assert "host README.md preserved (still says 'Example Host')" \

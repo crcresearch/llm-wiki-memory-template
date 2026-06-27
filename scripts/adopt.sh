@@ -320,12 +320,18 @@ done
 # Reads $TARGET/.llm-wiki-adopt-grants.yml. For each entry:
 #   target unknown to template     -> TOUCH_INVALID (refuse the grant)
 #   type mismatches template's op  -> TOUCH_INVALID (refuse with reason)
-#   target absent in host          -> TOUCH_MISSING (grant moot)
-#   otherwise                      -> TOUCH (planned, payload still deferred)
+#   otherwise                      -> TOUCH
+#
+# Absent targets are NOT rejected. TOUCH grants govern HOW adopt may
+# safely modify a host file, not WHETHER adopt may create one. When
+# the target is absent the host has no content to preserve, so the
+# canonical payload (or overlay's seed) is installed. CLAUDE.md
+# already behaved this way via the init-wiki side-channel; this brings
+# .gitignore and .claude/settings.json into the same shape. Reported
+# as design inconsistency by Chris Sweet on PR #51 (items 3, 4, 5).
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
-ACT_TOUCH=()           # "path|type|sentinel"  (sentinel may be empty for 'merge')
+ACT_TOUCH=()           # "path|type|sentinel|was_absent"
 ACT_TOUCH_INVALID=()   # "path  (reason)"
-ACT_TOUCH_MISSING=()   # "path  (reason)"
 N_GRANTS=0
 
 if [[ -f "$GRANTS_FILE" ]]; then
@@ -341,12 +347,13 @@ if [[ -f "$GRANTS_FILE" ]]; then
             ACT_TOUCH_INVALID+=("$g_path  (type mismatch: grant says '$g_type', template knows '$expected')")
             continue
         fi
-        if [[ ! -e "$TARGET/$g_path" ]]; then
-            ACT_TOUCH_MISSING+=("$g_path  (granted but absent in host; grant is moot)")
-            continue
-        fi
         sentinel="$(known_grant_sentinel "$g_path")"
-        ACT_TOUCH+=("$g_path|$g_type|$sentinel")
+        if [[ -e "$TARGET/$g_path" ]]; then
+            was_absent=0
+        else
+            was_absent=1
+        fi
+        ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
     done < <(parse_grants_file "$GRANTS_FILE")
 fi
 
@@ -428,31 +435,32 @@ if [[ ${#ACT_TOUCH[@]} -eq 0 ]]; then
     echo "  (none)"
 else
     for entry in "${ACT_TOUCH[@]}"; do
-        # entry = "path|type|sentinel"
+        # entry = "path|type|sentinel|was_absent"
         t_path="${entry%%|*}"
         rest="${entry#*|}"
         t_type="${rest%%|*}"
-        t_sent="${rest#*|}"
+        rest2="${rest#*|}"
+        t_sent="${rest2%%|*}"
+        t_was_absent="${rest2#*|}"
+        marker=""
+        if [[ "$t_was_absent" == "1" ]]; then
+            marker=" [absent; will create from canonical]"
+        fi
         if [[ -n "$t_sent" ]]; then
-            printf "  ~ %-32s %s (sentinel %s)\n" "$t_path" "$t_type" "$t_sent"
+            printf "  ~ %-32s %s (sentinel %s)%s\n" "$t_path" "$t_type" "$t_sent" "$marker"
         else
-            printf "  ~ %-32s %s\n" "$t_path" "$t_type"
+            printf "  ~ %-32s %s%s\n" "$t_path" "$t_type" "$marker"
         fi
     done
 fi
 echo ""
 
-if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 || ${#ACT_TOUCH_MISSING[@]} -gt 0 ]]; then
+if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 ]]; then
     echo "GRANT WARNINGS (entries in grants file that did not produce a TOUCH)"
     # Bash 3.2 (macOS default) treats "${arr[@]}" on an empty declared
-    # array as an unbound variable under set -u, so each for-loop needs
+    # array as an unbound variable under set -u, so the for-loop needs
     # its own ${#arr[@]} guard. Same pattern as the ACT_ADD loop below.
-    if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 ]]; then
-        for p in "${ACT_TOUCH_INVALID[@]}"; do echo "  ! $p"; done
-    fi
-    if [[ ${#ACT_TOUCH_MISSING[@]} -gt 0 ]]; then
-        for p in "${ACT_TOUCH_MISSING[@]}"; do echo "  ? $p"; done
-    fi
+    for p in "${ACT_TOUCH_INVALID[@]}"; do echo "  ! $p"; done
     echo ""
 fi
 
@@ -603,10 +611,13 @@ fi
 APPLIED_TOUCHES=()
 if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
     for entry in "${ACT_TOUCH[@]}"; do
+        # entry = "path|type|sentinel|was_absent"
         t_path="${entry%%|*}"
         rest="${entry#*|}"
         t_type="${rest%%|*}"
-        t_sent="${rest#*|}"
+        rest2="${rest#*|}"
+        t_sent="${rest2%%|*}"
+        t_was_absent="${rest2#*|}"
         case "$t_type" in
             append-only)
                 payload="$(known_grant_payload "$t_path")"
@@ -615,10 +626,16 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                 # known_grant_sentinel returns for display purposes.
                 bare_key="${t_sent#lw:}"
                 # lw_inject_block returns 0 on inject, 1 if opening sentinel
-                # already present (idempotency). Both are "the rule is now in
-                # the file"; we just label them differently in the manifest.
+                # already present (idempotency). When the target was absent
+                # in the host, the append (via '>>') creates the file from
+                # nothing -- adopt itself fills in the canonical payload
+                # because there is no host content to preserve.
                 if lw_inject_block "$TARGET/$t_path" "$bare_key" "$payload" ""; then
-                    APPLIED_TOUCHES+=("$t_path ($t_type): applied")
+                    if [[ "$t_was_absent" == "1" ]]; then
+                        APPLIED_TOUCHES+=("$t_path ($t_type): created from canonical")
+                    else
+                        APPLIED_TOUCHES+=("$t_path ($t_type): applied")
+                    fi
                 else
                     APPLIED_TOUCHES+=("$t_path ($t_type): already-present")
                 fi
@@ -627,8 +644,16 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                 # The overlay setup.sh owns CLAUDE.md sentinel injection
                 # (and analogous host files for non-claude overlays). Adopt
                 # delegates; the result mirrors the overlay's outcome.
+                # When the host file was absent, init-wiki has already
+                # seeded a fresh CLAUDE.md before this dispatch runs and
+                # the overlay setup then patches it -- so the user-visible
+                # outcome is "created from canonical, then patched".
                 if [[ "$OVERLAY_SETUP_STATUS" == "applied" ]]; then
-                    APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh")
+                    if [[ "$t_was_absent" == "1" ]]; then
+                        APPLIED_TOUCHES+=("$t_path ($t_type): created from canonical and patched via wiki/agents/$AGENT/setup.sh")
+                    else
+                        APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh")
+                    fi
                 elif [[ "$OVERLAY_SETUP_STATUS" == "skipped" ]]; then
                     APPLIED_TOUCHES+=("$t_path ($t_type): skipped ($OVERLAY_SETUP_DETAIL)")
                 else
@@ -640,7 +665,10 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                 # with the flag that performs the jq deep-merge for this
                 # target. For claude-code's .claude/settings.json today
                 # that flag is --hook, which is idempotent (the script
-                # checks for the hook name before merging).
+                # checks for the hook name before merging) AND already
+                # handles the 'no settings.json yet' case (creates from
+                # canonical), so an absent target lands here and gets
+                # created with the SessionStart hook in one step.
                 if [[ "$AGENT" == "none" ]]; then
                     APPLIED_TOUCHES+=("$t_path ($t_type): skipped (--agent=none, no overlay to merge through)")
                 else
@@ -651,7 +679,11 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
                         merge_rc=0
                         (cd "$TARGET" && bash "$merge_overlay" --hook >/dev/null 2>&1) || merge_rc=$?
                         if [[ $merge_rc -eq 0 ]]; then
-                            APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh --hook")
+                            if [[ "$t_was_absent" == "1" ]]; then
+                                APPLIED_TOUCHES+=("$t_path ($t_type): created from canonical via wiki/agents/$AGENT/setup.sh --hook")
+                            else
+                                APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh --hook")
+                            fi
                         else
                             APPLIED_TOUCHES+=("$t_path ($t_type): failed (setup.sh --hook exited $merge_rc)")
                         fi

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Assertions: when a granted target is absent on disk, adopt classifies
-# the grant as TOUCH_MISSING. The grant must surface in GRANT WARNINGS
-# (so the user sees it), must NOT appear in TOUCH applied (no payload
-# delivered), and the absent file must NOT be silently created. The
-# CLAUDE.md grant in this fixture targets a real file and exists only
-# to anchor a fully-completing Phase 2B (so we can also assert manifest
-# write); CLAUDE.md is NOT the subject of these assertions.
+# it as a regular TOUCH (no MISSING category) and the apply path
+# creates it from the canonical payload / via the overlay's setup.sh
+# --hook. The grant governs HOW to safely modify a host file when one
+# exists; absence just means there is no host content to preserve, so
+# the canonical install fires.
+#
+# PR #51 redesign (items 3, 4, 5): MISSING no longer means moot.
 
 STAGE="$SANDBOX/adopt-apply-touch-missing-target"
 HOST="$STAGE/host"
@@ -13,28 +14,34 @@ OUT="$STAGE/apply-output.txt"
 
 assert "apply produced output" "[ -f '$OUT' ]"
 
-# The MISSING target surfaces in GRANT WARNINGS with the right reason.
-assert "GRANT WARNINGS section lists .claude/settings.json as moot (absent in host)" \
-    "grep -qF '? .claude/settings.json  (granted but absent in host' '$OUT'"
+# Dry-run TOUCH row marks the absent target with the canonical-install
+# notice, so the user sees the difference without it being moot.
+assert "TOUCH row marks .claude/settings.json as 'absent; will create from canonical'" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF '.claude/settings.json' | : ; \\
+     awk '/^TOUCH/,/^\$/' '$OUT' | grep -q '.claude/settings.json.*\\[absent; will create from canonical\\]'"
 
-# It does NOT appear in TOUCH applied.
-assert "TOUCH block does NOT list .claude/settings.json" \
-    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF '.claude/settings.json'"
+# The TOUCH section LISTS .claude/settings.json (it is no longer absent
+# from the TOUCH dispatch, just marked absent in the host).
+assert "TOUCH section LISTS .claude/settings.json (regular TOUCH, not moot)" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF '.claude/settings.json'"
 
-# Adopt did NOT silently create .claude/settings.json (the absent file
-# stays absent; the grant is moot, not fulfilled).
-assert "adopt did NOT create .claude/settings.json (absent grant stays absent)" \
-    "[ ! -f '$HOST/.claude/settings.json' ]"
-# .claude/ itself may now exist because adopt copies .claude/commands/
-# and .claude/skills/ as part of ADD_ALLOWLIST (PR #51 item #2). That
-# is unrelated to the granted .claude/settings.json target. Assert
-# only what the grant decision controls: settings.json absence.
+# GRANT WARNINGS section is silent on absent-target cases (it now only
+# fires for TOUCH_INVALID -- unknown target or type mismatch).
+assert "GRANT WARNINGS section does NOT list .claude/settings.json as moot" \
+    "! grep -qF '? .claude/settings.json' '$OUT'"
+
+# Adopt DID create .claude/settings.json from canonical (overlay's
+# setup.sh --hook handles the absent-file case).
+assert "adopt CREATED .claude/settings.json from canonical (absent grant fulfilled)" \
+    "[ -f '$HOST/.claude/settings.json' ]"
+assert ".claude/settings.json content includes a SessionStart hook entry" \
+    "grep -qF 'SessionStart' '$HOST/.claude/settings.json'"
 
 # adopt --apply completed end-to-end (manifest written).
 assert "manifest exists (adopt --apply completed)" \
     "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 
-# The manifest does NOT report a settings.json TOUCH entry (the grant
-# never produced one because the target was MISSING).
-assert "manifest does NOT list .claude/settings.json (merge):" \
-    "! grep -qF '.claude/settings.json (merge):' '$HOST/.llm-wiki-adopt-log.md'"
+# The manifest reports settings.json TOUCH applied with the new
+# 'created from canonical' status string.
+assert "manifest lists .claude/settings.json (merge) as created from canonical" \
+    "grep -qF '.claude/settings.json (merge): created from canonical via wiki/agents/claude-code/setup.sh --hook' '$HOST/.llm-wiki-adopt-log.md'"
