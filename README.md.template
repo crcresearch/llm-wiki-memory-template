@@ -32,9 +32,12 @@ New to {{PROJECT_NAME}}? Clone the project repo, clone the wiki as a sibling sub
 ```bash
 git clone https://github.com/{{OWNER}}/{{REPO_NAME}}.git
 cd {{REPO_NAME}}
-git clone https://github.com/{{OWNER}}/{{REPO_NAME}}.wiki.git wiki/{{REPO_NAME}}.wiki
+[ -d wiki/{{REPO_NAME}}.wiki ] || \
+    git clone https://github.com/{{OWNER}}/{{REPO_NAME}}.wiki.git wiki/{{REPO_NAME}}.wiki
 ./wiki/agents/claude-code/setup.sh --seed-memory
 ```
+
+The wiki clone is guarded with `[ -d … ] ||` because the Claude Code overlay's `SessionStart` hook (`ensure-wiki.py`, installed by `setup.sh --hook`) auto-clones the wiki on first session start. If you opened Claude Code before running these commands, the wiki is already in place and the inner `git clone` is a no-op; teammates on other agents (or no agent) still get the clone as before.
 
 After this, open Claude Code inside the repo. It will automatically pick up the project's slash commands (`/wiki-source` to ingest an external document, `/wiki-experiment` to file experiment results, `/wiki-lint` to health-check the wiki) along with the read/write/commit conventions in `CLAUDE.md`.
 
