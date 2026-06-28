@@ -14,41 +14,27 @@
 #                    your org maintains a fork.
 #
 # What gets updated:
-#   ALWAYS_UPDATE (generic, shared content)
-#     llm-wiki.md
-#     wiki/init-wiki.sh
-#     wiki/agents/README.md
-#     wiki/agents/discipline-gates.md
-#     wiki/agents/verification-gate.md
-#     scripts/update-from-template.sh
-#     scripts/check-template-version.sh
-#     .gitignore
-#
-#   NEVER SYNCED (one-shot, self-deleting; see wiki/agents/README.md)
-#     scripts/instantiate.sh   - removed by the script itself at end of run
-#
-#   IF .claude/ EXISTS (Claude Code overlay active in this project)
-#     .claude/commands/wiki-{experiment,source,lint}.md    (substitute {{REPO_NAME}})
-#     .claude/skills/wiki-{experiment,source,lint}.md      (substitute {{REPO_NAME}})
-#     wiki/agents/claude-code/setup.sh
-#     wiki/agents/claude-code/README.md
-#     wiki/agents/claude-code/templates/*
-#
-#   IF .cursor/ EXISTS (Cursor overlay active in this project)
-#     .cursor/rules/wiki-{as-memory,experiment,source,lint}.mdc   (substitute {{REPO_NAME}})
-#     wiki/agents/cursor/setup.sh
-#     wiki/agents/cursor/README.md
-#     wiki/agents/cursor/templates/*
+#   The active file set is assembled by lw_manifest_assemble_active_files
+#   from scripts/lib/template-manifest.sh, which is the single source of
+#   truth: TEMPLATE_SHARED_INFRA always syncs; TEMPLATE_OVERLAY_CLAUDE and
+#   TEMPLATE_OVERLAY_CURSOR activate based on .claude/ and .cursor/ presence
+#   on disk. {{REPO_NAME}} substitution targets are listed in
+#   TEMPLATE_SUBSTITUTE_FILES. To add or remove a synced file, edit the
+#   manifest and nothing else.
 #
 # What does NOT get touched (project-specific):
-#   CLAUDE.md
-#   README.md
-#   .cursorrules                              (project's own Cursor config)
-#   .claude/settings.json                     (project's permissions allowlist)
-#   .claude/settings.local.json               (per-user, gitignored)
-#   .claude/hooks/                            (per-machine, opt-in)
-#   wiki/<repo>.wiki/                         (separate git sub-repo)
+#   CLAUDE.md, .gitignore, .claude/settings.json  (TEMPLATE_HOST_OWNED: the
+#       template defines the operation type but the host owns the content)
+#   README.md, .cursorrules                       (project's own)
+#   .claude/settings.local.json                   (per-user, gitignored)
+#   .claude/hooks/                                (per-machine, opt-in)
+#   wiki/<repo>.wiki/                             (separate git sub-repo)
 #   Any file under your project's source tree
+#
+# .gitignore note: earlier versions of this script synced .gitignore as part
+# of ALWAYS_FILES. It is now host-owned. The advisory in the post-sync
+# report flags a divergence if the host's .gitignore differs from the
+# template's; back-port manually if you want the new ignore rule.
 #
 # After each successful run, an entry is appended to .llm-wiki-template-log.md
 # at the repo root, recording the template commit SHA and the files changed.
@@ -72,10 +58,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Load shared library ---
+# --- Load shared library + template manifest ---
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
+# shellcheck source=lib/template-manifest.sh
+source "$HERE/lib/template-manifest.sh"
 
 REPO_ROOT=$(lw_repo_root)
 # Post-clone: the authoritative name is the on-disk wiki, not the clone-dir
@@ -102,112 +90,14 @@ TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
 echo "Template HEAD: $TEMPLATE_SHA"
 
 # --- Build the file list ---
-ALWAYS_FILES=(
-    "llm-wiki.md"
-    "wiki/init-wiki.sh"
-    "wiki/agents/README.md"
-    "wiki/agents/discipline-gates.md"
-    "wiki/agents/verification-gate.md"
-    "wiki/agents/wiki-write-protocol.md"
-    "scripts/update-from-template.sh"
-    "scripts/check-template-version.sh"
-    "scripts/lib/install-feature.sh"
-    "scripts/lib/common.sh"
-    "scripts/lib/report.sh"
-    "scripts/lib/sys.sh"
-    "scripts/lib/git.sh"
-    "scripts/lib/identity.sh"
-    "scripts/lib/text.sh"
-    "scripts/lib/claude.sh"
-    "scripts/enable-feature.sh"
-    "scripts/disable-feature.sh"
-    "scripts/wiki-write-protocol/README.md"
-    "scripts/wiki-write-protocol/protocol.sh"
-    "scripts/wiki-write-protocol/sandbox.sh"
-    "scripts/wiki-write-protocol/run-all.sh"
-    "scripts/wiki-write-protocol/scenarios/01-different-pages/run.sh"
-    "scripts/wiki-write-protocol/scenarios/02-different-sections/run.sh"
-    "scripts/wiki-write-protocol/scenarios/03-same-section/run.sh"
-    "scripts/wiki-write-protocol/scenarios/04-index-union/run.sh"
-    "scripts/wiki-write-protocol/scenarios/05-log-append/run.sh"
-    "scripts/wiki-write-protocol/scenarios/06-push-race/run.sh"
-    "scripts/wiki-write-protocol/scenarios/07-livelock-retry/run.sh"
-    "scripts/wiki-write-protocol/scenarios/08-session-start-auto-pull/run.sh"
-    "scripts/wiki-write-protocol/scenarios/09-session-start-divergent/run.sh"
-    "features/README.md"
-    ".gitignore"
-)
-
-# One-shot files are deliberately excluded from sync. They are either
-# self-deleting scripts (run once, remove themselves) or one-shot template
-# files consumed and removed by instantiate.sh during bootstrap. After
-# bootstrap they do not exist in the derived project. Listed here for
-# documentation only; the sync logic does not iterate over this array.
-# shellcheck disable=SC2034  # documentation-only; intentionally not iterated
-ONE_SHOT_FILES=(
-    "scripts/instantiate.sh"
-    "CLAUDE.md.template"
-    "README.md.template"
-    ".claude/settings.json.template"
-    ".cursorrules.template"
-)
-
-CLAUDE_FILES=(
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
-    "wiki/agents/claude-code/setup.sh"
-    "wiki/agents/claude-code/README.md"
-    "wiki/agents/claude-code/templates/claude-md-snippet.md"
-    "wiki/agents/claude-code/templates/memory-seed.md"
-    "wiki/agents/claude-code/templates/session-start-hook.sh"
-)
-
-CURSOR_FILES=(
-    ".cursor/rules/wiki-as-memory.mdc"
-    ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc"
-    ".cursor/rules/wiki-lint.mdc"
-    "wiki/agents/cursor/setup.sh"
-    "wiki/agents/cursor/README.md"
-)
-
-# Files where {{REPO_NAME}} must be substituted by $REPO_NAME after pulling
-# from template/main. These ship with literal {{REPO_NAME}} in the template
-# but were substituted at instantiate time in this project; the substitution
-# must be re-applied each time we pull.
-SUBSTITUTE_FILES=(
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
-    ".cursor/rules/wiki-as-memory.mdc"
-    ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc"
-    ".cursor/rules/wiki-lint.mdc"
-)
-
-needs_substitution() {
-    local f="$1"
-    for s in "${SUBSTITUTE_FILES[@]}"; do
-        [[ "$f" == "$s" ]] && return 0
-    done
-    return 1
-}
-
-# Assemble the active file list based on which overlays are present.
-FILES=("${ALWAYS_FILES[@]}")
-if [[ -d "$REPO_ROOT/.claude" ]] || [[ -d "$REPO_ROOT/wiki/agents/claude-code" ]]; then
-    FILES+=("${CLAUDE_FILES[@]}")
-fi
-if [[ -d "$REPO_ROOT/.cursor" ]] || [[ -d "$REPO_ROOT/wiki/agents/cursor" ]]; then
-    FILES+=("${CURSOR_FILES[@]}")
-fi
+# All path enumeration lives in scripts/lib/template-manifest.sh. The
+# accessor returns SHARED_INFRA always plus overlay arrays based on the
+# host's .claude/ and .cursor/ presence (detection mode: empty agent arg,
+# repo_root populated). Bash 3.2 portable: while read instead of mapfile.
+FILES=()
+while IFS= read -r _path; do
+    FILES+=("$_path")
+done < <(lw_manifest_assemble_active_files "$REPO_ROOT" "")
 
 # --- Diff and apply ---
 CHANGED=()
@@ -226,7 +116,7 @@ for f in "${FILES[@]}"; do
     # via pipe would strip the trailing \n and produce false "changed" reports.
     TEMPLATE_TMP=$(mktemp)
     git show "$TEMPLATE_REF:$f" > "$TEMPLATE_TMP"
-    if needs_substitution "$f"; then
+    if lw_manifest_needs_substitution "$f"; then
         # GNU sed: -i without backup. macOS sed needs -i ''. Use a portable
         # form via the .bak suffix and clean up after.
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$TEMPLATE_TMP"
@@ -279,6 +169,26 @@ if [[ ${#MISSING_IN_TEMPLATE[@]} -gt 0 ]]; then
     echo ""
     echo "Not present in ${TEMPLATE_REF} (${#MISSING_IN_TEMPLATE[@]}):"
     for f in "${MISSING_IN_TEMPLATE[@]}"; do echo "  ? $f"; done
+fi
+
+# .gitignore advisory: the file is host-owned (TEMPLATE_HOST_OWNED). Earlier
+# versions of this script synced it as part of ALWAYS_FILES; the host now
+# owns the content. If the template's .gitignore has rules the host lacks,
+# back-port them manually. Probe TEMPLATE_REF directly because .gitignore is
+# absent from the assembled FILES list.
+if git cat-file -e "$TEMPLATE_REF:.gitignore" 2>/dev/null && [[ -f "$REPO_ROOT/.gitignore" ]]; then
+    TEMPLATE_GI=$(mktemp)
+    git show "$TEMPLATE_REF:.gitignore" > "$TEMPLATE_GI"
+    if ! cmp -s "$REPO_ROOT/.gitignore" "$TEMPLATE_GI"; then
+        echo ""
+        echo "Advisory: .gitignore is host-owned (was synced in earlier versions)."
+        echo "          The template's .gitignore differs from yours. This script"
+        echo "          will not overwrite it. Review with:"
+        echo "            git diff $TEMPLATE_REF -- .gitignore"
+        echo "          Adopt installs an append-only wiki sub-repo rule via the"
+        echo "          .gitignore grant; see scripts/adopt.sh."
+    fi
+    rm -f "$TEMPLATE_GI"
 fi
 echo "======================================================"
 

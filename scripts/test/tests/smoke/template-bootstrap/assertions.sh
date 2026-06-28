@@ -322,18 +322,15 @@ for skill in wiki-experiment wiki-source wiki-lint; do
     fi
 done
 
-# Parallel-pair byte-match: the two sync scripts must both list the
-# procedure doc AND protocol.sh in ALWAYS_FILES, or derived projects
-# receive a partial payload.
-UFT="$T/scripts/update-from-template.sh"
-CTV="$T/scripts/check-template-version.sh"
-if [ -f "$UFT" ] && [ -f "$CTV" ]; then
-    assert "update-from-template.sh ALWAYS_FILES lists wiki-write-protocol.md" \
-        "grep -qF 'wiki/agents/wiki-write-protocol.md' '$UFT'"
-    assert "check-template-version.sh ALWAYS_FILES lists wiki-write-protocol.md" \
-        "grep -qF 'wiki/agents/wiki-write-protocol.md' '$CTV'"
-    assert "update-from-template.sh ALWAYS_FILES lists wiki-write-protocol/protocol.sh" \
-        "grep -qF 'scripts/wiki-write-protocol/protocol.sh' '$UFT'"
-    assert "check-template-version.sh ALWAYS_FILES lists wiki-write-protocol/protocol.sh" \
-        "grep -qF 'scripts/wiki-write-protocol/protocol.sh' '$CTV'"
+# scripts/lib/template-manifest.sh is the single source of truth that the
+# sync scripts consume. A path listed there reaches derived projects via
+# update-from-template AND is checked by check-template-version. Replaces
+# the parallel-pair byte-match assertions: by-construction guarantee from
+# a shared manifest is stronger than a count-agnostic grep on each script.
+MANIFEST="$T/scripts/lib/template-manifest.sh"
+if [ -f "$MANIFEST" ]; then
+    assert "manifest TEMPLATE_SHARED_INFRA lists wiki-write-protocol.md" \
+        "grep -qF 'wiki/agents/wiki-write-protocol.md' '$MANIFEST'"
+    assert "manifest TEMPLATE_SHARED_INFRA lists wiki-write-protocol/protocol.sh" \
+        "grep -qF 'scripts/wiki-write-protocol/protocol.sh' '$MANIFEST'"
 fi
