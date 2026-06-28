@@ -260,6 +260,8 @@ Improvements to the agent-agnostic parts (the llm-wiki pattern, `init-wiki.sh`, 
 
 For project-specific customizations, edit your project's `CLAUDE.md`, README, or settings -- those never propagate.
 
+**Maintainer note: to add a template-synced file, edit `scripts/lib/template-manifest.sh` and nothing else.** That file is the single source of truth that `instantiate.sh`, `adopt.sh`, `update-from-template.sh`, and `check-template-version.sh` all consume. The unit fixture `scripts/test/tests/unit/manifest-shape/` enforces the cross-array invariants (every path exists in the tree, no double-ownership, every substitute entry contains `{{REPO_NAME}}`), and the smoke fixture `scripts/test/tests/smoke/manifest-convergence/` proves the three scripts produce convergent output.
+
 ## 10. Quick reference
 
 ```bash
