@@ -29,10 +29,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Load shared library ---
+# --- Load shared library + template manifest ---
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
+# shellcheck source=lib/template-manifest.sh
+source "$HERE/lib/template-manifest.sh"
 
 REPO_ROOT=$(lw_repo_root)
 # Post-clone authoritative name: the on-disk wiki, not the clone-dir basename
@@ -49,84 +51,23 @@ git fetch --quiet template "$TEMPLATE_BRANCH"
 TEMPLATE_REF="template/$TEMPLATE_BRANCH"
 TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
 
-# Same file list logic as update-from-template.sh (kept duplicated rather
-# than sourced so each script remains standalone).
-ALWAYS_FILES=(
-    "llm-wiki.md" "wiki/init-wiki.sh" "wiki/agents/README.md"
-    "wiki/agents/discipline-gates.md" "wiki/agents/verification-gate.md"
-    "wiki/agents/wiki-write-protocol.md"
-    "scripts/update-from-template.sh" "scripts/check-template-version.sh"
-    "scripts/lib/install-feature.sh"
-    "scripts/lib/common.sh" "scripts/lib/report.sh" "scripts/lib/sys.sh"
-    "scripts/lib/git.sh" "scripts/lib/identity.sh" "scripts/lib/text.sh"
-    "scripts/lib/claude.sh"
-    "scripts/enable-feature.sh"
-    "scripts/disable-feature.sh" "features/README.md"
-    "scripts/wiki-write-protocol/README.md"
-    "scripts/wiki-write-protocol/protocol.sh"
-    "scripts/wiki-write-protocol/sandbox.sh"
-    "scripts/wiki-write-protocol/run-all.sh"
-    "scripts/wiki-write-protocol/scenarios/01-different-pages/run.sh"
-    "scripts/wiki-write-protocol/scenarios/02-different-sections/run.sh"
-    "scripts/wiki-write-protocol/scenarios/03-same-section/run.sh"
-    "scripts/wiki-write-protocol/scenarios/04-index-union/run.sh"
-    "scripts/wiki-write-protocol/scenarios/05-log-append/run.sh"
-    "scripts/wiki-write-protocol/scenarios/06-push-race/run.sh"
-    "scripts/wiki-write-protocol/scenarios/07-livelock-retry/run.sh"
-    "scripts/wiki-write-protocol/scenarios/08-session-start-auto-pull/run.sh"
-    "scripts/wiki-write-protocol/scenarios/09-session-start-divergent/run.sh"
-    ".gitignore"
-)
-# One-shot files (self-delete or consumed at end of bootstrap; not synced).
-# Listed for documentation only; see scripts/update-from-template.sh and
-# wiki/agents/README.md for the one-shot pattern.
-# shellcheck disable=SC2034  # documentation-only; intentionally not iterated
-ONE_SHOT_FILES=(
-    "scripts/instantiate.sh"
-    "CLAUDE.md.template"
-    "README.md.template"
-    ".claude/settings.json.template"
-    ".cursorrules.template"
-)
-CLAUDE_FILES=(
-    ".claude/commands/wiki-experiment.md" ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md" ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md" ".claude/skills/wiki-lint.md"
-    "wiki/agents/claude-code/setup.sh" "wiki/agents/claude-code/README.md"
-    "wiki/agents/claude-code/templates/claude-md-snippet.md"
-    "wiki/agents/claude-code/templates/memory-seed.md"
-    "wiki/agents/claude-code/templates/session-start-hook.sh"
-)
-CURSOR_FILES=(
-    ".cursor/rules/wiki-as-memory.mdc" ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc" ".cursor/rules/wiki-lint.mdc"
-    "wiki/agents/cursor/setup.sh" "wiki/agents/cursor/README.md"
-)
-SUBSTITUTE_FILES=(
-    ".claude/commands/wiki-experiment.md" ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md" ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md" ".claude/skills/wiki-lint.md"
-    ".cursor/rules/wiki-as-memory.mdc" ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc" ".cursor/rules/wiki-lint.mdc"
-)
-
-needs_substitution() {
-    local f="$1"
-    for s in "${SUBSTITUTE_FILES[@]}"; do
-        [[ "$f" == "$s" ]] && return 0
-    done
-    return 1
-}
-
-FILES=("${ALWAYS_FILES[@]}")
+# File list assembled via the shared manifest in detection mode (empty
+# agent arg, repo_root populated). The two HAS_* flags are reported in
+# the summary below; their conditions mirror the manifest accessor's
+# overlay-inclusion rules.
 HAS_CLAUDE=false
 HAS_CURSOR=false
 if [[ -d "$REPO_ROOT/.claude" ]] || [[ -d "$REPO_ROOT/wiki/agents/claude-code" ]]; then
-    HAS_CLAUDE=true; FILES+=("${CLAUDE_FILES[@]}")
+    HAS_CLAUDE=true
 fi
 if [[ -d "$REPO_ROOT/.cursor" ]] || [[ -d "$REPO_ROOT/wiki/agents/cursor" ]]; then
-    HAS_CURSOR=true; FILES+=("${CURSOR_FILES[@]}")
+    HAS_CURSOR=true
 fi
+
+FILES=()
+while IFS= read -r _path; do
+    FILES+=("$_path")
+done < <(lw_manifest_assemble_active_files "$REPO_ROOT" "")
 
 IN_SYNC=()
 OUT_OF_DATE=()
@@ -140,7 +81,7 @@ for f in "${FILES[@]}"; do
     # Materialize via temp file so the trailing newline survives the hash.
     TEMPLATE_TMP=$(mktemp)
     git show "$TEMPLATE_REF:$f" > "$TEMPLATE_TMP"
-    if needs_substitution "$f"; then
+    if lw_manifest_needs_substitution "$f"; then
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$TEMPLATE_TMP"
         rm -f "${TEMPLATE_TMP}.bak"
     fi
@@ -192,6 +133,21 @@ if [[ ${#NOT_IN_TEMPLATE[@]} -gt 0 ]]; then
     echo ""
     echo "Not in template (${#NOT_IN_TEMPLATE[@]}):"
     for f in "${NOT_IN_TEMPLATE[@]}"; do echo "  - $f"; done
+fi
+
+# .gitignore advisory: host-owned (TEMPLATE_HOST_OWNED), so it does not
+# appear in the FILES list and never reports as out-of-date. Surface the
+# divergence here so reviewers know template improvements exist; the host
+# decides whether to back-port. Mirrors update-from-template's advisory.
+if git cat-file -e "$TEMPLATE_REF:.gitignore" 2>/dev/null && [[ -f "$REPO_ROOT/.gitignore" ]]; then
+    TEMPLATE_GI=$(mktemp)
+    git show "$TEMPLATE_REF:.gitignore" > "$TEMPLATE_GI"
+    if ! cmp -s "$REPO_ROOT/.gitignore" "$TEMPLATE_GI"; then
+        echo ""
+        echo "Advisory: .gitignore is host-owned. Template's .gitignore differs."
+        echo "          Inspect with: git diff $TEMPLATE_REF -- .gitignore"
+    fi
+    rm -f "$TEMPLATE_GI"
 fi
 echo "========================================================"
 echo ""
