@@ -19,101 +19,17 @@ TEMPLATE_ROOT="$(cd "$HERE/.." && pwd)"
 
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
+# shellcheck source=lib/template-manifest.sh
+source "$HERE/lib/template-manifest.sh"
 
-# --- ADD allowlist ----------------------------------------------------------
-# Paths the template would contribute. Each is relative to TEMPLATE_ROOT
-# (source) AND to the target (destination), so they're compared 1-to-1.
-# Subset of the wiki design's full allowlist; sufficient to exercise the
-# classification logic. Will grow as the stub matures.
-ADD_ALLOWLIST=(
-    llm-wiki.md
-    wiki/init-wiki.sh
-    wiki/agents/discipline-gates.md
-    wiki/agents/verification-gate.md
-    # Claude Code overlay (needed for Phase 2B managed-block apply via
-    # wiki/agents/claude-code/setup.sh, and Phase 3 merge via
-    # setup.sh --hook). For now the catalog is fixed; future iterations
-    # may make it conditional on --agent.
-    wiki/agents/claude-code/setup.sh
-    wiki/agents/claude-code/templates/claude-md-snippet.md
-    wiki/agents/claude-code/templates/session-start-hook.sh
-    wiki/agents/claude-code/templates/posttooluse-hook.sh
-    wiki/agents/claude-code/templates/memory-seed.md
-    wiki/agents/claude-code/templates/ensure-wiki.py
-    # Slash commands and model-side skills referenced by the CLAUDE.md
-    # template the overlay installs. Without these on disk, the agent
-    # reads CLAUDE.md, tries /wiki-experiment / /wiki-source / /wiki-lint,
-    # and fails. Reported by Chris Sweet against PR #51 (item #2).
-    .claude/commands/wiki-experiment.md
-    .claude/commands/wiki-source.md
-    .claude/commands/wiki-lint.md
-    .claude/skills/wiki-experiment.md
-    .claude/skills/wiki-source.md
-    .claude/skills/wiki-lint.md
-    scripts/lib/common.sh
-    scripts/lib/git.sh
-    scripts/lib/identity.sh
-    scripts/lib/text.sh
-    scripts/lib/report.sh
-    scripts/lib/claude.sh
-    scripts/lib/sys.sh
-    scripts/lib/install-feature.sh
-    scripts/update-from-template.sh
-    scripts/check-template-version.sh
-    scripts/enable-feature.sh
-    scripts/disable-feature.sh
-)
-
-# --- KNOWN_GRANTS -----------------------------------------------------------
-# Per-target operation the template knows how to perform.  Hosts opt in by
-# listing a target in .llm-wiki-adopt-grants.yml with the matching grant
-# type. Anything not enumerated here can only be classified as REFUSE-by-
-# default (no grant), even if a host's grants file mentions it.  Bash 3.2
-# compatible: case lookups instead of associative arrays.
-known_grant_type() {
-    case "$1" in
-        CLAUDE.md)              echo "managed-block" ;;
-        .gitignore)             echo "append-only" ;;
-        .claude/settings.json)  echo "merge" ;;
-        *)                      echo "" ;;
-    esac
-}
-
-# Sentinel label used by append-only mechanisms for each granted target.
-# Reported in the dry-run so reviewers see exactly what region adopt
-# would maintain.
-#
-# managed-block grants (CLAUDE.md) deliberately return empty: those
-# grants delegate to the overlay's setup.sh, which injects TWO separate
-# sentinel-paired blocks (lw:memory-boundary, lw:wiki-maintenance), not
-# a single "lw:wiki-section" wrapper. Adopt does not own those names
-# and should not claim one in the dry-run report. The empty return
-# makes the report omit the parenthetical instead of lying about it.
-known_grant_sentinel() {
-    case "$1" in
-        .gitignore)  echo "lw:wiki-rules"  ;;
-        *)           echo ""               ;;
-    esac
-}
-
-# Payload content for append-only grants. Inserted between paired
-# lw_inject_block sentinels at the target's end-of-file. The host owner
-# can delete the block (sentinels included) to remove the rules cleanly;
-# adopt's re-run is no-op when the opening sentinel is already present
-# (lw_inject_block returns 1 in that case).
-#
-# Currently only .gitignore has a non-empty payload. Other append-only
-# entries would just need a case clause below.
-known_grant_payload() {
-    case "$1" in
-        .gitignore)
-            cat <<'EOF'
-# wiki sub-repo: separate git remote, not part of the host's tracked tree
-wiki/*.wiki/
-EOF
-            ;;
-    esac
-}
+# --- ADD allowlist + KNOWN_GRANTS -------------------------------------------
+# Both vocabularies live in scripts/lib/template-manifest.sh. The ADD set
+# is assembled by lw_manifest_assemble_active_files in agent mode (the
+# --agent flag drives overlay inclusion). The known-grant lookups
+# (lw_manifest_known_grant_type / _sentinel / _payload) are the single
+# source of truth for what operations the template performs on host-
+# owned files. To add a synced path or a new host-owned grant, edit the
+# manifest and nothing else.
 
 # --- parse_grants_file ------------------------------------------------------
 # Minimal YAML reader for the .llm-wiki-adopt-grants.yml host file. Accepts
@@ -353,18 +269,23 @@ if [[ -d "$TARGET/.cursor" ]] || [[ -f "$TARGET/wiki/agents/cursor/setup.sh" ]];
 fi
 
 # --- Classify each path -----------------------------------------------------
-# For each ADD_ALLOWLIST entry:
+# Assemble the active set from the shared manifest in agent mode (empty
+# repo_root, AGENT drives overlay inclusion). For each path:
 #   not present in target  -> ADD
 #   present + identical    -> SKIP
 #   present + different    -> REFUSE
 ACT_ADD=()
 ACT_SKIP=()
 ACT_REFUSE=()
-for path in "${ADD_ALLOWLIST[@]}"; do
+ADD_PATHS=()
+while IFS= read -r _path; do
+    ADD_PATHS+=("$_path")
+done < <(lw_manifest_assemble_active_files "" "$AGENT")
+for path in "${ADD_PATHS[@]}"; do
     src="$TEMPLATE_ROOT/$path"
     dst="$TARGET/$path"
     if [[ ! -e "$src" ]]; then
-        # Allowlist drift from the actual template; report so we don't
+        # Manifest drift from the actual template; report so we don't
         # silently produce a misleading ADD line.
         ACT_REFUSE+=("$path  (missing in template: $src)")
         continue
@@ -393,20 +314,15 @@ done
 # as design inconsistency by Chris Sweet on PR #51 (items 3, 4, 5).
 #
 # When the host did not author a .llm-wiki-adopt-grants.yml, adopt uses
-# DEFAULT_GRANTS: the three standard grants that every wiki-memory
-# adopter has historically wanted (CLAUDE.md managed-block, .gitignore
-# append-only, .claude/settings.json merge). Without this default the
-# adoption is partial: wiki sub-repo shows untracked forever, and the
-# SessionStart hook is never registered, so claude-code does not
-# auto-pull the wiki at session start. The host can override by
-# committing an explicit .llm-wiki-adopt-grants.yml -- including an
-# empty 'grants:' map to opt out of all touches.
-DEFAULT_GRANTS=(
-    "CLAUDE.md|managed-block"
-    ".gitignore|append-only"
-    ".claude/settings.json|merge"
-)
-
+# the manifest's TEMPLATE_HOST_OWNED list as the default grant set: the
+# three standard grants that every wiki-memory adopter has historically
+# wanted (CLAUDE.md managed-block, .gitignore append-only,
+# .claude/settings.json merge). Without this default the adoption is
+# partial: wiki sub-repo shows untracked forever, and the SessionStart
+# hook is never registered, so claude-code does not auto-pull the wiki
+# at session start. The host can override by committing an explicit
+# .llm-wiki-adopt-grants.yml -- including an empty 'grants:' map to opt
+# out of all touches.
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
 ACT_TOUCH=()           # "path|type|sentinel|was_absent"
 ACT_TOUCH_INVALID=()   # "path  (reason)"
@@ -418,7 +334,7 @@ if [[ -f "$GRANTS_FILE" ]]; then
     while IFS='|' read -r g_path g_type; do
         [[ -z "$g_path" ]] && continue
         N_GRANTS=$((N_GRANTS + 1))
-        expected="$(known_grant_type "$g_path")"
+        expected="$(lw_manifest_known_grant_type "$g_path")"
         if [[ -z "$expected" ]]; then
             ACT_TOUCH_INVALID+=("$g_path  (unknown grant target; template has no operation for it)")
             continue
@@ -427,7 +343,7 @@ if [[ -f "$GRANTS_FILE" ]]; then
             ACT_TOUCH_INVALID+=("$g_path  (type mismatch: grant says '$g_type', template knows '$expected')")
             continue
         fi
-        sentinel="$(known_grant_sentinel "$g_path")"
+        sentinel="$(lw_manifest_known_grant_sentinel "$g_path")"
         if [[ -e "$TARGET/$g_path" ]]; then
             was_absent=0
         else
@@ -436,15 +352,14 @@ if [[ -f "$GRANTS_FILE" ]]; then
         ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
     done < <(parse_grants_file "$GRANTS_FILE")
 else
-    # No grants file: classify the standard defaults as TOUCH. Same
-    # classification path as the file branch, just with the defaults
-    # array as the source. known_grant_type / known_grant_sentinel
-    # remain the single source of truth for vocabulary.
-    for entry in "${DEFAULT_GRANTS[@]}"; do
+    # No grants file: classify TEMPLATE_HOST_OWNED entries as TOUCH. Same
+    # classification path as the file branch; the manifest is the single
+    # source of truth for the vocabulary.
+    for entry in "${TEMPLATE_HOST_OWNED[@]}"; do
         g_path="${entry%%|*}"
         g_type="${entry#*|}"
         N_GRANTS=$((N_GRANTS + 1))
-        sentinel="$(known_grant_sentinel "$g_path")"
+        sentinel="$(lw_manifest_known_grant_sentinel "$g_path")"
         if [[ -e "$TARGET/$g_path" ]]; then
             was_absent=0
         else
@@ -844,10 +759,10 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
         t_was_absent="${rest2#*|}"
         case "$t_type" in
             append-only)
-                payload="$(known_grant_payload "$t_path")"
+                payload="$(lw_manifest_known_grant_payload "$t_path")"
                 # lw_inject_block wraps its second arg in '<!-- lw:KEY -->'
                 # internally, so we pass the key WITHOUT the lw: prefix that
-                # known_grant_sentinel returns for display purposes.
+                # lw_manifest_known_grant_sentinel returns for display purposes.
                 bare_key="${t_sent#lw:}"
                 # lw_inject_block returns 0 on inject, 1 if opening sentinel
                 # already present (idempotency). When the target was absent
