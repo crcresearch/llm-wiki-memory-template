@@ -118,7 +118,30 @@ The `rm -f` is what makes `setup.sh` re-install rather than skip. `.claude/setti
 
 If you pick `--agent=none`, only steps 1–3 (and the self-delete) run. The minimal install leaves `wiki/agents/` populated but inert; you can later add a custom agent overlay following the pattern documented in `wiki/agents/README.md`.
 
-## 3. Pull updates from this template into an existing project
+## 3. Adopt the pattern into an existing project
+
+For repos that **already exist** and were **not** instantiated from this template (e.g. an established research project that now wants the wiki-as-memory discipline), use `scripts/adopt.sh` instead of `instantiate.sh`. Adopt is additive: it copies the template's shared infrastructure into your repo, never overwrites your own files, and uses a host-owned grants file to authorize the three integration touchpoints (`CLAUDE.md` sentinel blocks, the `wiki/*.wiki/` `.gitignore` rule, the SessionStart hook entry in `.claude/settings.json`). The three standard grants are applied by default; commit a `.llm-wiki-adopt-grants.yml` to customize.
+
+The common flow, mirroring Path A of section 2 but for an existing repo:
+
+```bash
+gh repo clone <owner>/<project> && cd <project>
+git clone https://github.com/crcresearch/llm-wiki-memory-template.git ~/src/llm-wiki-memory-template   # one-time per machine
+bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=. --apply --agent=claude-code --github-wiki
+```
+
+`--github-wiki` automates the same four manual github.com steps that Path A of section 2 covers (enable Wikis, seed the first page, wire the wiki remote, push). When the GitHub Wiki architecture quirk forces a 404 on the seed push, adopt logs `github-wiki: failed (seed-push 404; ...)` to `.llm-wiki-adopt-log.md`, prints the workaround on stderr, and falls back to a local-only wiki. Re-run with `--github-wiki` after the manual UI step to complete the migration.
+
+If you adopt multiple projects from the same machine, an alias keeps the invocation short — no need for a separate `gh` extension:
+
+```bash
+alias adopt='bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=.'
+# Then: cd <project> && adopt --apply --github-wiki
+```
+
+Adopt is designed for first-time adoption only. Re-running it on a host that already shows the pattern (2 of 3 composite signals matched) advisory-aborts and routes you to `scripts/update-from-template.sh` (section 4) for ongoing sync.
+
+## 4. Pull updates from this template into an existing project
 
 The llm-wiki pattern, the agent overlays, the slash commands and rules, and the instantiate/update scripts evolve in this template. Once you have created a project from the template, run this **periodically** to pull improvements without overwriting your own narrative:
 
@@ -153,7 +176,7 @@ To check drift without making any changes:
 ./scripts/check-template-version.sh
 ```
 
-## 4. Layout
+## 5. Layout
 
 ```
 llm-wiki-memory-template/
@@ -181,12 +204,12 @@ llm-wiki-memory-template/
     enable-feature.sh            opt in to a feature retroactively
     disable-feature.sh           opt out of a feature, symmetric removal
     lib/install-feature.sh       shared install/uninstall logic (sourced)
-  features/                      opt-in feature definitions (see section 7)
+  features/                      opt-in feature definitions (see section 8)
   docs/
     adding-a-feature.md          canonical guide for authoring a feature
 ```
 
-## 5. The three wiki operations (Query / Ingest / Lint)
+## 6. The three wiki operations (Query / Ingest / Lint)
 
 The wiki has three operations: read it (Query), write to it (Ingest), and health-check it (Lint). All three are codified in:
 
@@ -196,7 +219,7 @@ The wiki has three operations: read it (Query), write to it (Ingest), and health
 
 See [llm-wiki.md](llm-wiki.md) for the underlying pattern and [wiki/agents/README.md](wiki/agents/README.md) for the overlay structure.
 
-## 6. Adding a new agent overlay (OpenCode, Pi, your own)
+## 7. Adding a new agent overlay (OpenCode, Pi, your own)
 
 Each agent overlay lives in `wiki/agents/<agent>/` and follows a small contract documented in [wiki/agents/README.md](wiki/agents/README.md). To add support for a new agent:
 
@@ -205,7 +228,7 @@ Each agent overlay lives in `wiki/agents/<agent>/` and follows a small contract 
 3. Update `templates/` with the agent-appropriate phrasings (rule format, command format, etc.).
 4. Open a PR against this template repo so other projects in the organization can pick it up.
 
-## 7. Opt-in features
+## 8. Opt-in features
 
 Some capabilities are useful in some projects and unwanted in others (a knowledge-graph pipeline, a Socratic tutor behavior overlay, an agent-memory tool). Rather than ship every capability on by default and ask projects to delete what they do not want, the template hosts them under `features/<name>/` as **opt-in features**.
 
@@ -231,13 +254,13 @@ Authoring a new feature is documented in [docs/adding-a-feature.md](docs/adding-
 
 The template ships **no** real features yet. The shape and machinery are validated; the first real feature is the next milestone.
 
-## 8. Contributing back
+## 9. Contributing back
 
 Improvements to the agent-agnostic parts (the llm-wiki pattern, `init-wiki.sh`, the schema, the scripts) are most valuable when they land here, in the template. Once merged, every project that runs `update-from-template.sh` will pick them up on the next sync.
 
 For project-specific customizations, edit your project's `CLAUDE.md`, README, or settings -- those never propagate.
 
-## 9. Quick reference
+## 10. Quick reference
 
 ```bash
 # First use (after "Use this template" -> Create repository -> clone locally):
@@ -248,7 +271,7 @@ For project-specific customizations, edit your project's `CLAUDE.md`, README, or
 #     open https://github.com/<owner>/<repo>/wiki -> Create the first page -> save)
 ./scripts/instantiate.sh "My Project" --agent=claude-code --github-wiki
 
-# Enable or remove an opt-in feature (see section 7):
+# Enable or remove an opt-in feature (see section 8):
 ./scripts/enable-feature.sh --list
 ./scripts/enable-feature.sh <name>
 ./scripts/disable-feature.sh <name>
