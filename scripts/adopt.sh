@@ -150,16 +150,60 @@ parse_grants_file() {
     ' "$file"
 }
 
+# --- GitHub Wiki helpers ----------------------------------------------------
+# Used by --github-wiki dispatch in Phase 2B. Extract the host from any
+# origin URL form (HTTPS, SSH, with/without .git, with/without user@) so
+# the caller can soft-skip non-GitHub hosts BEFORE invoking lw_wiki_url
+# (which dies loud on non-GitHub via lw_die). Returns the host on stdout;
+# returns rc!=0 only if the URL is empty.
+_lw_host_from_url() {
+    local url="$1" rest host
+    [[ -z "$url" ]] && return 1
+    rest="$url"
+    case "$rest" in
+        *://*) rest="${rest#*://}"; rest="${rest#*@}" ;;
+        *@*:*) rest="${rest#*@}" ;;
+    esac
+    host="${rest%%[:/]*}"
+    printf '%s\n' "$host"
+}
+
+# Print the GitHub Wiki 404 fallback instructions on stderr. Mirrors the
+# message instantiate.sh prints, but parameterised so the re-run hint
+# matches the adopt.sh invocation the user actually issued. Called only
+# from the failure path of the seed-push subshell.
+_github_wiki_fallback_message() {
+    local wiki_ui_url="$1" target_arg="$2"
+    {
+        echo ""
+        echo "Wiki bootstrap via direct push failed."
+        echo "This is the most common outcome on the first --github-wiki"
+        echo "run for a project: GitHub requires the first Wiki page to be"
+        echo "created through the UI before <repo>.wiki.git becomes a"
+        echo "clonable/pushable repository. Until then, push returns 404."
+        echo ""
+        echo "Workaround:"
+        echo "  1. Open $wiki_ui_url in a browser."
+        echo "  2. Click \"Create the first page\", title \"Home\", any content, save."
+        echo "  3. Re-run: bash scripts/adopt.sh --target=$target_arg --apply --github-wiki"
+        echo ""
+        echo "Or, to skip GitHub Wiki entirely and use a local-only wiki, omit --github-wiki."
+        echo ""
+    } >&2
+}
+
 # --- Argument parsing -------------------------------------------------------
-APPLY=0      # default: dry-run; --apply opts in to mutating the host
-FORCE=0      # opt-out of the "already adopted -> abort" advisory
+APPLY=0          # default: dry-run; --apply opts in to mutating the host
+FORCE=0          # opt-out of the "already adopted -> abort" advisory
 TARGET=""
 AGENT="claude-code"
 FEATURES=""
+GITHUB_WIKI=0    # opt-in to the GitHub Wiki bootstrap dance (Phase 2B sub-step)
 
 usage() {
     cat <<'EOF'
-Usage: adopt.sh [--target=PATH] [--apply] [--agent=NAME] [--features=LIST] [--help]
+Usage: adopt.sh [--target=PATH] [--apply] [--agent=NAME] [--features=LIST]
+                [--github-wiki] [--help]
 
 Classifies the ADD allowlist against a target repo. With --apply, also
 copies every ADD entry into the target (never overwrites; REFUSE entries
@@ -184,6 +228,16 @@ Options:
                      mode against a host that already has the pattern.
   --agent=NAME       claude-code | none | cursor (cursor: not yet supported)
   --features=LIST    Comma-separated feature names (parsed but not installed)
+  --github-wiki      Bootstrap the host's GitHub Wiki backend before init-wiki
+                     runs: enable Wikis on the project repo via gh api (best
+                     effort) and push a seed Home.md so <repo>.wiki.git
+                     materializes. init-wiki then clones it. On the GitHub
+                     architecture quirk (first wiki page must exist via the
+                     UI), seed-push returns 404; adopt logs github-wiki:
+                     failed, prints the workaround on stderr, and falls back
+                     to a local-only wiki. Re-run --github-wiki after the
+                     manual UI step to complete the migration. Non-GitHub
+                     origins (or no origin) are soft-skipped.
   --dry-run          Default; included for forward compatibility
   --help, -h         Show this help
 
@@ -204,6 +258,7 @@ while [[ $# -gt 0 ]]; do
         --agent)              AGENT="${2:-}"; shift 2 ;;
         --features=*)         FEATURES="${1#*=}"; shift ;;
         --features)           FEATURES="${2:-}"; shift 2 ;;
+        --github-wiki)        GITHUB_WIKI=1; shift ;;
         *)                    lw_die "unknown argument: $1" ;;
     esac
 done
@@ -512,6 +567,35 @@ NOT IMPLEMENTED YET (stub limitation, not absent from the design)
 EOF
 echo ""
 
+# --- GitHub Wiki preview (--github-wiki, dry-run only) ----------------------
+# Read-only probes: origin URL, host check, wiki URL derivation, ls-remote.
+# Reports the prospective github-wiki status without mutating anything.
+# Mirrors the status vocabulary the apply path uses, prefixed 'would-' to
+# make the intent obvious. Skipped silently when --github-wiki is absent.
+if [[ "$GITHUB_WIKI" -eq 1 ]]; then
+    echo "GITHUB WIKI (--github-wiki preview; read-only)"
+    _gw_origin=$(lw_origin_url "$TARGET" 2>/dev/null || true)
+    if [[ -z "$_gw_origin" ]]; then
+        echo "  would-skip (no origin remote on target; cannot derive wiki URL)"
+    else
+        _gw_host=$(_lw_host_from_url "$_gw_origin")
+        case "$_gw_host" in
+            *github*)
+                _gw_wiki_url=$(lw_wiki_url "$_gw_origin")
+                if git ls-remote "$_gw_wiki_url" >/dev/null 2>&1; then
+                    echo "  would-skip (wiki already materialized at $_gw_wiki_url; would clone via init-wiki --github)"
+                else
+                    echo "  would-apply (seed-push to $_gw_wiki_url (master); wiki not yet materialized)"
+                fi
+                ;;
+            *)
+                echo "  would-skip (non-github host '$_gw_host')"
+                ;;
+        esac
+    fi
+    echo ""
+fi
+
 # --- Apply mode -------------------------------------------------------------
 # Phase 1: ADD apply only. Refuses to touch the host if the working tree
 # has uncommitted changes (so the host owner can review the resulting diff
@@ -591,18 +675,112 @@ fi
 # safe whether or not the sub-repo exists. Captures status for the manifest
 # but does NOT abort adopt on failure: a host that can't init wiki still
 # benefits from the ADDed files and any append-only TOUCH that already ran.
+#
+# When --github-wiki is passed, a sub-step runs BEFORE init-wiki to bootstrap
+# the GitHub Wiki backend (seed-push to materialize <repo>.wiki.git), then
+# init-wiki is invoked with --github so it clones the now-real wiki instead
+# of init'ing locally. The sub-step has its own status pair
+# (GITHUB_WIKI_STATUS / GITHUB_WIKI_DETAIL) recorded in the manifest. A
+# seed-push 404 (GitHub's "first page must exist via UI" architecture quirk)
+# is captured as 'failed', the workaround is printed to stderr, and adopt
+# falls back to invoking init-wiki WITHOUT --github (local-only wiki). The
+# user can re-run --github-wiki after the manual UI step to complete the
+# migration. Non-GitHub origins (or no origin) are soft-skipped.
 INIT_WIKI_STATUS="not-run"
 INIT_WIKI_DETAIL=""
+GITHUB_WIKI_STATUS="skipped"
+GITHUB_WIKI_DETAIL="not requested"
 WIKI_SUBREPO_DIR="$TARGET/wiki/$PROJECT_NAME.wiki"
 if [[ -d "$WIKI_SUBREPO_DIR/.git" ]]; then
     INIT_WIKI_STATUS="already-present"
     INIT_WIKI_DETAIL="wiki/$PROJECT_NAME.wiki/ already initialised"
+    if [[ "$GITHUB_WIKI" -eq 1 ]]; then
+        GITHUB_WIKI_STATUS="skipped"
+        GITHUB_WIKI_DETAIL="wiki sub-repo already present; no seed-push needed"
+    fi
 elif [[ -f "$TARGET/wiki/init-wiki.sh" ]]; then
+    # init_wiki_args: assembled below; --github appended only when seed-push
+    # succeeded OR the wiki was already materialized upstream. On any
+    # failure path the args stay bare and init-wiki falls back to local
+    # init (current behaviour, fully backward compatible).
+    init_wiki_args=(--repo-name "$PROJECT_NAME")
+
+    if [[ "$GITHUB_WIKI" -eq 1 ]]; then
+        _origin=$(lw_origin_url "$TARGET" 2>/dev/null || true)
+        if [[ -z "$_origin" ]]; then
+            GITHUB_WIKI_STATUS="skipped"
+            GITHUB_WIKI_DETAIL="no origin remote on target; cannot derive wiki URL"
+        else
+            _host=$(_lw_host_from_url "$_origin")
+            case "$_host" in
+                *github*)
+                    # Inline-safe: we know it's a GitHub host, so lw_wiki_url
+                    # won't trip its lw_die guard.
+                    _wiki_url=$(lw_wiki_url "$_origin")
+                    if git ls-remote "$_wiki_url" >/dev/null 2>&1; then
+                        GITHUB_WIKI_STATUS="wiki-already-materialized"
+                        GITHUB_WIKI_DETAIL="$_wiki_url responds; skipping seed push"
+                        init_wiki_args+=(--github)
+                    else
+                        # Best-effort PATCH has_wiki=true (defensive; the
+                        # default is already true on most repos). Failure is
+                        # silenced because the seed push below tests the
+                        # actual state we care about.
+                        if command -v gh >/dev/null 2>&1; then
+                            _slug=$(lw_repo_slug "$_origin")
+                            gh api "repos/$_slug" -X PATCH -F has_wiki=true >/dev/null 2>&1 || true
+                        fi
+                        # Seed push: identical mechanics to instantiate.sh,
+                        # but the failure path does NOT exit. Adopt is
+                        # additive; we capture and fall back to local init.
+                        # symbolic-ref + push to refs/heads/<branch> works on
+                        # git >= 2.7 without --initial-branch.
+                        _seed_branch="master"
+                        if (
+                            _tmp=$(mktemp -d) \
+                            && cd "$_tmp" \
+                            && git init -q \
+                            && git symbolic-ref HEAD "refs/heads/$_seed_branch" \
+                            && printf '# Home\n\nBootstrapped by llm-wiki-memory-template/scripts/adopt.sh.\n' > Home.md \
+                            && git add Home.md \
+                            && git -c user.email=adopt@llm-wiki-memory-template \
+                                   -c user.name="adopt.sh" \
+                                   commit -m "Initialize wiki" -q \
+                            && git push -q "$_wiki_url" "$_seed_branch:$_seed_branch" \
+                            && cd / \
+                            && rm -rf "$_tmp"
+                        ); then
+                            GITHUB_WIKI_STATUS="applied"
+                            GITHUB_WIKI_DETAIL="seed-push to $_wiki_url ($_seed_branch)"
+                            init_wiki_args+=(--github)
+                        else
+                            GITHUB_WIKI_STATUS="failed"
+                            GITHUB_WIKI_DETAIL="seed-push 404; GitHub UI step required (open <repo>/wiki, create Home, re-run --github-wiki)"
+                            # Surface the workaround inline; the user will
+                            # see this on the terminal and the manifest will
+                            # carry the same diagnosis.
+                            _wiki_ui_url="${_origin%.git}"
+                            _wiki_ui_url="${_wiki_ui_url/git@github.com:/https://github.com/}"
+                            _wiki_ui_url="${_wiki_ui_url}/wiki"
+                            _github_wiki_fallback_message "$_wiki_ui_url" "$TARGET"
+                            # init_wiki_args stays bare -> local fallback.
+                        fi
+                    fi
+                    ;;
+                *)
+                    GITHUB_WIKI_STATUS="skipped"
+                    GITHUB_WIKI_DETAIL="non-github host '$_host'"
+                    # init_wiki_args stays bare -> local fallback.
+                    ;;
+            esac
+        fi
+    fi
+
     init_wiki_rc=0
-    (cd "$TARGET" && bash wiki/init-wiki.sh --repo-name "$PROJECT_NAME" >/dev/null 2>&1) || init_wiki_rc=$?
+    (cd "$TARGET" && bash wiki/init-wiki.sh "${init_wiki_args[@]}" >/dev/null 2>&1) || init_wiki_rc=$?
     if [[ $init_wiki_rc -eq 0 ]]; then
         INIT_WIKI_STATUS="applied"
-        INIT_WIKI_DETAIL="ran wiki/init-wiki.sh --repo-name $PROJECT_NAME"
+        INIT_WIKI_DETAIL="ran wiki/init-wiki.sh ${init_wiki_args[*]}"
     else
         INIT_WIKI_STATUS="failed"
         INIT_WIKI_DETAIL="wiki/init-wiki.sh exited $init_wiki_rc"
@@ -610,6 +788,10 @@ elif [[ -f "$TARGET/wiki/init-wiki.sh" ]]; then
 else
     INIT_WIKI_STATUS="skipped"
     INIT_WIKI_DETAIL="wiki/init-wiki.sh not present in target after ADD"
+    if [[ "$GITHUB_WIKI" -eq 1 ]]; then
+        GITHUB_WIKI_STATUS="skipped"
+        GITHUB_WIKI_DETAIL="init-wiki.sh missing; cannot seed-push without follow-on"
+    fi
 fi
 
 # --- Overlay setup (Phase 2B) -----------------------------------------------
@@ -772,6 +954,7 @@ FIRST_ENTRY=0
     printf -- '- SKIPped (%s, byte-equal already)\n' "${#ACT_SKIP[@]}"
     printf -- '- REFUSEd (%s, host-modified; left alone)\n' "${#ACT_REFUSE[@]}"
     printf -- '- init-wiki: %s (%s)\n' "$INIT_WIKI_STATUS" "$INIT_WIKI_DETAIL"
+    printf -- '- github-wiki: %s (%s)\n' "$GITHUB_WIKI_STATUS" "$GITHUB_WIKI_DETAIL"
     printf -- '- overlay setup: %s (%s)\n' "$OVERLAY_SETUP_STATUS" "$OVERLAY_SETUP_DETAIL"
     printf -- '- TOUCH applied (%s):\n' "${#APPLIED_TOUCHES[@]}"
     if [[ ${#APPLIED_TOUCHES[@]} -gt 0 ]]; then
