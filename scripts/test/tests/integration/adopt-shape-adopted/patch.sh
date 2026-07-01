@@ -40,7 +40,7 @@ echo "*.pyc"                 > "$HOST/.gitignore"
 cp "$TEMPLATE_ROOT/llm-wiki.md" "$HOST/llm-wiki.md"
 
 # --- Signal B: wiki/agents/discipline-gates.md byte-identical to template ---
-# Harness-agnostic shared file (ALWAYS_FILES), present regardless of
+# Harness-agnostic shared file (TEMPLATE_SHARED_INFRA), present regardless of
 # overlay choice. Replaces the previous Claude-only CLAUDE.md sentinel
 # signal so detection works for cursor / gemini / --agent=none too.
 mkdir -p "$HOST/wiki/agents"

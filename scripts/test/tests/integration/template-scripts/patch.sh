@@ -44,7 +44,7 @@ _mk_template() {
 }
 
 # A project fixture: git repo at $1, with an on-disk wiki named $2 and an
-# active .claude/ overlay (so the CLAUDE_FILES are in the sync list), plus a
+# active .claude/ overlay (so TEMPLATE_OVERLAY_CLAUDE is in the sync list), plus a
 # stale local copy of the substituted file.
 _mk_project() {
     local dir="$1" wiki="$2"

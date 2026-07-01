@@ -233,7 +233,7 @@ PROJECT_NAME="$(lw_name_from_origin "$TARGET")"
 #   A: llm-wiki.md byte-identical to template
 #      (strong: file unique to the pattern; byte-equal -> came from template)
 #   B: wiki/agents/discipline-gates.md byte-identical to template
-#      (strong: shared overlay-agnostic file from ALWAYS_FILES; present
+#      (strong: shared overlay-agnostic file from TEMPLATE_SHARED_INFRA; present
 #       regardless of which overlay the host chose, including --agent=none)
 #   C: wiki/init-wiki.sh present in target
 #      (moderate: specific file from the pattern; may be host-modified)
@@ -538,7 +538,7 @@ fi
 # --- Advisory abort: 'already adopted' hosts route to update-from-template ---
 # adopt.sh is for FIRST-TIME adoption. When the composite detector finds the
 # pattern already present (>= ADOPTION_THRESHOLD signals), the right tool is
-# update-from-template.sh, which knows about ALWAYS_FILES and handles drift
+# update-from-template.sh, which consumes the same template manifest and handles drift
 # between template versions. Re-running adopt --apply on an adopted host
 # would re-trigger Phase 1 ADD (no-op for SKIPs, REFUSE for divergences),
 # Phase 2A (idempotent), and Phase 2B (which invokes host's possibly-drifted

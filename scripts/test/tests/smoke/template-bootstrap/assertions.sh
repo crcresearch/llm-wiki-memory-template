@@ -303,8 +303,8 @@ assert "wiki-write-protocol README references the new directory name in its layo
 #     no other test fails);
 # (2) the per-overlay skill files reference the procedure doc (otherwise
 #     the wiring decays invisibly: the doc exists but no agent reads it);
-# (3) ALWAYS_FILES contains the procedure doc + protocol.sh in both sync
-#     scripts (otherwise derived projects never receive PR7's payload).
+# (3) the manifest's TEMPLATE_SHARED_INFRA lists the procedure doc +
+#     protocol.sh (otherwise derived projects never receive PR7's payload).
 WWP_DOC="$T/wiki/agents/wiki-write-protocol.md"
 assert "wiki-write-protocol.md ships in the template repo" \
     "[ -f '$WWP_DOC' ]"
