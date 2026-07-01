@@ -28,7 +28,7 @@ assert "collision: host workflow content survived untouched" \
 assert "collision: feature bytes did NOT land in the host workflow" \
     "! grep -qF 'test-feature workflow placeholder' '$STAGE/collision/.github/workflows/test-feature.yml'"
 assert "collision: error names the blocked destination" \
-    "grep -qF '.github/workflows/test-feature.yml' '$CIG_OUT'"
+    "grep -qF \"Error: CI workflow destination '.github/workflows/test-feature.yml' already exists\" '$CIG_OUT'"
 assert "collision: error says it refuses to overwrite" \
     "grep -qiF 'refusing to overwrite' '$CIG_OUT'"
 assert "collision: refused install is not recorded in .features-enabled" \
