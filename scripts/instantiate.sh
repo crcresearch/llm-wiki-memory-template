@@ -400,8 +400,8 @@ fi
 # itself (e.g. observe-the-failure.md), not behavior a derived project needs.
 # Remove only the named dev-only rules, never the whole directory, so any
 # consumer-facing rule a project adds under .claude/rules/ survives and this
-# list stays easy to extend later. update-from-template.sh's ALWAYS_FILES does
-# not re-add these.
+# list stays easy to extend later. The manifest sync arrays consumed by
+# update-from-template.sh do not re-add these.
 CLAUDE_RULES_DIR="$REPO_ROOT/.claude/rules"
 DEV_ONLY_RULES=(observe-the-failure.md)
 for _rule in "${DEV_ONLY_RULES[@]}"; do

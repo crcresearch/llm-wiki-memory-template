@@ -128,7 +128,7 @@ TEMPLATE_HOST_OWNED=(
 )
 
 # Documentation only. These never reach a derived project: instantiate.sh
-# consumes the .template variants and self-deletes; ONE_SHOT_FILES is the
+# consumes the .template variants and self-deletes; TEMPLATE_ONE_SHOT is the
 # manifest record so future code can reference what was deliberately
 # excluded from sync.
 # shellcheck disable=SC2034  # consumed by docs/tests, not by sync logic

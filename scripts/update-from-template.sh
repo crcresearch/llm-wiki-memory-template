@@ -32,7 +32,7 @@
 #   Any file under your project's source tree
 #
 # .gitignore note: earlier versions of this script synced .gitignore as part
-# of ALWAYS_FILES. It is now host-owned. The advisory in the post-sync
+# of the former always-synced list. It is now host-owned. The advisory in the post-sync
 # report flags a divergence if the host's .gitignore differs from the
 # template's; back-port manually if you want the new ignore rule.
 #
@@ -172,10 +172,10 @@ if [[ ${#MISSING_IN_TEMPLATE[@]} -gt 0 ]]; then
 fi
 
 # .gitignore advisory: the file is host-owned (TEMPLATE_HOST_OWNED). Earlier
-# versions of this script synced it as part of ALWAYS_FILES; the host now
-# owns the content. If the template's .gitignore has rules the host lacks,
-# back-port them manually. Probe TEMPLATE_REF directly because .gitignore is
-# absent from the assembled FILES list.
+# versions of this script synced it as part of the former always-synced list;
+# the host now owns the content. If the template's .gitignore has rules the
+# host lacks, back-port them manually. Probe TEMPLATE_REF directly because
+# .gitignore is absent from the assembled FILES list.
 if git cat-file -e "$TEMPLATE_REF:.gitignore" 2>/dev/null && [[ -f "$REPO_ROOT/.gitignore" ]]; then
     TEMPLATE_GI=$(mktemp)
     git show "$TEMPLATE_REF:.gitignore" > "$TEMPLATE_GI"

@@ -25,7 +25,8 @@ echo "*.pyc"              > "$HOST/.gitignore"
 
 # Block the wiki/agents/claude-code/ directory by pre-creating it as a
 # REGULAR FILE. Five overlay templates land under wiki/agents/claude-code/
-# in ADD_ALLOWLIST. Their parent dirs cannot be mkdir'd; cp fails.
+# in the manifest ADD set (TEMPLATE_OVERLAY_CLAUDE). Their parent dirs
+# cannot be mkdir'd; cp fails.
 # Block scripts/lib/ the same way to hit a second category.
 mkdir -p "$HOST/wiki/agents"
 echo "blocker (regular file, not directory)" > "$HOST/wiki/agents/claude-code"
