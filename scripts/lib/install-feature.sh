@@ -151,8 +151,13 @@ install_feature() {
     if [[ -n "$ci_wf" ]]; then
         local ci_src="$feature_dir/$ci_wf"
         if [[ -f "$ci_src" ]]; then
-            mkdir -p .github/workflows
             local ci_dst=".github/workflows/$(basename "$ci_wf")"
+            if [[ -e "$ci_dst" ]]; then
+                echo "Error: CI workflow destination '$ci_dst' already exists." >&2
+                echo "       Refusing to overwrite. Resolve the conflict and re-run." >&2
+                return 1
+            fi
+            mkdir -p .github/workflows
             cp "$ci_src" "$ci_dst"
             echo "  + copied CI workflow -> $ci_dst"
         fi
