@@ -93,13 +93,13 @@ assert "host src/main.py preserved" \
 assert "no Status section emitted on virgin host" \
     "! grep -qE '^Status:.*already adopted' '$OUT'"
 
-# --- Stub markers (no apply, no creep) ---
-assert "stub announces no writes occurred" \
+# --- Dry-run markers (no apply, no creep) ---
+assert "dry-run announces no writes occurred" \
     "grep -qF 'Dry-run only. No files in' '$OUT'"
 assert "NOT IMPLEMENTED YET section present" \
     "grep -qF 'NOT IMPLEMENTED YET' '$OUT'"
 
-# --- No template-side files leaked into host (since stub does not apply) ---
+# --- No template-side files leaked into host (since dry-run does not apply) ---
 assert "host did not gain wiki/init-wiki.sh" \
     "[ ! -e '$HOST/wiki/init-wiki.sh' ]"
 assert "host did not gain scripts/lib/common.sh" \

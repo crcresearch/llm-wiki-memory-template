@@ -150,17 +150,18 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 ./scripts/update-from-template.sh              # apply changes
 ```
 
-**What it updates** (generic, shared content):
+**What it updates** (generic, shared content; the authoritative list is `TEMPLATE_SHARED_INFRA` + the overlay arrays in `scripts/lib/template-manifest.sh`):
 
-- `llm-wiki.md`, `wiki/init-wiki.sh`, `.gitignore`
+- `llm-wiki.md`, `wiki/init-wiki.sh`
 - `wiki/agents/<agent>/setup.sh` and `wiki/agents/<agent>/templates/*` for every overlay present in the project
 - `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md` (only if `.claude/` exists in the project)
 - `.cursor/rules/wiki-*.mdc` (only if `.cursor/` exists in the project)
-- `scripts/instantiate.sh`, `scripts/update-from-template.sh`, `scripts/check-template-version.sh`
+- `scripts/update-from-template.sh`, `scripts/check-template-version.sh` (`scripts/instantiate.sh` is one-shot and intentionally absent from derived projects, so it is never synced)
 
 **What it does NOT touch** (project-specific content):
 
 - `CLAUDE.md` (your project's narrative)
+- `.gitignore` (host-owned, append-only; the post-sync report prints an advisory when it diverges from the template's, so you can back-port new ignore rules manually)
 - `.cursorrules` (your project's narrative for Cursor)
 - `README.md` (your project's user-facing docs)
 - `.claude/settings.json` (your project's permissions)

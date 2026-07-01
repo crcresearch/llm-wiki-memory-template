@@ -16,8 +16,8 @@
 #   adopt-output.txt       captured stdout+stderr of adopt.sh --dry-run for
 #                          the assertions to grep.
 #
-# Hermetic: adopt.sh in stub mode does not touch the network; identity comes
-# from sandbox_git_env.
+# Hermetic: adopt.sh in dry-run mode does not touch the network; identity
+# comes from sandbox_git_env.
 
 set -uo pipefail
 
@@ -34,9 +34,8 @@ mkdir -p "$HOST"
 git init -q "$HOST"
 git -C "$HOST" remote add origin "https://github.com/example-org/example-host.git"
 
-# Host-authored content. With TOUCH grants not yet implemented, the stub
-# doesn't print NEVER-TOUCH, but these files must survive untouched for the
-# stub's "no writes to target" promise to be observable.
+# Host-authored content. These files must survive untouched for the
+# dry-run's "no writes to target" promise to be observable.
 echo "# Example Host" > "$HOST/README.md"
 echo "*.pyc"          > "$HOST/.gitignore"
 mkdir -p "$HOST/src"

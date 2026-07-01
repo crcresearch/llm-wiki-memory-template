@@ -54,12 +54,12 @@ status_count=$(grep -cE '^Status:.*already adopted' "$OUT" || true)
 assert "Status line appears exactly once (not duplicated)" \
     "[ '$status_count' -eq 1 ]"
 
-# --- Stub still doesn't apply ---
+# --- Dry-run still doesn't apply ---
 assert "host README.md preserved" \
     "grep -qF 'Adopted Host' '$HOST/README.md'"
 assert "host's own .claude/ overlay preserved (no churn from adopt)" \
     "[ -f '$HOST/.claude/commands/example.md' ]"
 assert "host kept its own init-wiki.sh content" \
     "grep -qF 'do not let update-from-template silently overwrite' '$HOST/wiki/init-wiki.sh'"
-assert "stub announces no writes occurred" \
+assert "dry-run announces no writes occurred" \
     "grep -qF 'Dry-run only. No files in' '$OUT'"

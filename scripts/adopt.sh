@@ -2,10 +2,18 @@
 # adopt.sh — additive overlay of llm-wiki-memory-template into an existing
 # repository.
 #
-# STATUS: STUB. Performs --dry-run only; classifies the ADD allowlist
-# against the target repo (ADD / SKIP / REFUSE) and prints a report.
-# Does NOT apply any changes, does NOT read TOUCH grants, does NOT
-# init the wiki sub-repo, does NOT install agent overlays or features.
+# Default mode is dry-run: classify the ADD allowlist against the target
+# repo (ADD / SKIP / REFUSE) and print a report. With --apply it mutates
+# the target: copies every ADD entry (never overwrites), applies the
+# host-owned TOUCH grants (CLAUDE.md managed-block, .gitignore append-only,
+# .claude/settings.json merge) from .llm-wiki-adopt-grants.yml or the built-in
+# defaults, runs wiki/init-wiki.sh to bootstrap the wiki sub-repo, runs the
+# chosen overlay's wiki/agents/<agent>/setup.sh, optionally wires the GitHub
+# Wiki backend (--github-wiki), and appends a manifest of what changed to
+# .llm-wiki-adopt-log.md. Guards against re-adoption, routing an already-
+# adopted host to update-from-template.sh instead.
+#
+# Known limitation: --features is parsed but features are not installed yet.
 #
 # Design:
 #   https://github.com/crcresearch/llm-wiki-memory-template/wiki/Adopt-Existing-Repo-Design
@@ -477,7 +485,7 @@ if [[ ${#ACT_TOUCH_INVALID[@]} -gt 0 ]]; then
 fi
 
 cat <<'EOF'
-NOT IMPLEMENTED YET (stub limitation, not absent from the design)
+NOT IMPLEMENTED YET (planned; parsed but not wired, not absent from the design)
   - Feature install via --features (install_feature from scripts/lib/)
 EOF
 echo ""

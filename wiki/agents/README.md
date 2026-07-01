@@ -117,8 +117,9 @@ The sync scripts treat one-shot files specially:
 
 - `scripts/update-from-template.sh` and
   `scripts/check-template-version.sh` **do not include one-shot files
-  in their file lists.** A `ONE_SHOT_FILES` array in each of those
-  scripts documents the convention but is not used to sync.
+  in their file lists.** The `TEMPLATE_ONE_SHOT` array in
+  `scripts/lib/template-manifest.sh` (the single source of truth both
+  scripts consume) records the convention but is not used to sync.
 - Result: a project derived from the template never shows drift on a
   one-shot file, because the file is intentionally absent.
 
@@ -128,10 +129,10 @@ and then is no longer needed), follow the same pattern:
 
 1. Have the script call `rm -f "$0"` at the end of a successful run,
    with a brief explanation echoed to the user.
-2. Add the script's path to the `ONE_SHOT_FILES` array in both
-   `scripts/update-from-template.sh` and
-   `scripts/check-template-version.sh`. Do **not** add it to
-   `ALWAYS_FILES`.
+2. Add the script's path to the `TEMPLATE_ONE_SHOT` array in
+   `scripts/lib/template-manifest.sh`. Do **not** add it to any of the
+   sync arrays (`TEMPLATE_SHARED_INFRA`, `TEMPLATE_OVERLAY_CLAUDE`,
+   `TEMPLATE_OVERLAY_CURSOR`).
 3. Document the script in this README so future maintainers know it
    is one-shot.
 

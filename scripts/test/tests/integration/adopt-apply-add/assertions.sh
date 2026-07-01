@@ -75,7 +75,7 @@ assert "manifest records the signal count" \
 assert "manifest lists each ADDed path under the ADDed bullet" \
     "grep -qF -- '  - wiki/init-wiki.sh' '$HOST/.llm-wiki-adopt-log.md'"
 
-# --- Stub markers (TOUCH apply still deferred) ---
+# --- Apply-phase statuses + the one remaining deferral (feature install) ---
 assert "manifest records init-wiki status" \
     "grep -qE -- '- init-wiki: (applied|already-present|skipped)' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records overlay setup status" \
