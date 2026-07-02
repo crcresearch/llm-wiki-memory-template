@@ -69,14 +69,19 @@ fi
 if [ -f "$T/scripts/instantiate.sh" ] && [ ! -f "$T/CLAUDE.md" ]; then
     (
         cd "$T"
+        rc=0
         bash scripts/instantiate.sh "Agent Comms Smoke Test" \
             --agent=none \
             --description="Smoke test for instantiate.sh --features=agent-comms" \
             --features=agent-comms \
-            >/tmp/instantiate-with-agent-comms.log 2>&1 || {
-                echo "  WARN: instantiate.sh --features=agent-comms failed; assertions will surface the cause." >&2
-                sed 's/^/    /' < /tmp/instantiate-with-agent-comms.log >&2
-            }
+            >/tmp/instantiate-with-agent-comms.log 2>&1 || rc=$?
+        # rc sidecar outside the tree; assertions.sh asserts rc == 0
+        # (a WARN alone let mid-run instantiate deaths pass silently).
+        echo "$rc" > "$T.instantiate-rc"
+        if [ "$rc" -ne 0 ]; then
+            echo "  WARN: instantiate.sh --features=agent-comms failed (rc=$rc); the exit-status assertion will fail." >&2
+            sed 's/^/    /' < /tmp/instantiate-with-agent-comms.log >&2
+        fi
     )
 fi
 

@@ -16,6 +16,11 @@ if [ ! -d "$T" ]; then
     return 0 2>/dev/null || true
 fi
 
+# Exit status first: the assertions below are presence-conditional and can
+# pass against a half-bootstrapped tree (mid-run deaths were WARN-swallowed).
+assert "instantiate.sh exited 0" \
+    "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
+
 # Precondition: the template shipped .claude/rules/ before instantiation.
 # Without this, "stripped after" would hold trivially against a tree that
 # never had the directory.

@@ -42,13 +42,18 @@ git -C "$T" remote add origin "https://github.com/acme/widget.git"
 if [ -f "$T/scripts/instantiate.sh" ] && [ ! -f "$T/CLAUDE.md" ]; then
     (
         cd "$T"
+        rc=0
         bash scripts/instantiate.sh "Widget Project" \
             --agent=none \
             --description="F1 naming handshake smoke test." \
-            >/tmp/instantiate-naming.log 2>&1 || {
-                echo "  WARN: instantiate.sh failed; assertions will surface the cause." >&2
-                sed 's/^/    /' /tmp/instantiate-naming.log >&2
-            }
+            >/tmp/instantiate-naming.log 2>&1 || rc=$?
+        # rc sidecar outside the tree; assertions.sh asserts rc == 0
+        # (a WARN alone let mid-run instantiate deaths pass silently).
+        echo "$rc" > "$T.instantiate-rc"
+        if [ "$rc" -ne 0 ]; then
+            echo "  WARN: instantiate.sh failed (rc=$rc); the exit-status assertion will fail." >&2
+            sed 's/^/    /' /tmp/instantiate-naming.log >&2
+        fi
     )
 fi
 

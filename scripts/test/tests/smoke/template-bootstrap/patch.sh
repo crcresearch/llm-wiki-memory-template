@@ -50,13 +50,21 @@ if [ -f "$T/scripts/instantiate.sh" ]; then
             # the claude-code overlay. The --agent=none path is covered
             # separately by the instantiate-agent-none smoke test (issue #9
             # regression).
+            rc=0
             bash scripts/instantiate.sh "Smoke Test Project" \
                 --agent=claude-code \
                 --description="Bootstrapping the template inside the harness sandbox." \
-                >/tmp/instantiate.log 2>&1 || {
-                    echo "  WARN: instantiate.sh failed; assertions will surface the cause." >&2
-                    cat /tmp/instantiate.log | sed 's/^/    /' >&2
-                }
+                >/tmp/instantiate.log 2>&1 || rc=$?
+            # Sidecar, not in-tree: a file inside $T would pollute the
+            # derivative the assertions inspect. assertions.sh asserts
+            # rc == 0 — the previous WARN-only handling let a mid-run
+            # instantiate death pass the whole suite with 0 fail (every
+            # downstream assertion is presence-conditional).
+            echo "$rc" > "$T.instantiate-rc"
+            if [ "$rc" -ne 0 ]; then
+                echo "  WARN: instantiate.sh failed (rc=$rc); the exit-status assertion will fail." >&2
+                sed 's/^/    /' /tmp/instantiate.log >&2
+            fi
         fi
     )
 fi

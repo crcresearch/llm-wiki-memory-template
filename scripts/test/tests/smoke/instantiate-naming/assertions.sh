@@ -11,6 +11,11 @@ if [ ! -d "$T" ]; then
     return 0 2>/dev/null || true
 fi
 
+# Exit status first: the assertions below are presence-conditional and can
+# pass against a half-bootstrapped tree (mid-run deaths were WARN-swallowed).
+assert "instantiate.sh exited 0" \
+    "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
+
 assert "instantiate.sh produced CLAUDE.md" "[ -f '$T/CLAUDE.md' ]"
 
 # --- F1: namespace from origin (widget), not basename (clonedir) ---

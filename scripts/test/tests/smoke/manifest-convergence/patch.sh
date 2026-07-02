@@ -64,13 +64,18 @@ git -C "$A" remote add origin "https://github.com/conv/conv-a.git"
 if [ -f "$A/scripts/instantiate.sh" ] && [ ! -f "$A/CLAUDE.md" ]; then
     (
         cd "$A"
+        rc=0
         bash scripts/instantiate.sh "Conv A" \
             --agent=none \
             --description="manifest-convergence sandbox A" \
-            >/tmp/conv-A.log 2>&1 || {
-                echo "  WARN: instantiate failed in A; assertions will surface." >&2
-                sed 's/^/    /' /tmp/conv-A.log >&2
-            }
+            >/tmp/conv-A.log 2>&1 || rc=$?
+        # rc sidecar outside the tree; assertions.sh asserts rc == 0
+        # (a WARN alone let mid-run instantiate deaths pass silently).
+        echo "$rc" > "$A.instantiate-rc"
+        if [ "$rc" -ne 0 ]; then
+            echo "  WARN: instantiate failed in A (rc=$rc); the exit-status assertion will fail." >&2
+            sed 's/^/    /' /tmp/conv-A.log >&2
+        fi
     )
 fi
 
@@ -86,11 +91,15 @@ fi
 
 if [ ! -f "$B/llm-wiki.md" ]; then
     ADOPT="$TEMPLATE_ROOT/scripts/adopt.sh"
+    rc=0
     bash "$ADOPT" --target="$B" --apply --agent=claude-code \
-        >/tmp/conv-B.log 2>&1 || {
-            echo "  WARN: adopt --apply failed in B; assertions will surface." >&2
-            sed 's/^/    /' /tmp/conv-B.log >&2
-        }
+        >/tmp/conv-B.log 2>&1 || rc=$?
+    # Same rc-sidecar discipline as A: adopt failures were WARN-swallowed too.
+    echo "$rc" > "$B.adopt-rc"
+    if [ "$rc" -ne 0 ]; then
+        echo "  WARN: adopt --apply failed in B (rc=$rc); the exit-status assertion will fail." >&2
+        sed 's/^/    /' /tmp/conv-B.log >&2
+    fi
 fi
 
 # --- Stage a third record: what the manifest assembler returns for the

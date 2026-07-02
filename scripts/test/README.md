@@ -39,22 +39,32 @@ Exit code = number of failed assertions. 0 = all green.
 
 ## Template source
 
-Smoke tests need a real template clone. Two ways to provide one:
+Smoke tests need a real template clone. Resolution order:
 
 ```bash
-# Offline mode (preferred for fast iteration; cheapest)
+# Default: no env vars needed. run.sh exports THIS working tree's
+# git-visible files (tracked + untracked-unignored) into the sandbox and
+# tests those — your edits, not the published template. Gitignored
+# artifacts (dev-self CLAUDE.md, wiki/<template>.wiki/, kg caches) are
+# excluded from the export.
+./scripts/test/run.sh
+
+# Explicit local clone (overrides the default; what CI uses)
 export MVP_TEMPLATE_LOCAL=/path/to/llm-wiki-memory-template
 ./scripts/test/run.sh
 
-# Network mode (defaults to the upstream fork)
-./scripts/test/run.sh
-
-# Network mode with a different fork / branch
+# Network mode with a specific fork / URL (overrides the default)
 export MVP_TEMPLATE_REPO=https://github.com/your-fork/llm-wiki-memory-template.git
 ./scripts/test/run.sh
 ```
 
-If neither is reachable, smoke tests `skip` gracefully.
+The default only applies when neither variable is set AND run.sh sits
+inside a git repository; otherwise it falls back to network-cloning the
+canonical template, and if that is unreachable too, smoke tests `skip`
+gracefully.
+
+Note the network fallback tests the *published* template, not your local
+changes — fine for a derived project's CI, wrong for template development.
 
 ## Structure
 

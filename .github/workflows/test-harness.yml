@@ -43,6 +43,34 @@ jobs:
           MVP_TEMPLATE_LOCAL: ${{ github.workspace }}
         run: ./scripts/test/run.sh
 
+  # Exercise run.sh's DEFAULT template-source path: with MVP_TEMPLATE_LOCAL
+  # unset, the harness exports the checkout's git-visible files into the
+  # sandbox via git ls-files + tar --null -T -. The jobs above pin the
+  # variable, so without this job that branch never runs in CI at all —
+  # including bsdtar's --null -T - handling on macOS, which has no other
+  # coverage (dev boxes are Linux/GNU tar). Smoke only: that is the
+  # category that consumes clone_template, where the default matters.
+  default-template-source:
+    name: test (default source / ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python deps (venv)
+        run: |
+          python3 -m venv "${RUNNER_TEMP:-/tmp}/venv"
+          "${RUNNER_TEMP:-/tmp}/venv/bin/pip" install --quiet --upgrade pip
+          "${RUNNER_TEMP:-/tmp}/venv/bin/pip" install --quiet pyyaml rdflib pyshacl
+          echo "${RUNNER_TEMP:-/tmp}/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run test harness (smoke, default template source)
+        run: ./scripts/test/run.sh --category=smoke
+
   # Exercise the harness across packaged git versions that straddle two cutoffs:
   # init.defaultBranch (git 2.28) and GIT_CONFIG_GLOBAL (git 2.32). Containers,
   # not runners, since GitHub ships one git per hosted image. ubuntu:20.04 ==

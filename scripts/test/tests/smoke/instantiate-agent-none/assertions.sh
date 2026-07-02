@@ -13,6 +13,11 @@ if [ ! -d "$T" ]; then
     return 0 2>/dev/null || true
 fi
 
+# Exit status first: the assertions below are presence-conditional and can
+# pass against a half-bootstrapped tree (mid-run deaths were WARN-swallowed).
+assert "instantiate.sh --agent=none exited 0" \
+    "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
+
 # Bootstrap exit + CLAUDE.md substitution
 assert "instantiate.sh --agent=none produced CLAUDE.md" \
     "[ -f '$T/CLAUDE.md' ]"

@@ -152,6 +152,49 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Default the template source to THIS working tree when the caller set
+# neither MVP_TEMPLATE_LOCAL nor MVP_TEMPLATE_REPO. Without this, a bare
+# local run network-cloned the PUBLISHED template: the sandbox then tested
+# upstream main instead of the tree being edited (a green that says nothing
+# about your change), and the clone-dir naming broke every wiki/<name>.wiki
+# assertion (30 spurious fails).
+#
+# The export copies git-visible files only (tracked + untracked-unignored,
+# via ls-files --exclude-standard) instead of cp -R'ing the working tree,
+# so gitignored contributor artifacts — the dev-self CLAUDE.md excluded via
+# .git/info/exclude, wiki/<template>.wiki/, kg build caches — never leak
+# into the sandbox and corrupt the bootstrap assertions.
+#
+# CI is unaffected: test-harness.yml sets MVP_TEMPLATE_LOCAL explicitly.
+# In a DERIVED project (this harness ships via "Use this template"), the
+# export carries CLAUDE.md and no CLAUDE.md.template, so clone_template's
+# derived-project guard (issue #15) still declines and smoke tests skip.
+if [ -z "${MVP_TEMPLATE_LOCAL:-}" ] && [ -z "${MVP_TEMPLATE_REPO:-}" ]; then
+    REPO_ROOT_DEFAULT="$(cd "$HERE/../.." && pwd)"
+    if git -C "$REPO_ROOT_DEFAULT" rev-parse --show-toplevel >/dev/null 2>&1; then
+        TEMPLATE_SRC="$SANDBOX/template-src"
+        mkdir -p "$TEMPLATE_SRC"
+        # The while loop drops tracked-but-deleted paths (ls-files --cached
+        # still lists them) so tar never errors on a missing file. NUL
+        # delimiters throughout; bsdtar and GNU tar both take --null -T -.
+        if (
+            cd "$REPO_ROOT_DEFAULT" \
+            && git ls-files -z --cached --others --exclude-standard \
+               | while IFS= read -r -d '' _f; do
+                     if [ -e "$_f" ]; then printf '%s\0' "$_f"; fi
+                 done \
+               | tar --null -T - -cf -
+        ) | tar -xf - -C "$TEMPLATE_SRC"; then
+            export MVP_TEMPLATE_LOCAL="$TEMPLATE_SRC"
+            echo "Template source: $REPO_ROOT_DEFAULT working tree (git-visible files)"
+            echo "  (override with MVP_TEMPLATE_LOCAL=<path> or MVP_TEMPLATE_REPO=<url>)"
+        else
+            echo "WARN: could not export the working tree for smoke tests;" >&2
+            echo "      falling back to the network clone of the published template." >&2
+        fi
+    fi
+fi
+
 # Run each test in order
 LAST_CATEGORY=""
 for entry in "${TEST_LIST[@]}"; do

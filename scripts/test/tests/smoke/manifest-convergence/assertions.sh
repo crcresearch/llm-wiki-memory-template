@@ -13,6 +13,18 @@ A="$STAGE/A"
 B="$STAGE/B"
 REPO_ROOT_LIB="$(cd "$HERE/../.." && pwd)"
 
+# Patch declines (exit 0, nothing staged) when no usable template source
+# exists: offline, or TEMPLATE_ROOT is itself a derived project — this
+# harness ships to derived projects via "Use this template", where
+# clone_template's issue-#15 guard refuses the copy. Skip like the five
+# sibling smoke tests instead of failing four staging assertions that can
+# never hold in a derived checkout (observed: 4 spurious fails in every
+# derived project's CI).
+if [ ! -d "$A" ]; then
+    skip "manifest-convergence assertions" "no template clone available (offline, or run inside a derived project)"
+    return 0 2>/dev/null || true
+fi
+
 # --- Sanity: both sandboxes exist ------------------------------------------
 assert "manifest-convergence A staged"     "[ -d '$A' ]"
 assert "manifest-convergence B staged"     "[ -d '$B' ]"
@@ -26,6 +38,14 @@ if [ ! -f "$A/llm-wiki.md" ]; then
     skip "manifest-convergence body assertions" "sandbox A not bootstrapped (clone_template likely skipped)"
     return 0
 fi
+
+# Exit statuses first: the convergence comparison below only inspects
+# files that exist, so a mid-run death in either code path could still
+# converge trivially (both rc's were WARN-swallowed before).
+assert "instantiate (A) exited 0" \
+    "[ \"\$(cat '$A.instantiate-rc' 2>/dev/null)\" = '0' ]"
+assert "adopt --apply (B) exited 0" \
+    "[ \"\$(cat '$B.adopt-rc' 2>/dev/null)\" = '0' ]"
 
 # --- Manifest IS what adopt installed --------------------------------------
 # Iterate the expected list (adopt mode, AGENT=claude-code). Every entry
