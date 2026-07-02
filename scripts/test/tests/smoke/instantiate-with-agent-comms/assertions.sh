@@ -14,6 +14,11 @@ if [ ! -d "$T" ]; then
     return 0 2>/dev/null || true
 fi
 
+# Exit status first: the assertions below are presence-conditional and can
+# pass against a half-bootstrapped tree (mid-run deaths were WARN-swallowed).
+assert "instantiate.sh --features=agent-comms exited 0" \
+    "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
+
 REPO_NAME=$(basename "$T")  # template-comms
 
 # --- Base bootstrap happened ---

@@ -11,6 +11,12 @@ if [ ! -d "$T" ]; then
     return 0 2>/dev/null || true
 fi
 
+# The exit status is asserted directly: every assertion below is
+# presence-conditional and can pass against a half-bootstrapped tree
+# (observed: a post-wiki instantiate death still reported 0 fail).
+assert "instantiate.sh exited 0" \
+    "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
+
 # --- Syntax checks on the template's shipping scripts ---
 # These are the bash -n checks template issue #5 explicitly calls for.
 for script in \

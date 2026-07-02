@@ -27,6 +27,14 @@ if [ ! -f "$A/llm-wiki.md" ]; then
     return 0
 fi
 
+# Exit statuses first: the convergence comparison below only inspects
+# files that exist, so a mid-run death in either code path could still
+# converge trivially (both rc's were WARN-swallowed before).
+assert "instantiate (A) exited 0" \
+    "[ \"\$(cat '$A.instantiate-rc' 2>/dev/null)\" = '0' ]"
+assert "adopt --apply (B) exited 0" \
+    "[ \"\$(cat '$B.adopt-rc' 2>/dev/null)\" = '0' ]"
+
 # --- Manifest IS what adopt installed --------------------------------------
 # Iterate the expected list (adopt mode, AGENT=claude-code). Every entry
 # must exist on disk in B. Any failure here means adopt did NOT install

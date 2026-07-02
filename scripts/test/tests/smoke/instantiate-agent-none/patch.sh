@@ -46,13 +46,18 @@ if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"
         if [ ! -f CLAUDE.md ]; then
+            rc=0
             bash scripts/instantiate.sh "Agent None Project" \
                 --agent=none \
                 --description="Regression test for issue #9 (set -u + empty array)." \
-                >/tmp/instantiate-none.log 2>&1 || {
-                    echo "  WARN: instantiate.sh --agent=none failed; assertions will surface the cause." >&2
-                    cat /tmp/instantiate-none.log | sed 's/^/    /' >&2
-                }
+                >/tmp/instantiate-none.log 2>&1 || rc=$?
+            # rc sidecar outside the tree; assertions.sh asserts rc == 0
+            # (a WARN alone let mid-run instantiate deaths pass silently).
+            echo "$rc" > "$T.instantiate-rc"
+            if [ "$rc" -ne 0 ]; then
+                echo "  WARN: instantiate.sh --agent=none failed (rc=$rc); the exit-status assertion will fail." >&2
+                sed 's/^/    /' /tmp/instantiate-none.log >&2
+            fi
         fi
     )
 fi
