@@ -2,6 +2,8 @@
 
 A template repository for the [llm-wiki pattern](https://github.com/tobi/llm-wiki), with optional overlays for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Cursor](https://docs.cursor.com/). The llm-wiki layer is agent-agnostic, so the same template also works in minimal mode for OpenCode, Pi, OpenInterpreter, or any agent you write yourself.
 
+The pattern this template implements is described in [Beyond Memory](https://doi.org/10.5281/zenodo.21213175) (Saboia Moreira et al., 2026, Zenodo concept DOI that resolves to the latest version), with a project-facing overview at the [Wiki-Grounded Research Agent](https://la3d.github.io/WGRA) flyer.
+
 ## Status
 
 **Only the Claude Code path has been validated end-to-end.** The slash commands `/wiki-experiment`, `/wiki-source`, `/wiki-lint`, the proactive read/write/commit loop, and the auto-commit step have all been exercised on a project derived from this template. The Claude Code overlay is ready for CRC use.
