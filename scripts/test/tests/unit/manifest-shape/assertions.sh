@@ -13,6 +13,19 @@ ROOT="$SANDBOX/manifest-shape"
 REPO_ROOT_LIB="$(cd "$HERE/../.." && pwd)"
 LW_MANIFEST="$REPO_ROOT_LIB/scripts/lib/template-manifest.sh"
 
+# Template-checkout guard: the tree invariants below (every SUBSTITUTE
+# entry still contains {{REPO_NAME}}, every overlay entry exists on disk)
+# hold only in the template repo. This harness ships to derived projects
+# via "Use this template", where instantiate has already substituted the
+# placeholders and pruned the unused overlays — there the invariants are
+# legitimately false (observed: 12 spurious fails in a derived project's
+# CI). Same discriminator as clone_template's issue-#15 guard: only the
+# template checkout carries CLAUDE.md.template.
+if [ ! -f "$REPO_ROOT_LIB/CLAUDE.md.template" ]; then
+    skip "manifest-shape assertions" "not a template checkout (derived project; manifest tree-invariants do not apply)"
+    return 0 2>/dev/null || true
+fi
+
 # Subshell sourcer; stdout is the eval result, exit status is the call's.
 # shellcheck source=/dev/null
 lw_mcall() { ( set -uo pipefail; source "$LW_MANIFEST"; eval "$1" ); }

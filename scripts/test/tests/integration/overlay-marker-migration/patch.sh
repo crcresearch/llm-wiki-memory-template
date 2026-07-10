@@ -65,11 +65,17 @@ EOF
 _mkproj "$STAGE/old-both" sigil
 _legacy_both > "$STAGE/old-both/CLAUDE.md"
 
-_mkproj "$STAGE/cur-both" glyph
-_legacy_both > "$STAGE/cur-both/CLAUDE.md"
-# cursor overlay keys off .cursor/rules presence in some flows; not required
-# here (setup.sh patches CLAUDE.md regardless), but mark the overlay active.
-mkdir -p "$STAGE/cur-both/.cursor/rules"
+# The cursor leg drives wiki/agents/cursor/setup.sh from the checkout,
+# which instantiate prunes in claude-code-derived projects. Stage it only
+# when the overlay exists; assertions.sh skips the cursor asserts when
+# cur-both is absent.
+if [ -f "$REPO_ROOT/wiki/agents/cursor/setup.sh" ]; then
+    _mkproj "$STAGE/cur-both" glyph
+    _legacy_both > "$STAGE/cur-both/CLAUDE.md"
+    # cursor overlay keys off .cursor/rules presence in some flows; not required
+    # here (setup.sh patches CLAUDE.md regardless), but mark the overlay active.
+    mkdir -p "$STAGE/cur-both/.cursor/rules"
+fi
 
 _mkproj "$STAGE/old-partial" sigil
 cat > "$STAGE/old-partial/CLAUDE.md" <<'EOF'
