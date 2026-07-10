@@ -621,6 +621,22 @@ if [[ -d "$WIKI_SUBREPO_DIR/.git" ]]; then
         GITHUB_WIKI_STATUS="skipped"
         GITHUB_WIKI_DETAIL="wiki sub-repo already present; no seed-push needed"
     fi
+    # The ADDed wiki/*.md.template pages (e.g. Edge-Types.md.template, #75)
+    # are stamped into the wiki by init-wiki, which this branch never runs
+    # — and running a full update pass over a PRE-EXISTING wiki from adopt
+    # would risk overwriting host content (issue #66's Home.md case). Stamp
+    # only the MISSING pages instead: creates what is absent, touches
+    # nothing that exists.
+    if [[ -f "$TARGET/wiki/init-wiki.sh" ]]; then
+        stamp_rc=0
+        (cd "$TARGET" && bash wiki/init-wiki.sh --repo-name "$PROJECT_NAME" \
+            --stamp-missing-templates >/dev/null 2>&1) || stamp_rc=$?
+        if [[ $stamp_rc -eq 0 ]]; then
+            INIT_WIKI_DETAIL="$INIT_WIKI_DETAIL; stamped missing wiki template pages"
+        else
+            INIT_WIKI_DETAIL="$INIT_WIKI_DETAIL; stamp-missing-templates exited $stamp_rc"
+        fi
+    fi
 elif [[ -f "$TARGET/wiki/init-wiki.sh" ]]; then
     # init_wiki_args: assembled below; --github appended only when seed-push
     # succeeded OR the wiki was already materialized upstream. On any

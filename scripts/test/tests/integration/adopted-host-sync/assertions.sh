@@ -60,3 +60,51 @@ assert "stamped Edge-Types.md has the repo name substituted" \
     "grep -qF 'sync-host' '$EDGE'"
 assert "stamped Edge-Types.md has no {{REPO_NAME}} placeholder left" \
     "! grep -qF '{{REPO_NAME}}' '$EDGE'"
+
+# --- #74 migration: legacy host (adopted pre-fix, no manifest on disk) ------
+# Its updater must BOOTSTRAP the manifest from the template ref instead of
+# dying at the source line, then install the real file via the normal sync
+# loop (apply mode). The Edge-Types PAGE is deliberately not asserted here:
+# update syncs files, it does not stamp wikis — legacy wikis gain the page
+# on their next init-wiki run.
+H2="$STAGE/legacy-host"
+assert "legacy host staged without the manifest" \
+    "[ -d '$H2' ] && [ ! -f '$H2/scripts/lib/template-manifest.sh' ]"
+legacy_rc=0
+( cd "$H2" && ./scripts/update-from-template.sh --template-url="$T" ) \
+    > "$STAGE/legacy-update.out" 2>&1 || legacy_rc=$?
+assert_eq "legacy host update-from-template.sh exit status" "0" "$legacy_rc"
+assert "legacy update printed its report banner" \
+    "grep -qF '================ update-from-template ================' '$STAGE/legacy-update.out'"
+assert "legacy update announced the manifest bootstrap" \
+    "grep -qi 'bootstrap' '$STAGE/legacy-update.out'"
+assert "legacy host now has scripts/lib/template-manifest.sh on disk" \
+    "[ -f '$H2/scripts/lib/template-manifest.sh' ]"
+assert "restored manifest is byte-equal to the template's" \
+    "cmp -s '$H2/scripts/lib/template-manifest.sh' '$T/scripts/lib/template-manifest.sh'"
+assert "legacy host got wiki/Edge-Types.md.template back too" \
+    "[ -f '$H2/wiki/Edge-Types.md.template' ]"
+legacy_check_rc=0
+( cd "$H2" && ./scripts/check-template-version.sh --template-url="$T" ) \
+    > "$STAGE/legacy-check.out" 2>&1 || legacy_check_rc=$?
+assert "legacy host check-template-version completed (rc <= 1)" \
+    "[ '$legacy_check_rc' -le 1 ]"
+assert "legacy check printed its report banner" \
+    "grep -qF '================ check-template-version ================' '$STAGE/legacy-check.out'"
+
+# --- #75: host whose wiki sub-repo already existed at adopt time ------------
+# adopt's init-wiki dispatch short-circuits on the existing wiki, so the
+# already-present branch must stamp the MISSING template pages itself —
+# and must not touch the host's pre-existing wiki content.
+H3="$STAGE/prewiki-host"
+assert "prewiki adopt --apply exited 0" \
+    "[ \"\$(cat '$H3.adopt-rc' 2>/dev/null)\" = '0' ]"
+EDGE3="$H3/wiki/prewiki-host.wiki/Edge-Types.md"
+assert "prewiki host: Edge-Types.md stamped despite skipped init-wiki" \
+    "[ -f '$EDGE3' ]"
+assert "prewiki host: stamped page has the repo name substituted" \
+    "grep -qF 'prewiki-host' '$EDGE3'"
+assert "prewiki host: pre-existing SCHEMA content untouched" \
+    "grep -qF 'PRE_EXISTING_SCHEMA_SENTINEL' '$H3/wiki/prewiki-host.wiki/SCHEMA_prewiki-host.md'"
+assert "prewiki host: pre-existing Home content untouched" \
+    "grep -qF 'PRE_EXISTING_HOME_SENTINEL' '$H3/wiki/prewiki-host.wiki/Home_prewiki-host.md'"

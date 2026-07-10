@@ -58,12 +58,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Load shared library + template manifest ---
+# --- Load shared library ---
+# The template manifest is sourced AFTER the fetch below, so a host that
+# lacks the file can bootstrap it from the template ref (#74).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
-# shellcheck source=lib/template-manifest.sh
-source "$HERE/lib/template-manifest.sh"
 
 REPO_ROOT=$(lw_repo_root)
 # Post-clone: the authoritative name is the on-disk wiki, not the clone-dir
@@ -88,6 +88,30 @@ git fetch --quiet template "$TEMPLATE_BRANCH"
 TEMPLATE_REF="template/$TEMPLATE_BRANCH"
 TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
 echo "Template HEAD: $TEMPLATE_SHA"
+
+# --- Load the template manifest (bootstrap when the host lacks it, #74) ---
+# Hosts adopted before the manifest shipped itself have an updater whose
+# file list lives in a file they never received; sourcing it directly would
+# die before the fetch that could deliver the fix. Materialize the manifest
+# from the just-fetched template ref into a TEMP file and source that — the
+# sync loop below then installs scripts/lib/template-manifest.sh on disk
+# like any other missing manifest-listed file (or reports it, on --dry-run).
+MANIFEST_PATH="$HERE/lib/template-manifest.sh"
+if [[ ! -f "$MANIFEST_PATH" ]]; then
+    MANIFEST_PATH=$(mktemp)
+    if ! git show "$TEMPLATE_REF:scripts/lib/template-manifest.sh" > "$MANIFEST_PATH" 2>/dev/null; then
+        rm -f "$MANIFEST_PATH"
+        echo "error: scripts/lib/template-manifest.sh is missing locally AND absent from $TEMPLATE_REF; cannot assemble the sync file list" >&2
+        exit 1
+    fi
+    echo "note: local scripts/lib/template-manifest.sh missing (host adopted before #74);"
+    echo "      bootstrapped this run's copy from $TEMPLATE_REF. The sync below installs it."
+fi
+# shellcheck source=lib/template-manifest.sh
+source "$MANIFEST_PATH"
+if [[ "$MANIFEST_PATH" != "$HERE/lib/template-manifest.sh" ]]; then
+    rm -f "$MANIFEST_PATH"
+fi
 
 # --- Build the file list ---
 # All path enumeration lives in scripts/lib/template-manifest.sh. The

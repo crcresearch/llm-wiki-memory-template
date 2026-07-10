@@ -62,4 +62,60 @@ if [ ! -f "$H/llm-wiki.md" ]; then
     fi
 fi
 
-echo "  adopted-host-sync patch applied: template at $T, host at $H."
+# --- H2: legacy host — adopted BEFORE the manifest shipped itself (#74) -----
+# Simulated by adopting normally, then deleting the artifacts a pre-fix
+# adopt never delivered: the manifest and the Edge-Types template + page.
+# assertions.sh runs the HOST's own update-from-template.sh (apply mode)
+# and requires it to self-heal via the bootstrap instead of dying at its
+# source line.
+H2="$STAGE/legacy-host"
+if [ ! -d "$H2/.git" ]; then
+    git init -q "$H2"
+    git -C "$H2" remote add origin "https://github.com/acme/legacy-host.git"
+    echo "# Legacy Host" > "$H2/README.md"
+    git -C "$H2" -c user.email=t@x.invalid -c user.name=t add -A
+    git -C "$H2" -c user.email=t@x.invalid -c user.name=t commit -qm "initial"
+    rc=0
+    bash "$T/scripts/adopt.sh" --target="$H2" --apply --agent=claude-code \
+        >/tmp/adopted-host-sync-h2.log 2>&1 || rc=$?
+    echo "$rc" > "$H2.adopt-rc"
+    if [ "$rc" -ne 0 ]; then
+        echo "  WARN: adopt --apply failed on legacy host (rc=$rc)." >&2
+        sed 's/^/    /' /tmp/adopted-host-sync-h2.log >&2
+    fi
+    rm -f "$H2/scripts/lib/template-manifest.sh" \
+          "$H2/wiki/Edge-Types.md.template" \
+          "$H2/wiki/legacy-host.wiki/Edge-Types.md"
+fi
+
+# --- H3: host whose wiki sub-repo ALREADY exists at adopt time (#75) --------
+# adopt's init-wiki dispatch short-circuits on wiki/<repo>.wiki/.git, so
+# stamping must happen via the already-present branch. The pre-existing
+# wiki carries sentinel content that adopt must NOT touch. The committed
+# .gitignore rule keeps the wiki sub-repo out of git status so adopt's
+# clean-tree guard passes (the same rule adopt's own grant installs).
+H3="$STAGE/prewiki-host"
+if [ ! -d "$H3/.git" ]; then
+    git init -q "$H3"
+    git -C "$H3" remote add origin "https://github.com/acme/prewiki-host.git"
+    echo "# Prewiki Host" > "$H3/README.md"
+    printf 'wiki/*.wiki/\n' > "$H3/.gitignore"
+    mkdir -p "$H3/wiki/prewiki-host.wiki"
+    git init -q "$H3/wiki/prewiki-host.wiki"
+    printf '# SCHEMA\n\nPRE_EXISTING_SCHEMA_SENTINEL\n' \
+        > "$H3/wiki/prewiki-host.wiki/SCHEMA_prewiki-host.md"
+    printf '# Home\n\nPRE_EXISTING_HOME_SENTINEL\n' \
+        > "$H3/wiki/prewiki-host.wiki/Home_prewiki-host.md"
+    git -C "$H3" -c user.email=t@x.invalid -c user.name=t add -A
+    git -C "$H3" -c user.email=t@x.invalid -c user.name=t commit -qm "initial"
+    rc=0
+    bash "$T/scripts/adopt.sh" --target="$H3" --apply --agent=claude-code \
+        >/tmp/adopted-host-sync-h3.log 2>&1 || rc=$?
+    echo "$rc" > "$H3.adopt-rc"
+    if [ "$rc" -ne 0 ]; then
+        echo "  WARN: adopt --apply failed on prewiki host (rc=$rc)." >&2
+        sed 's/^/    /' /tmp/adopted-host-sync-h3.log >&2
+    fi
+fi
+
+echo "  adopted-host-sync patch applied: template at $T, hosts at $H, $H2, $H3."

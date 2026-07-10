@@ -29,12 +29,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Load shared library + template manifest ---
+# --- Load shared library ---
+# The template manifest is sourced AFTER the fetch below, so a host that
+# lacks the file can bootstrap it from the template ref (#74).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
-# shellcheck source=lib/template-manifest.sh
-source "$HERE/lib/template-manifest.sh"
 
 REPO_ROOT=$(lw_repo_root)
 # Post-clone authoritative name: the on-disk wiki, not the clone-dir basename
@@ -50,6 +50,28 @@ TEMPLATE_BRANCH=$(lw_default_branch template) || TEMPLATE_BRANCH=main
 git fetch --quiet template "$TEMPLATE_BRANCH"
 TEMPLATE_REF="template/$TEMPLATE_BRANCH"
 TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
+
+# --- Load the template manifest (bootstrap when the host lacks it, #74) ---
+# Same self-heal as update-from-template.sh, read-only variant: source a
+# TEMP copy from the template ref. The manifest then classifies itself
+# into "Missing locally", so the drift report routes the user to
+# update-from-template.sh, which installs it.
+MANIFEST_PATH="$HERE/lib/template-manifest.sh"
+if [[ ! -f "$MANIFEST_PATH" ]]; then
+    MANIFEST_PATH=$(mktemp)
+    if ! git show "$TEMPLATE_REF:scripts/lib/template-manifest.sh" > "$MANIFEST_PATH" 2>/dev/null; then
+        rm -f "$MANIFEST_PATH"
+        echo "error: scripts/lib/template-manifest.sh is missing locally AND absent from $TEMPLATE_REF; cannot assemble the file list" >&2
+        exit 1
+    fi
+    echo "note: local scripts/lib/template-manifest.sh missing (host adopted before #74);"
+    echo "      using the template's copy for this check. It will report as 'Missing locally'."
+fi
+# shellcheck source=lib/template-manifest.sh
+source "$MANIFEST_PATH"
+if [[ "$MANIFEST_PATH" != "$HERE/lib/template-manifest.sh" ]]; then
+    rm -f "$MANIFEST_PATH"
+fi
 
 # File list assembled via the shared manifest in detection mode (empty
 # agent arg, repo_root populated). The two HAS_* flags are reported in
