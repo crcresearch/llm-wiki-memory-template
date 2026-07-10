@@ -62,12 +62,11 @@ if [ ! -f "$H/llm-wiki.md" ]; then
     fi
 fi
 
-# --- H2: legacy host — adopted BEFORE the manifest shipped itself (#74) -----
-# Simulated by adopting normally, then deleting the artifacts a pre-fix
-# adopt never delivered: the manifest and the Edge-Types template + page.
-# assertions.sh runs the HOST's own update-from-template.sh (apply mode)
-# and requires it to self-heal via the bootstrap instead of dying at its
-# source line.
+# --- H2: manifest-less host with the CURRENT updater (#74 bootstrap path) ---
+# Covers the new updater's self-heal branch: manifest missing, updater
+# recent enough to bootstrap it from the template ref. NOTE this is NOT
+# the genuine pre-fix combination — a real legacy host has the OLD
+# updater, which dies before any fetch; that case is H4 below.
 H2="$STAGE/legacy-host"
 if [ ! -d "$H2/.git" ]; then
     git init -q "$H2"
@@ -118,4 +117,47 @@ if [ ! -d "$H3/.git" ]; then
     fi
 fi
 
-echo "  adopted-host-sync patch applied: template at $T, hosts at $H, $H2, $H3."
+# --- H4: GENUINE legacy host — pre-fix updater + no manifest (#74 review) ---
+# H2 exercises the NEW updater's bootstrap; a real pre-fix host runs the
+# OLD updater, which sources the manifest at its line 66 BEFORE any fetch,
+# so no logic delivered by an update can ever reach it. Constructed
+# hermetically from the pinned verbatim artifact
+# _fixtures/legacy-update-from-template.sh (byte copy of
+# origin/main @ 0eec87c; CI checkouts are depth-1, so extracting the old
+# version from git history at run time is not an option).
+#
+# assertions.sh first OBSERVES the constraint (old updater dies naming the
+# manifest), then runs the documented migration — re-adopt --apply --force
+# from the template, no host-side tooling required — and finally proves
+# the old updater, unblocked by the delivered manifest, syncs itself up
+# to the current version.
+H4="$STAGE/oldhost"
+FIXTURES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/_fixtures" && pwd)"
+if [ ! -d "$H4/.git" ]; then
+    git init -q "$H4"
+    git -C "$H4" remote add origin "https://github.com/acme/oldhost.git"
+    echo "# Old Host" > "$H4/README.md"
+    git -C "$H4" -c user.email=t@x.invalid -c user.name=t add -A
+    git -C "$H4" -c user.email=t@x.invalid -c user.name=t commit -qm "initial"
+    rc=0
+    bash "$T/scripts/adopt.sh" --target="$H4" --apply --agent=claude-code \
+        >/tmp/adopted-host-sync-h4.log 2>&1 || rc=$?
+    echo "$rc" > "$H4.adopt-rc"
+    if [ "$rc" -ne 0 ]; then
+        echo "  WARN: adopt --apply failed on old host (rc=$rc)." >&2
+        sed 's/^/    /' /tmp/adopted-host-sync-h4.log >&2
+    fi
+    # Legacy surgery: the pre-fix updater, no manifest, no Edge-Types
+    # artifacts — the exact on-disk state a pre-#74 adoption produced.
+    cp "$FIXTURES_DIR/legacy-update-from-template.sh" "$H4/scripts/update-from-template.sh"
+    chmod +x "$H4/scripts/update-from-template.sh"
+    rm -f "$H4/scripts/lib/template-manifest.sh" \
+          "$H4/wiki/Edge-Types.md.template" \
+          "$H4/wiki/oldhost.wiki/Edge-Types.md"
+    # The migration re-adopt requires a clean host tree; legacy hosts have
+    # long since committed their adoption, so commit the simulated state.
+    git -C "$H4" -c user.email=t@x.invalid -c user.name=t add -A
+    git -C "$H4" -c user.email=t@x.invalid -c user.name=t commit -qm "simulate pre-#74 adoption state"
+fi
+
+echo "  adopted-host-sync patch applied: template at $T, hosts at $H, $H2, $H3, $H4."

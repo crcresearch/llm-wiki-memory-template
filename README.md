@@ -179,6 +179,24 @@ To check drift without making any changes:
 ./scripts/check-template-version.sh
 ```
 
+### Migrating hosts adopted before the manifest shipped itself (#74)
+
+Repos adopted before `scripts/lib/template-manifest.sh` entered the sync
+manifest have an updater that dies at its `source lib/template-manifest.sh`
+line — before the fetch that could deliver its own fix. The migration
+therefore comes from OUTSIDE the host: re-run adopt from a current template
+clone (additive; ADD never overwrites host files):
+
+```bash
+bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=. --apply --force
+```
+
+`--force` bypasses the already-adopted advisory. This lands the manifest
+(and stamps any missing wiki template pages, e.g. `Edge-Types.md`). The
+host's existing `./scripts/update-from-template.sh` — even a pre-#74 one —
+then works again and syncs everything else, including replacing itself with
+the current version.
+
 ## 5. Layout
 
 ```

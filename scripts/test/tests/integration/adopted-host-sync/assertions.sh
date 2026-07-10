@@ -108,3 +108,56 @@ assert "prewiki host: pre-existing SCHEMA content untouched" \
     "grep -qF 'PRE_EXISTING_SCHEMA_SENTINEL' '$H3/wiki/prewiki-host.wiki/SCHEMA_prewiki-host.md'"
 assert "prewiki host: pre-existing Home content untouched" \
     "grep -qF 'PRE_EXISTING_HOME_SENTINEL' '$H3/wiki/prewiki-host.wiki/Home_prewiki-host.md'"
+
+# --- #74 review: GENUINE legacy host (pre-fix updater + no manifest) --------
+# The migration under test must not depend on host-side tooling: the old
+# updater is the broken part, so the repair is a re-adopt from a current
+# template clone.
+H4="$STAGE/oldhost"
+assert "old host adopt --apply exited 0" \
+    "[ \"\$(cat '$H4.adopt-rc' 2>/dev/null)\" = '0' ]"
+
+# The constraint, observed: the pre-fix updater dies at its source line
+# BEFORE any fetch. No bootstrap inside the updater can reach this host.
+old_rc=0
+( cd "$H4" && ./scripts/update-from-template.sh --dry-run --template-url="$T" ) \
+    > "$STAGE/oldhost-pre.out" 2>&1 || old_rc=$?
+assert "pre-fix updater fails without the manifest (the #74 constraint)" \
+    "[ '$old_rc' -ne 0 ]"
+assert "pre-fix updater failure names template-manifest.sh" \
+    "grep -q 'template-manifest.sh' '$STAGE/oldhost-pre.out'"
+
+# The documented migration is a re-adopt. Without --force the composite
+# already-adopted detector refuses — correct, and why the doc says --force.
+noforce_rc=0
+bash "$T/scripts/adopt.sh" --target="$H4" --apply --agent=claude-code \
+    > "$STAGE/oldhost-noforce.out" 2>&1 || noforce_rc=$?
+assert "re-adopt without --force is refused on the adopted host" \
+    "[ '$noforce_rc' -ne 0 ]"
+
+# Migration: adopt --apply --force ADDs the manifest and the Edge-Types
+# template, and stamps the missing wiki page (already-present branch).
+force_rc=0
+bash "$T/scripts/adopt.sh" --target="$H4" --apply --force --agent=claude-code \
+    > "$STAGE/oldhost-force.out" 2>&1 || force_rc=$?
+assert_eq "migration adopt --apply --force exit status" "0" "$force_rc"
+assert "migration landed scripts/lib/template-manifest.sh" \
+    "[ -f '$H4/scripts/lib/template-manifest.sh' ]"
+assert "migration landed wiki/Edge-Types.md.template" \
+    "[ -f '$H4/wiki/Edge-Types.md.template' ]"
+assert "migration stamped Edge-Types.md into the existing wiki" \
+    "[ -f '$H4/wiki/oldhost.wiki/Edge-Types.md' ]"
+assert "migration left the OLD updater in place (ADD never overwrites)" \
+    "! cmp -s '$H4/scripts/update-from-template.sh' '$T/scripts/update-from-template.sh'"
+
+# With the manifest delivered, the OLD updater is unblocked: its source
+# line succeeds and its own sync loop brings the host current — including
+# replacing itself with the current updater.
+post_rc=0
+( cd "$H4" && ./scripts/update-from-template.sh --template-url="$T" ) \
+    > "$STAGE/oldhost-post.out" 2>&1 || post_rc=$?
+assert_eq "old updater with delivered manifest exit status" "0" "$post_rc"
+assert "old updater printed its report banner" \
+    "grep -qF '================ update-from-template ================' '$STAGE/oldhost-post.out'"
+assert "old updater synced ITSELF to the current version" \
+    "cmp -s '$H4/scripts/update-from-template.sh' '$T/scripts/update-from-template.sh'"
