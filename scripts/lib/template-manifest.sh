@@ -23,6 +23,12 @@ _LW_MANIFEST_SOURCED=1
 TEMPLATE_SHARED_INFRA=(
     "llm-wiki.md"
     "wiki/init-wiki.sh"
+    # Synced VERBATIM (deliberately not in TEMPLATE_SUBSTITUTE_FILES): its
+    # {{REPO_NAME}} markers are stamped by init-wiki.sh's wiki/*.md.template
+    # loop at wiki-init time, in the host. Substituting at sync time would
+    # bake one project's name into a reusable template. Absent from this
+    # list, adopted wikis had SCHEMA [Edge-Types] links with no page (#75).
+    "wiki/Edge-Types.md.template"
     "wiki/agents/README.md"
     "wiki/agents/discipline-gates.md"
     "wiki/agents/verification-gate.md"
@@ -32,6 +38,11 @@ TEMPLATE_SHARED_INFRA=(
     "scripts/enable-feature.sh"
     "scripts/disable-feature.sh"
     "scripts/lib/install-feature.sh"
+    # The manifest ships ITSELF: update-from-template.sh and
+    # check-template-version.sh (both synced above) source it from the
+    # HOST's own scripts/lib/. Absent from this list, every adopted host's
+    # sync tooling died at its source line (#74).
+    "scripts/lib/template-manifest.sh"
     "scripts/lib/common.sh"
     "scripts/lib/git.sh"
     "scripts/lib/identity.sh"

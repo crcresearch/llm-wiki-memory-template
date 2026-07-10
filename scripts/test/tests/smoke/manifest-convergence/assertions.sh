@@ -173,10 +173,6 @@ while IFS= read -r _disk; do
         # registry of project wikis on the host; not a manifest-managed
         # path.
         wiki/WIKI-INDEX.md) continue ;;
-        # init-wiki may leave a one-shot Edge-Types.md.template under
-        # wiki/ when the host had no wiki at adopt time; consumed on next
-        # init-wiki run. Not in the manifest's enforce set.
-        wiki/Edge-Types.md.template) continue ;;
     esac
     if ! grep -qxF -- "$_disk" "$STAGE/expected-claude.txt"; then
         EXTRAS+=("$_disk")
