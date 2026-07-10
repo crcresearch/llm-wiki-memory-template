@@ -45,6 +45,11 @@
 #   --github                clone an existing GitHub wiki instead of init'ing locally
 #   --agent "name"          coding assistant running this (e.g. claude-code,
 #                           cursor); recorded in the create log entry's by: line
+#   --stamp-missing-templates
+#                           stamp only the wiki/*.md.template pages that do
+#                           not exist in the wiki yet, then exit — no create,
+#                           no update pass. Used by adopt.sh when the wiki
+#                           sub-repo already exists (#75).
 # ──────────────────────────────────────────────────────────────────────────────
 #
 
@@ -55,6 +60,7 @@ PROJECT_NAME=""
 REPO_NAME_OVERRIDE=""
 USE_GITHUB=false
 WIKI_AGENT=""
+STAMP_MISSING_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -62,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         --repo-name) REPO_NAME_OVERRIDE="$2"; shift 2 ;;
         --github) USE_GITHUB=true; shift ;;
         --agent) WIKI_AGENT="$2"; shift 2 ;;
+        --stamp-missing-templates) STAMP_MISSING_ONLY=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -113,6 +120,57 @@ HOME_NS="Home_${REPO_NAME}"
 INDEX_NS="index_${REPO_NAME}"
 LOG_NS="log_${REPO_NAME}"
 SCHEMA_NS="SCHEMA_${REPO_NAME}"
+
+# --- Stamp wiki/*.md.template files into the wiki ---------------------------
+# Each *.md.template alongside this script gets sed-substituted (same
+# placeholders as scripts/instantiate.sh: {{REPO_NAME}}, {{PROJECT_NAME}})
+# and written into the wiki sub-repo with the .template suffix stripped.
+# Idempotent on update mode: re-stamping overwrites with the same content.
+# With --missing-only, pages that already exist are left untouched (the
+# adopt already-present path wants exactly that: create what is absent,
+# never overwrite host content).
+# Anchored on BASH_SOURCE (= $HERE), not $0: a $0-based dirname resolves to
+# "." when the script is invoked by bare name via PATH, which would miss the
+# *.md.template files sitting next to this script (F10).
+stamp_wiki_templates() {
+    local missing_only=false
+    if [[ "${1:-}" == "--missing-only" ]]; then missing_only=true; fi
+    local stamped=() tpl out_name out_path t
+    shopt -s nullglob
+    for tpl in "$HERE"/*.md.template; do
+        out_name="$(basename "${tpl%.template}")"
+        out_path="$WIKI_DIR/$out_name"
+        if [[ "$missing_only" == true && -e "$out_path" ]]; then
+            continue
+        fi
+        sed -e "s|{{REPO_NAME}}|${REPO_NAME}|g" \
+            -e "s|{{PROJECT_NAME}}|${PROJECT_NAME:-$REPO_NAME}|g" \
+            "$tpl" > "$out_path"
+        stamped+=("$out_name")
+    done
+    shopt -u nullglob
+    if [[ ${#stamped[@]} -gt 0 ]]; then
+        echo "Stamped wiki page templates:"
+        for t in "${stamped[@]}"; do
+            echo "  + $t"
+        done
+    fi
+}
+
+# --- Stamp-missing-only mode (#75) -------------------------------------------
+# For callers that must not run a full create/update pass over an EXISTING
+# wiki: adopt.sh skips its init-wiki dispatch when wiki/<repo>.wiki/.git
+# already exists (a full update pass over a pre-existing wiki risks
+# overwriting host content — see issue #66 for the Home.md case), but the
+# ADDed wiki/*.md.template pages still need stamping. Create only what is
+# absent, touch nothing else, exit.
+if [[ "$STAMP_MISSING_ONLY" == true ]]; then
+    if [[ ! -d "$WIKI_DIR" ]]; then
+        lw_die "--stamp-missing-templates: no wiki at $WIKI_DIR (run without the flag to create one)"
+    fi
+    stamp_wiki_templates --missing-only
+    exit 0
+fi
 
 # --- Detect mode ---
 if [[ -f "$WIKI_DIR/${SCHEMA_NS}.md" ]] || [[ -f "$WIKI_DIR/SCHEMA.md" ]]; then
@@ -722,32 +780,10 @@ The wiki is a shared memory across a team. Every log entry records who performed
 fi
 
 # --- Stamp wiki/*.md.template files into the wiki ---
-# Each *.md.template alongside this script gets sed-substituted (same
-# placeholders as scripts/instantiate.sh: {{REPO_NAME}}, {{PROJECT_NAME}})
-# and written into the wiki sub-repo with the .template suffix stripped.
-# Idempotent on update mode: re-stamping overwrites with the same content.
-# Anchored on BASH_SOURCE (= $HERE), not $0: a $0-based dirname resolves to
-# "." when the script is invoked by bare name via PATH, which would miss the
-# *.md.template files sitting next to this script (F10).
-SCRIPT_DIR_INIT="$HERE"
-TEMPLATES_STAMPED=()
-shopt -s nullglob
-for tpl in "$SCRIPT_DIR_INIT"/*.md.template; do
-    out_name="$(basename "${tpl%.template}")"
-    out_path="$WIKI_DIR/$out_name"
-    sed -e "s|{{REPO_NAME}}|${REPO_NAME}|g" \
-        -e "s|{{PROJECT_NAME}}|${PROJECT_NAME:-$REPO_NAME}|g" \
-        "$tpl" > "$out_path"
-    TEMPLATES_STAMPED+=("$out_name")
-done
-shopt -u nullglob
-
-if [[ ${#TEMPLATES_STAMPED[@]} -gt 0 ]]; then
-    echo "Stamped wiki page templates:"
-    for t in "${TEMPLATES_STAMPED[@]}"; do
-        echo "  + $t"
-    done
-fi
+# Implementation lives in stamp_wiki_templates (defined near the top, shared
+# with the --stamp-missing-templates early-exit mode). Full stamp here:
+# create-or-overwrite, idempotent on update mode.
+stamp_wiki_templates
 
 # --- WIKI-INDEX: recursive registration ---
 # Walk up from the wiki directory, creating/updating WIKI-INDEX files
