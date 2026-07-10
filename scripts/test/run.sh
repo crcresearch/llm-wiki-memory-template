@@ -189,8 +189,19 @@ if [ -z "${MVP_TEMPLATE_LOCAL:-}" ] && [ -z "${MVP_TEMPLATE_REPO:-}" ]; then
             echo "Template source: $REPO_ROOT_DEFAULT working tree (git-visible files)"
             echo "  (override with MVP_TEMPLATE_LOCAL=<path> or MVP_TEMPLATE_REPO=<url>)"
         else
-            echo "WARN: could not export the working tree for smoke tests;" >&2
-            echo "      falling back to the network clone of the published template." >&2
+            # Fail LOUD, do not fall back to the network clone: observed in a
+            # derived project's CI, a transient tar failure here degraded into
+            # cloning the PUBLISHED template — the run then tested the wrong
+            # tree and drowned the real (one-line) error under 30 misleading
+            # naming-assertion fails. An export failure means the environment
+            # is broken; nothing this run could report would be trustworthy.
+            echo "ERROR: could not export the working tree for smoke tests" >&2
+            echo "       (git ls-files | tar pipeline failed; see tar errors above)." >&2
+            echo "       Refusing to fall back to a network clone of the published" >&2
+            echo "       template: that would test upstream main, not this tree." >&2
+            echo "       To test a different source explicitly, set MVP_TEMPLATE_LOCAL" >&2
+            echo "       or MVP_TEMPLATE_REPO." >&2
+            exit 2
         fi
     fi
 fi

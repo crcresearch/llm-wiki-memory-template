@@ -16,10 +16,20 @@
 set -uo pipefail
 
 STAGE="$SANDBOX/cursor-setup"
-mkdir -p "$STAGE"
 
 # patch.sh is executed, so locate the real repo from this file.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && git rev-parse --show-toplevel)"
+
+# Template-checkout guard: the fixtures need .cursorrules.template and
+# .cursor/rules from the checkout, which instantiate consumes/prunes in
+# derived projects (observed: 10 spurious fails in a derived project's
+# CI). Decline WITHOUT creating $STAGE so assertions.sh skips cleanly.
+# Discriminator matches clone_template's issue-#15 guard.
+if [ ! -f "$REPO_ROOT/CLAUDE.md.template" ]; then
+    echo "  cursor-setup: not a template checkout (derived project); declining to stage." >&2
+    exit 0
+fi
+mkdir -p "$STAGE"
 TPL_SRC="$REPO_ROOT/wiki/agents/claude-code/templates"
 CURSORRULES_TPL="$REPO_ROOT/.cursorrules.template"
 RULES_SRC="$REPO_ROOT/.cursor/rules"

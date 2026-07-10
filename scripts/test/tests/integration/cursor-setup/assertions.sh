@@ -22,6 +22,14 @@
 # root from the current directory, so each run cds into a fixture.
 
 STAGE="$SANDBOX/cursor-setup"
+
+# patch.sh declines to stage (no $STAGE dir) when the checkout is not the
+# template — derived projects lack .cursorrules.template and .cursor/rules.
+if [ ! -d "$STAGE" ]; then
+    skip "cursor-setup assertions" "not a template checkout (derived project; cursor fixtures unavailable)"
+    return 0 2>/dev/null || true
+fi
+
 # assertions.sh is sourced by run.sh, so $HERE = scripts/test/; two up = repo root.
 REPO_ROOT_CU="$(cd "$HERE/../.." && pwd)"
 SETUP="$REPO_ROOT_CU/wiki/agents/cursor/setup.sh"

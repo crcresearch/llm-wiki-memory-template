@@ -71,9 +71,15 @@ assert "old-no-kg: local edits preserved" \
     "grep -qF 'LOCAL_EDIT_MAINT_ABC' '$ON'"
 
 # --- cursor overlay migrates via the same shared path ---
-CB="$STAGE/cur-both/CLAUDE.md"
-( cd "$STAGE/cur-both" && bash "$CU_SETUP" ) >/dev/null 2>&1
-assert "cursor: legacy section wrapped in sentinels" \
-    "grep -qF '<!-- lw:wiki-maintenance -->' '$CB'"
-assert_eq "cursor: exactly one '### Memory boundary' (no duplicate)" "1" \
-    "$(count '^### Memory boundary$' "$CB")"
+# patch.sh stages cur-both only when the checkout ships the cursor overlay
+# (instantiate prunes it in claude-code-derived projects).
+if [ ! -d "$STAGE/cur-both" ]; then
+    skip "overlay-marker-migration cursor leg" "cursor overlay not in this checkout (pruned in derived projects)"
+else
+    CB="$STAGE/cur-both/CLAUDE.md"
+    ( cd "$STAGE/cur-both" && bash "$CU_SETUP" ) >/dev/null 2>&1
+    assert "cursor: legacy section wrapped in sentinels" \
+        "grep -qF '<!-- lw:wiki-maintenance -->' '$CB'"
+    assert_eq "cursor: exactly one '### Memory boundary' (no duplicate)" "1" \
+        "$(count '^### Memory boundary$' "$CB")"
+fi
