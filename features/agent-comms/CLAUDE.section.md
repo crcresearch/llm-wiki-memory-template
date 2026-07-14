@@ -21,6 +21,14 @@ each picked agent's wiki and invokes `claude -p` in it. Direct mode skips
 the picker and resolves `<agent-id>` against the index by exact id, exact
 `owner_repo`, or repo basename.
 
+**Slash command.** The `/ask` command wraps this: `/ask <question>` for
+discovery or `/ask <agent-id> <question>` for direct (quotes around the
+question are optional). The assistant renders the candidate list, you pick
+in chat, and it consults each pick in **direct mode** — so the interactive
+picker's TTY requirement never applies. `/ask` ships with the base template
+and guards at runtime: if `scripts/agent-comms/ask.sh` is absent it tells
+you to enable this feature instead of failing.
+
 ### Enroll: publish this repo's Card
 
 After enabling the feature:
