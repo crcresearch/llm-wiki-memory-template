@@ -73,6 +73,7 @@ TEMPLATE_OVERLAY_CLAUDE=(
     ".claude/commands/wiki-experiment.md"
     ".claude/commands/wiki-source.md"
     ".claude/commands/wiki-lint.md"
+    ".claude/commands/ask.md"
     ".claude/skills/wiki-experiment.md"
     ".claude/skills/wiki-source.md"
     ".claude/skills/wiki-lint.md"
