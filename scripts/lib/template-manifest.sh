@@ -112,11 +112,6 @@ TEMPLATE_OVERLAY_CLAUDE=(
     ".claude/skills/wiki-lint.md"
     "wiki/agents/claude-code/setup.sh"
     "wiki/agents/claude-code/README.md"
-    # No longer consumed by claude-code/setup.sh (the CLAUDE.md sentinel
-    # injection is retired in favor of .claude/rules/*.md), but
-    # wiki/agents/cursor/setup.sh still reads it as its SNIPPET_FILE.
-    # Remove together with the cursor CLAUDE.md patch decision.
-    "wiki/agents/claude-code/templates/claude-md-snippet.md"
     "wiki/agents/claude-code/templates/memory-seed.md"
     "wiki/agents/claude-code/templates/session-start-hook.sh"
     "wiki/agents/claude-code/templates/posttooluse-hook.sh"
@@ -128,6 +123,9 @@ TEMPLATE_OVERLAY_CLAUDE=(
 # in update/check can sync them when the host has a .cursor/ overlay).
 TEMPLATE_OVERLAY_CURSOR=(
     ".cursor/rules/wiki-as-memory.mdc"
+    # Deliberately name-agnostic (no {{REPO_NAME}} marker), same rationale as
+    # the .claude/rules/ entries above: keep it out of TEMPLATE_SUBSTITUTE_FILES.
+    ".cursor/rules/memory-boundary.mdc"
     ".cursor/rules/wiki-experiment.mdc"
     ".cursor/rules/wiki-source.mdc"
     ".cursor/rules/wiki-lint.mdc"
@@ -148,10 +146,9 @@ TEMPLATE_OVERLAY_CURSOR=(
 #    setup.sh ships verbatim. Substituting it here would not reach the
 #    installed hook. Tracked as a separate issue; out of scope for this
 #    manifest.
-#  - wiki/agents/claude-code/templates/{claude-md-snippet.md,
-#    session-start-hook.sh, memory-seed.md}: scanned and confirmed to
-#    contain no {{REPO_NAME}} marker. Listing them would lie about the
-#    contract.
+#  - wiki/agents/claude-code/templates/{session-start-hook.sh,
+#    memory-seed.md}: scanned and confirmed to contain no {{REPO_NAME}}
+#    marker. Listing them would lie about the contract.
 TEMPLATE_SUBSTITUTE_FILES=(
     ".claude/commands/wiki-experiment.md"
     ".claude/commands/wiki-source.md"

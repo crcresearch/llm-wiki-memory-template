@@ -63,19 +63,10 @@ if [ -f "$RULEFILE" ]; then
         "$RULEFILE" "Wiki holds"
 fi
 
-# --- The parallel snippet (claude-md-snippet.md) carries the same
-#     subsections for the cursor overlay. Catches parallel-file-drift on
-#     the boundary stanza: if the boundary text drifts between the rule
-#     file and the snippet, only one set of these assertions fires.
-SNIPPET="$T/wiki/agents/claude-code/templates/claude-md-snippet.md"
-if [ -f "$SNIPPET" ]; then
-    assert_contains "claude-md-snippet has '### Memory boundary' subsection" \
-        "$SNIPPET" "### Memory boundary"
-    assert_contains "claude-md-snippet memory boundary names Claude-memory" \
-        "$SNIPPET" "Claude-memory holds"
-    assert_contains "claude-md-snippet memory boundary names the wiki" \
-        "$SNIPPET" "Wiki holds"
-fi
+# (The cursor overlay's parallel of this content is
+# .cursor/rules/memory-boundary.mdc; instantiate --agent=claude-code prunes
+# .cursor/, so it is not visible to this smoke test. The retired
+# claude-md-snippet.md used to be asserted here.)
 
 # --- init-wiki.sh produced the expected wiki structure ---
 # init-wiki.sh is called by instantiate.sh and creates the wiki sub-repo

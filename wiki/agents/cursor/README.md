@@ -20,14 +20,15 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 
 | File | Purpose |
 |---|---|
-| `setup.sh` | Idempotent installer. Verifies the wiki and rules, patches `CLAUDE.md` (shares the marker with the Claude Code overlay so they don't double-patch). |
+| `setup.sh` | Idempotent installer. Verifies the wiki and the `.cursor/rules/*.mdc` set. Never touches `CLAUDE.md`. |
 | `templates/` | Reserved for future Cursor-specific template content. The `.cursor/rules/*.mdc` files and `.cursorrules.template` ship directly at the project root, not under `templates/`, because Cursor reads them from there. |
 
 The actual Cursor configuration lives at the project root:
 
 | Location | Purpose |
 |---|---|
-| `.cursor/rules/wiki-as-memory.mdc` | `alwaysApply: true`. Codifies the read/write/commit loop for the wiki. Equivalent to the CLAUDE.md "Wiki maintenance behavior" subsection but in Cursor's rules format. |
+| `.cursor/rules/wiki-as-memory.mdc` | `alwaysApply: true`. Codifies the read/write/commit loop for the wiki. Equivalent to `.claude/rules/wiki-as-memory.md` in the Claude Code overlay. |
+| `.cursor/rules/memory-boundary.mdc` | `alwaysApply: true`. Where a fact belongs: agent memory vs the wiki. Equivalent to `.claude/rules/memory-boundary.md` in the Claude Code overlay. |
 | `.cursor/rules/wiki-experiment.mdc` | Agent Requested. Procedure for filing an experiment result. Invoke explicitly with `@wiki-experiment` or let Cursor pull it in when intent matches. |
 | `.cursor/rules/wiki-source.mdc` | Agent Requested. Procedure for ingesting a new source document. `@wiki-source`. |
 | `.cursor/rules/wiki-lint.mdc` | Agent Requested. Procedure for health-checking the wiki. `@wiki-lint`. |
@@ -37,7 +38,7 @@ The actual Cursor configuration lives at the project root:
 
 | Flag | What it does |
 |---|---|
-| (none) | Base mode: wiki verification + `CLAUDE.md` patch + rules check |
+| (none) | Base mode: wiki verification + rules check |
 | `--legacy` | Installs `.cursorrules` from the template, substituting `{{REPO_NAME}}` |
 | `-h`, `--help` | Prints the script's header comment |
 
@@ -48,8 +49,7 @@ Cursor has no SessionStart hook equivalent and no IDE-managed per-user memory di
 ## Verify the install
 
 ```bash
-ls .cursor/rules/                   # wiki-as-memory.mdc + wiki-{experiment,source,lint}.mdc
-grep -n "Wiki maintenance" CLAUDE.md   # CLAUDE.md subsection present (shared with Claude Code overlay)
+ls .cursor/rules/                   # wiki-as-memory.mdc, memory-boundary.mdc, wiki-{experiment,source,lint}.mdc
 test -f .cursorrules && echo "legacy active" || echo "legacy not in use"
 ```
 
@@ -90,10 +90,10 @@ Type `@wiki-lint` and confirm Cursor scans the wiki, reports findings grouped by
 | `@wiki-lint` | Periodic health check. Every few sessions or after a large ingest. |
 | *(default)* | The `wiki-as-memory` rule is always applied; Cursor proactively reads and writes without needing an `@` mention. |
 
-## Sharing the CLAUDE.md subsection with the Claude Code overlay
+## CLAUDE.md is yours
 
-Both overlays write the same "Wiki maintenance behavior" subsection into `CLAUDE.md`, using the same marker for idempotency. Whichever overlay's `setup.sh` runs first patches; the second one sees the marker and skips. The subsection is generic (it doesn't mention Claude Code or Cursor specifically); the agent-specific text lives in the rules / commands / skills of each overlay.
+The overlay never creates or edits `CLAUDE.md`. All behavioral instructions ship as `.cursor/rules/*.mdc` files (the Claude Code overlay's parallel is `.claude/rules/*.md`). Note that Cursor also reads a project-root `CLAUDE.md` natively, so whatever you write there reaches Cursor too; the template just never touches it.
 
 ## Updating after pulling template improvements
 
-When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes `.cursor/rules/wiki-*.mdc`, `wiki/agents/cursor/setup.sh`, and `wiki/agents/cursor/templates/` (when present). It does not touch `.cursorrules` or your project-specific Cursor rules at `.cursor/rules/*.mdc` that don't start with `wiki-`.
+When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes the template-owned `.cursor/rules/*.mdc` files (those listed in `scripts/lib/template-manifest.sh`), `wiki/agents/cursor/setup.sh`, and `wiki/agents/cursor/templates/` (when present). It does not touch `.cursorrules` or your own project-specific rules in `.cursor/rules/`.

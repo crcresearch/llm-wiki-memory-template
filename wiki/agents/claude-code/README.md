@@ -14,7 +14,6 @@ under `wiki/agents/`.
 | File | Purpose |
 |---|---|
 | `setup.sh` | Idempotent installer: verifies the wiki, registers the SessionStart hook, seeds personal memory. |
-| `templates/claude-md-snippet.md` | Legacy CLAUDE.md subsection template, consumed only by the cursor overlay now; the Claude Code behavioral instructions ship as `.claude/rules/*.md`. |
 | `templates/memory-seed.md` | The personal-memory file written to `~/.claude/projects/<encoded>/memory/wiki-as-project-memory.md`. |
 | `templates/session-start-hook.sh` | Optional hook printed at every SessionStart, reinforcing the read-write-commit pattern. |
 
