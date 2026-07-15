@@ -126,9 +126,15 @@ clone_or_pull() {
 # "claude -p" becomes argv [claude, -p].
 invoke_llm() {
   local target="$1" question="$2"
-  local llm_cmd
+  local llm_cmd preamble
   read -ra llm_cmd <<<"$LLM_CLI"
-  ( cd "$target" && "${llm_cmd[@]}" "$question" )
+  # Grounded in the wiki SCHEMA's Query procedure (index -> pages -> synthesize).
+  preamble="You are answering a question from a project's llm-wiki, a cross-linked \
+Markdown knowledge base. Follow its Query procedure: read index_*.md to find the \
+relevant pages, read those pages, and synthesize an answer. Cite the page names you \
+draw from. Defer to SCHEMA_*.md for the wiki's conventions. This is a read-only \
+consultation: do not modify files."
+  ( cd "$target" && "${llm_cmd[@]}" "$preamble"$'\n\n'"Question: $question" )
 }
 
 # Header + clone + invoke for one agent. Per-agent failures are isolated
