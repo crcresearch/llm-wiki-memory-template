@@ -73,7 +73,7 @@ When skill X runs, the listed downstream skill / procedure MUST also run before 
 Each overlay should reference this file in its native injection mechanism rather than copying its content:
 
 - **Claude Code overlay:** the `## Wiki maintenance behavior` subsection installed into `CLAUDE.md` should reference `wiki/agents/discipline-gates.md` and instruct the agent to consult it before writes. The skill files at `.claude/skills/wiki-*.md` should reference the Verification Gate row of the Skill Dependency Chain table above.
-- **Cursor overlay:** the relevant rule under `.cursor/rules/wiki-as-memory.mdc` should reference this file. Per-skill rules (`wiki-experiment.mdc`, `wiki-source.mdc`) should reference the Verification Gate procedure.
+- **Cursor overlay:** the relevant rule under `.cursor/rules/wiki-as-memory.mdc` should reference this file. Project skills (`.cursor/skills/wiki-experiment/SKILL.md`, `.cursor/skills/wiki-source/SKILL.md`) should reference the Verification Gate procedure.
 - **Other overlays:** install whatever pointer mechanism the agent supports. Minimum bar: the agent should encounter a reference to this file as part of its proactive wiki-maintenance behavior.
 
 DRY from day one: when a new rationalization is added to the table above, every overlay picks it up without per-overlay edits.

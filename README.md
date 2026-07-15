@@ -10,13 +10,13 @@ The pattern this template implements is described in [Beyond Memory](https://doi
 
 **Every other path is shipped but unvalidated in a live session.** That includes:
 
-- The **Cursor overlay** (`.cursor/rules/*.mdc`, `wiki/agents/cursor/setup.sh`, `.cursorrules.template`). The `.mdc` rule format, `@`-mention invocation, and `alwaysApply` semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
+- The **Cursor overlay** (`.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md`, `wiki/agents/cursor/setup.sh`, optional `sessionStart` hook via `setup.sh --hook`, `.cursorrules.template`). The always-applied rule, project-skills layout, and hooks schema here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 - The **minimal mode** (`--agent=none`). The wiki bootstrap and CLAUDE.md generation work mechanically, but the proactive behavior depends on whatever agent you bring (OpenCode, Pi, OpenInterpreter, your own) honoring the CLAUDE.md instructions. No specific non-Claude-Code agent has been verified yet.
 
 **If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) reporting:**
 
 - Which agent and which version (e.g. *Cursor 0.42*, *OpenCode build XYZ*, *Pi*)
-- Whether the agent picks up the configuration files this template installed (slash commands, rules, CLAUDE.md instructions)
+- Whether the agent picks up the configuration files this template installed (slash commands, rules, project skills, CLAUDE.md instructions)
 - Whether the read/write/commit loop is honored
 - Anything that does not match the walkthrough in the respective overlay README
 
@@ -26,7 +26,7 @@ Honest reports of failures are at least as useful as confirmations. The non-Clau
 
 - **A persistent, LLM-maintained wiki** as durable project memory (Query / Ingest / Lint operations). The wiki is its own git repository, separate from the project repo.
 - **A skeleton `CLAUDE.md`** that any AI coding assistant reading repo-level instructions will find, codifying the read-to-recall / write-to-remember behavior.
-- **Optional agent overlays** under `wiki/agents/<agent>/` that add slash commands, rules, settings, and personal memory seeds for a specific assistant. Today the template ships overlays for Claude Code and Cursor. Adding a new one (OpenCode, Pi, your own) follows a documented pattern.
+- **Optional agent overlays** under `wiki/agents/<agent>/` that add slash commands, rules, project skills, settings, and personal memory seeds for a specific assistant. Today the template ships overlays for Claude Code and Cursor. Adding a new one (OpenCode, Pi, your own) follows a documented pattern.
 - **Update tooling** so that projects instantiated from this template can pull in template improvements later without overwriting their own content.
 
 ## 2. Create a new project from this template
@@ -157,7 +157,7 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 - `llm-wiki.md`, `wiki/init-wiki.sh`
 - `wiki/agents/<agent>/setup.sh` and `wiki/agents/<agent>/templates/*` for every overlay present in the project
 - `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md` (only if `.claude/` exists in the project)
-- `.cursor/rules/wiki-*.mdc` (only if `.cursor/` exists in the project)
+- `.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md` (only if `.cursor/` exists in the project)
 - `scripts/update-from-template.sh`, `scripts/check-template-version.sh` (`scripts/instantiate.sh` is one-shot and intentionally absent from derived projects, so it is never synced)
 
 **What it does NOT touch** (project-specific content):
@@ -210,7 +210,8 @@ llm-wiki-memory-template/
     skills/                      model-side procedure references
     settings.json.template       permissions allowlist for wiki-flow commands
   .cursor/                       Cursor overlay artefacts
-    rules/                       Cursor's .mdc rules format
+    rules/                       always-applied .mdc rules (wiki-as-memory)
+    skills/                      project skills -- wiki-experiment, wiki-source, wiki-lint
   .cursorrules.template          legacy Cursor format (single file)
   wiki/
     init-wiki.sh                 agent-agnostic wiki bootstrap
@@ -235,7 +236,7 @@ llm-wiki-memory-template/
 The wiki has three operations: read it (Query), write to it (Ingest), and health-check it (Lint). All three are codified in:
 
 - `CLAUDE.md` (the in-project AI guidance, generated from the template)
-- The agent overlays (`/wiki-experiment`, `/wiki-source`, `/wiki-lint` for Claude Code; equivalent rules for Cursor)
+- The agent overlays (`/wiki-experiment`, `/wiki-source`, `/wiki-lint` for Claude Code; equivalent project skills for Cursor)
 - The wiki's own `SCHEMA_<repo>.md` (the authoritative procedures)
 
 See [llm-wiki.md](llm-wiki.md) for the underlying pattern and [wiki/agents/README.md](wiki/agents/README.md) for the overlay structure.

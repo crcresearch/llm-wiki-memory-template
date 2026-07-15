@@ -83,6 +83,20 @@ OUT_LEGACY="$( cd "$STAGE/checkout" && bash "$SETUP" --legacy 2>&1 )"
 LEGACY_SKIP=0; case "$OUT_LEGACY" in *".cursorrules: already present"*) LEGACY_SKIP=1 ;; esac
 assert "legacy: re-run skips the existing .cursorrules" "[ $LEGACY_SKIP -eq 1 ]"
 
+# --- --hook: sessionStart script + hooks.json, idempotent ---
+( cd "$STAGE/checkout" && bash "$SETUP" --hook ) >/dev/null 2>&1
+assert "hook: session-start.sh installed and executable" \
+    "[ -x '$STAGE/checkout/.cursor/hooks/session-start.sh' ]"
+assert "hook: rendered with the wiki name (no \${REPO_NAME} leak)" \
+    "! grep -qF '\${REPO_NAME}' '$STAGE/checkout/.cursor/hooks/session-start.sh'"
+assert "hook: hooks.json registers sessionStart command" \
+    "grep -qF 'sessionStart' '$STAGE/checkout/.cursor/hooks.json' && grep -qF '.cursor/hooks/session-start.sh' '$STAGE/checkout/.cursor/hooks.json'"
+OUT_HOOK="$( cd "$STAGE/checkout" && bash "$SETUP" --hook 2>&1 )"
+HOOK_SKIP=0; case "$OUT_HOOK" in *".cursor/hooks/session-start.sh: already present"*) HOOK_SKIP=1 ;; esac
+assert "hook: re-run skips existing session-start.sh" "[ $HOOK_SKIP -eq 1 ]"
+HOOK_JSON_SKIP=0; case "$OUT_HOOK" in *"sessionStart hook already registered"*) HOOK_JSON_SKIP=1 ;; esac
+assert "hook: re-run skips existing hooks.json registration" "[ $HOOK_JSON_SKIP -eq 1 ]"
+
 # --- Fail-loud: no wiki present -> non-zero exit, for the wiki reason ---
 ERR_NOWIKI="$( cd "$STAGE/nowiki" && bash "$SETUP" 2>&1 )"
 RC=$?

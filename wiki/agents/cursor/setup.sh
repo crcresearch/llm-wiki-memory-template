@@ -7,9 +7,11 @@
 # to wiki/agents/claude-code/setup.sh. wiki/init-wiki.sh stays agent-agnostic.
 #
 # Usage:
-#   ./wiki/agents/cursor/setup.sh                 # base: verify rules and CLAUDE.md patch
+#   ./wiki/agents/cursor/setup.sh                 # base: verify rule + skills and CLAUDE.md patch
+#   ./wiki/agents/cursor/setup.sh --hook          # + sessionStart hook (wiki index + recent log)
 #   ./wiki/agents/cursor/setup.sh --legacy        # also install legacy .cursorrules
 #                                                 # (for Cursor builds that don't read .mdc rules)
+#   ./wiki/agents/cursor/setup.sh --all           # --hook + --legacy
 #
 # What it does:
 #   Base mode:
@@ -18,17 +20,25 @@
 #        behavior" subsections, if not already present. Same markers as the
 #        Claude Code overlay; if both overlays are active, only the first one
 #        to run patches each subsection.
-#     3. Reports presence/absence of .cursor/rules/wiki-*.mdc. These ship
+#     3. Reports presence/absence of .cursor/rules/wiki-as-memory.mdc and
+#        .cursor/skills/wiki-{experiment,source,lint}/SKILL.md. These ship
 #        with the repository and the script only verifies them.
 #
+#   --hook:
+#     4. Installs .cursor/hooks/session-start.sh from the template, substituting
+#        ${REPO_NAME}. Surfaces the wiki index + recent log into
+#        additional_context at every Cursor sessionStart.
+#     5. Registers the hook in .cursor/hooks.json (creating or updating the
+#        file conservatively).
+#
 #   --legacy:
-#     4. Copies .cursorrules.template -> .cursorrules at the repo root,
+#     6. Copies .cursorrules.template -> .cursorrules at the repo root,
 #        substituting {{REPO_NAME}}. Skipped if .cursorrules already exists.
 #
-# Cursor has no SessionStart hook equivalent and no per-user memory directory
-# managed by the IDE, so the Claude Code overlay's --hook and --seed-memory
-# flags have no analog here. The always-applied rule wiki-as-memory.mdc
-# carries the same persistent intent.
+# The always-applied rule wiki-as-memory.mdc remains the durable fallback if
+# sessionStart context injection is unavailable or flaky in a given Cursor
+# build. The hook is the complementary path: live wiki index + recent log at
+# turn 0, so the agent treats the wiki as memory rather than search.
 #
 # Does not commit anything. Does not push.
 #
@@ -36,10 +46,13 @@
 set -euo pipefail
 
 WITH_LEGACY=false
+WITH_HOOK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --legacy) WITH_LEGACY=true; shift ;;
+        --hook) WITH_HOOK=true; shift ;;
+        --all) WITH_HOOK=true; WITH_LEGACY=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -65,6 +78,10 @@ SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 
 RULES_DIR="$REPO_ROOT/.cursor/rules"
+SKILLS_DIR="$REPO_ROOT/.cursor/skills"
+HOOKS_DIR="$REPO_ROOT/.cursor/hooks"
+HOOKS_JSON="$REPO_ROOT/.cursor/hooks.json"
+TEMPLATES_DIR="$HERE/templates"
 CURSORRULES_DEST="$REPO_ROOT/.cursorrules"
 CURSORRULES_TEMPLATE="$REPO_ROOT/.cursorrules.template"
 
@@ -126,21 +143,76 @@ else
     $patched || lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
 fi
 
-# --- Step 3: verify .cursor/rules/wiki-*.mdc present ---
-RULES_MISSING=()
-for rule in wiki-as-memory wiki-experiment wiki-source wiki-lint; do
-    if [[ ! -f "$RULES_DIR/${rule}.mdc" ]]; then
-        RULES_MISSING+=("$rule")
+# --- Step 3a: verify always-applied wiki-as-memory rule present ---
+if [[ -f "$RULES_DIR/wiki-as-memory.mdc" ]]; then
+    lw_record_skip ".cursor/rules/wiki-as-memory.mdc: present"
+else
+    lw_record_skip ".cursor/rules/wiki-as-memory.mdc: MISSING (should be committed in the repo)"
+fi
+
+# --- Step 3b: verify project skills present ---
+SKILLS_MISSING=()
+for skill in wiki-experiment wiki-source wiki-lint; do
+    if [[ ! -f "$SKILLS_DIR/${skill}/SKILL.md" ]]; then
+        SKILLS_MISSING+=("$skill")
     fi
 done
 
-if [[ ${#RULES_MISSING[@]} -eq 0 ]]; then
-    lw_record_skip ".cursor/rules/: all four present (wiki-as-memory, wiki-experiment, wiki-source, wiki-lint)"
+if [[ ${#SKILLS_MISSING[@]} -eq 0 ]]; then
+    lw_record_skip ".cursor/skills/: all three present (wiki-experiment, wiki-source, wiki-lint)"
 else
-    lw_record_skip ".cursor/rules/: MISSING — ${RULES_MISSING[*]} (these should be committed in the repo)"
+    lw_record_skip ".cursor/skills/: MISSING — ${SKILLS_MISSING[*]} (these should be committed in the repo)"
 fi
 
-# --- Step 4: install legacy .cursorrules (--legacy) ---
+# --- Step 4: install sessionStart hook (--hook) ---
+if $WITH_HOOK; then
+    HOOK_TEMPLATE="$TEMPLATES_DIR/session-start-hook.sh"
+    HOOK_DEST="$HOOKS_DIR/session-start.sh"
+    HOOK_CMD=".cursor/hooks/session-start.sh"
+
+    mkdir -p "$HOOKS_DIR"
+
+    if [[ ! -f "$HOOK_TEMPLATE" ]]; then
+        lw_record_skip ".cursor/hooks/session-start.sh: template not found at $HOOK_TEMPLATE (skipped)"
+    elif [[ -f "$HOOK_DEST" ]]; then
+        lw_record_skip ".cursor/hooks/session-start.sh: already present (not overwritten)"
+    else
+        sed "s/\${REPO_NAME}/$REPO_NAME/g" "$HOOK_TEMPLATE" > "$HOOK_DEST"
+        chmod +x "$HOOK_DEST"
+        lw_record_change ".cursor/hooks/session-start.sh: installed"
+    fi
+
+    # Register in hooks.json. Cursor schema: version + hooks.<event>[].command
+    if [[ ! -f "$HOOKS_JSON" ]]; then
+        cat > "$HOOKS_JSON" <<JSONEOF
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "$HOOK_CMD"
+      }
+    ]
+  }
+}
+JSONEOF
+        lw_record_change ".cursor/hooks.json: created with sessionStart hook"
+    elif grep -qF "$HOOK_CMD" "$HOOKS_JSON"; then
+        lw_record_skip ".cursor/hooks.json: sessionStart hook already registered (skipped)"
+    elif ! command -v jq >/dev/null 2>&1; then
+        lw_record_skip ".cursor/hooks.json: exists but sessionStart hook not registered, and jq not found. Manual edit needed: see $HOOK_DEST"
+    else
+        tmp=$(mktemp)
+        jq --arg cmd "$HOOK_CMD" '
+          .version = (.version // 1)
+          | .hooks = (.hooks // {})
+          | .hooks.sessionStart = ((.hooks.sessionStart // []) + [{command: $cmd}])
+        ' "$HOOKS_JSON" > "$tmp" && mv "$tmp" "$HOOKS_JSON"
+        lw_record_change ".cursor/hooks.json: merged sessionStart hook (via jq)"
+    fi
+fi
+
+# --- Step 5: install legacy .cursorrules (--legacy) ---
 if $WITH_LEGACY; then
     if [[ -f "$CURSORRULES_DEST" ]]; then
         lw_record_skip ".cursorrules: already present (skipped)"
@@ -157,7 +229,7 @@ echo ""
 echo "================ Cursor overlay setup ================"
 echo "Repo:        $REPO_ROOT"
 echo "Wiki:        $WIKI_DIR"
-echo "Flags:       --legacy=$WITH_LEGACY"
+echo "Flags:       --hook=$WITH_HOOK --legacy=$WITH_LEGACY"
 echo "------------------------------------------------------"
 lw_print_report
 echo "======================================================"
@@ -169,4 +241,10 @@ if lw_changed_p; then
     echo "    git add CLAUDE.md .cursor/ ${WITH_LEGACY:+.cursorrules}"
     echo "    git commit -m \"cursor: apply Cursor overlay (setup.sh)\""
     echo ""
+    if $WITH_HOOK; then
+        echo "  sessionStart hook: start a new Cursor agent chat and check the"
+        echo "  Hooks output channel to confirm session-start.sh ran. Cursor"
+        echo "  reloads hooks.json on save; restart Cursor if it does not appear."
+        echo ""
+    fi
 fi

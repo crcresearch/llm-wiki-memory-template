@@ -37,7 +37,7 @@ Conflicts on `index_*` and `log_*` files merge mechanically via `.gitattributes`
 
 ## How agent overlays consume this file
 
-Each overlay's per-skill files (Claude Code's `.claude/skills/wiki-*.md`, Cursor's `.cursor/rules/wiki-*.mdc`, etc.) reference this file in their push step rather than inlining the procedure:
+Each overlay's per-skill files (Claude Code's `.claude/skills/wiki-*.md`, Cursor's `.cursor/skills/wiki-*/SKILL.md`, etc.) reference this file in their push step rather than inlining the procedure:
 
 > When pushing the wiki sub-repo, follow the procedure at `wiki/agents/wiki-write-protocol.md`.
 

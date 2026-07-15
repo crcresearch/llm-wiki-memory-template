@@ -328,6 +328,18 @@ for skill in wiki-experiment wiki-source wiki-lint; do
     fi
 done
 
+# Cursor skills ship in the template overlay but are pruned when instantiate
+# runs with --agent=claude-code (this smoke path). Assert against the live
+# template checkout, not the derivative $T.
+REPO_ROOT_TB="$(cd "$HERE/../.." && pwd)"
+for skill in wiki-experiment wiki-source wiki-lint; do
+    cursor_skill_path="$REPO_ROOT_TB/.cursor/skills/${skill}/SKILL.md"
+    if [ -f "$cursor_skill_path" ]; then
+        assert_contains ".cursor/skills/${skill}/SKILL.md references wiki-write-protocol.md" \
+            "$cursor_skill_path" "wiki-write-protocol.md"
+    fi
+done
+
 # scripts/lib/template-manifest.sh is the single source of truth that the
 # sync scripts consume. A path listed there reaches derived projects via
 # update-from-template AND is checked by check-template-version. Replaces

@@ -68,7 +68,7 @@ Add criteria below as failure modes emerge in real sessions. Each entry should d
 
 ## How agent overlays consume this file
 
-Each overlay's per-skill files (Claude Code's `.claude/skills/wiki-*.md`, Cursor's `.cursor/rules/wiki-*.mdc`, etc.) should include a short block before the commit step:
+Each overlay's per-skill files (Claude Code's `.claude/skills/wiki-*.md`, Cursor's `.cursor/skills/wiki-*/SKILL.md`, etc.) should include a short block before the commit step:
 
 > Before staging and committing, run the Verification Gate procedure at `wiki/agents/verification-gate.md`. Do not commit until all criteria pass.
 

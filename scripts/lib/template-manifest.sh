@@ -111,11 +111,12 @@ TEMPLATE_OVERLAY_CLAUDE=(
 # in update/check can sync them when the host has a .cursor/ overlay).
 TEMPLATE_OVERLAY_CURSOR=(
     ".cursor/rules/wiki-as-memory.mdc"
-    ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc"
-    ".cursor/rules/wiki-lint.mdc"
+    ".cursor/skills/wiki-experiment/SKILL.md"
+    ".cursor/skills/wiki-source/SKILL.md"
+    ".cursor/skills/wiki-lint/SKILL.md"
     "wiki/agents/cursor/setup.sh"
     "wiki/agents/cursor/README.md"
+    "wiki/agents/cursor/templates/session-start-hook.sh"
 )
 
 # Files where {{REPO_NAME}} must be substituted by $REPO_NAME at copy
@@ -135,6 +136,9 @@ TEMPLATE_OVERLAY_CURSOR=(
 #    session-start-hook.sh, memory-seed.md}: scanned and confirmed to
 #    contain no {{REPO_NAME}} marker. Listing them would lie about the
 #    contract.
+#  - wiki/agents/cursor/templates/session-start-hook.sh: uses ${REPO_NAME}
+#    (shell form), substituted by setup.sh --hook at install time — same
+#    contract as the Claude Code session-start template.
 TEMPLATE_SUBSTITUTE_FILES=(
     ".claude/commands/wiki-experiment.md"
     ".claude/commands/wiki-source.md"
@@ -143,9 +147,9 @@ TEMPLATE_SUBSTITUTE_FILES=(
     ".claude/skills/wiki-source.md"
     ".claude/skills/wiki-lint.md"
     ".cursor/rules/wiki-as-memory.mdc"
-    ".cursor/rules/wiki-experiment.mdc"
-    ".cursor/rules/wiki-source.mdc"
-    ".cursor/rules/wiki-lint.mdc"
+    ".cursor/skills/wiki-experiment/SKILL.md"
+    ".cursor/skills/wiki-source/SKILL.md"
+    ".cursor/skills/wiki-lint/SKILL.md"
 )
 
 # Host-owned: the template defines an operation type for the path but the

@@ -8,7 +8,7 @@ assistant to treat the project's wiki as durable memory.
 Today the template ships:
 
 - `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs slash commands at `.claude/commands/`, model-side skills at `.claude/skills/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
-- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Installs rules at `.cursor/rules/*.mdc` (preferred) or a legacy `.cursorrules` file. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
+- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Ships an always-applied rule at `.cursor/rules/wiki-as-memory.mdc`, project skills at `.cursor/skills/wiki-*/SKILL.md`, optional legacy `.cursorrules`, plus an optional `sessionStart` hook (`setup.sh --hook`) that injects the wiki index via `additional_context`. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
 
 The minimal mode (`--agent=none` in `scripts/instantiate.sh`) ships
 only the llm-wiki core: a project that uses OpenCode, Pi, or any other
@@ -25,7 +25,7 @@ Two files in this directory are agent-agnostic and consumed by *every* overlay v
 - [discipline-gates.md](discipline-gates.md) — "Universal Rationalizations (Always Wrong)" table, the three gate types (Design / Verification / Sequential), and the Skill Dependency Chain. Codifies cross-skill enforcement.
 - [verification-gate.md](verification-gate.md) — Canonical pre-commit criteria list referenced by every ingest skill. Catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries before a wiki commit lands.
 
-When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., CLAUDE.md for Claude Code, `.cursor/rules/*.mdc` for Cursor); do not copy their content. DRY from day one.
+When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., CLAUDE.md for Claude Code, `.cursor/rules/wiki-as-memory.mdc` and `.cursor/skills/` for Cursor); do not copy their content. DRY from day one.
 
 ## The contract every overlay should honor
 
@@ -49,9 +49,9 @@ An agent overlay under `wiki/agents/<agent>/` is expected to provide:
 
 The contract does not specify implementation details. The Claude Code
 overlay uses `jq` to merge into an existing `.claude/settings.json`;
-the Cursor overlay uses different mechanics because Cursor's rules are
-many small `.mdc` files rather than a single settings file. Both honor
-the contract above.
+the Cursor overlay uses different mechanics because Cursor splits durable
+always-applied guidance (`.mdc` rules) from operation procedures (project
+skills). Both honor the contract above.
 
 ## What goes inside the agent's directory in the project root
 
@@ -60,8 +60,8 @@ into the appropriate location, not into `wiki/agents/<agent>/`:
 
 - Claude Code reads `.claude/` at the repo root. The overlay installs
   there.
-- Cursor reads `.cursor/rules/*.mdc` or `.cursorrules` at the repo
-  root. The overlay installs there.
+- Cursor reads `.cursor/rules/*.mdc`, `.cursor/skills/*/SKILL.md`, or
+  `.cursorrules` at the repo root. The overlay installs there.
 - A future overlay for an agent that uses `.AGENT_NAME/` would install
   there.
 

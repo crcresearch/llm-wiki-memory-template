@@ -345,10 +345,10 @@ case "$AGENT" in
         AGENT_NOTE="Claude Code users have project-level slash commands available for explicit invocation: \`/wiki-experiment\`, \`/wiki-source\`, \`/wiki-lint\`. See \`.claude/commands/\`. The project also ships the same procedures as model-side skills at \`.claude/skills/\` (referenced by the slash commands). The slash commands are a safety net: the proactive behavior described above is the default, the slash commands exist for cases where the user wants to force the action explicitly."
         ;;
     cursor)
-        AGENT_NOTE="Cursor users have project-level rules at \`.cursor/rules/wiki-*.mdc\`. The \`wiki-as-memory\` rule is alwaysApply (injected into every prompt); the three operation rules (\`wiki-experiment\`, \`wiki-source\`, \`wiki-lint\`) are Agent Requested and can be invoked explicitly with \`@wiki-experiment\`, \`@wiki-source\`, \`@wiki-lint\`. They are a safety net: the proactive behavior described above is the default."
+        AGENT_NOTE="Cursor users have an alwaysApply rule at \`.cursor/rules/wiki-as-memory.mdc\` (injected into every prompt) and three project skills at \`.cursor/skills/\` (\`wiki-experiment\`, \`wiki-source\`, \`wiki-lint\`). The skills are a safety net: the proactive behavior described above is the default; name a skill when you want to force that procedure explicitly."
         ;;
     all)
-        AGENT_NOTE="Claude Code users have slash commands at \`.claude/commands/\` (\`/wiki-experiment\`, \`/wiki-source\`, \`/wiki-lint\`) and model-side skills at \`.claude/skills/\`. Cursor users have rules at \`.cursor/rules/wiki-*.mdc\` (\`@wiki-experiment\`, \`@wiki-source\`, \`@wiki-lint\`). Both are safety nets for the proactive default behavior described above."
+        AGENT_NOTE="Claude Code users have slash commands at \`.claude/commands/\` (\`/wiki-experiment\`, \`/wiki-source\`, \`/wiki-lint\`) and model-side skills at \`.claude/skills/\`. Cursor users have the alwaysApply \`wiki-as-memory\` rule plus project skills at \`.cursor/skills/\` (\`wiki-experiment\`, \`wiki-source\`, \`wiki-lint\`). Both are safety nets for the proactive default behavior described above."
         ;;
 esac
 
@@ -587,8 +587,9 @@ fi
 
 # Cursor
 if $keep_cursor; then
-    # Substitute {{REPO_NAME}} in shipped .cursor/ files
-    for f in "$REPO_ROOT/.cursor/rules/"wiki-*.mdc; do
+    # Substitute {{REPO_NAME}} in shipped .cursor/ rules and skills
+    for f in "$REPO_ROOT/.cursor/rules/"wiki-*.mdc \
+             "$REPO_ROOT/.cursor/skills/"wiki-*/SKILL.md; do
         [[ -f "$f" ]] || continue
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$f"
         rm -f "${f}.bak"
@@ -637,7 +638,8 @@ case "$AGENT" in
         echo "       ./wiki/agents/claude-code/setup.sh --all"
         ;;
     cursor)
-        echo "  3. (Optional) Add the legacy .cursorrules fallback:"
+        echo "  3. (Optional) Install the sessionStart wiki hook and/or legacy .cursorrules:"
+        echo "       ./wiki/agents/cursor/setup.sh --hook"
         echo "       ./wiki/agents/cursor/setup.sh --legacy"
         ;;
 esac
