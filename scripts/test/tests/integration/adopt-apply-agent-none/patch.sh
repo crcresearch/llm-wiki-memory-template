@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Patch: virgin host with CLAUDE.md and managed-block grant, but the
-# user passes --agent=none. Overlay setup should be skipped entirely
-# and the managed-block TOUCH should be reported as 'skipped' (not
-# applied via setup.sh, not failed).
+# Patch: virgin host with a merge grant, but the user passes
+# --agent=none. Overlay setup should be skipped entirely and the merge
+# TOUCH should be reported as 'skipped' (not applied via setup.sh, not
+# failed). The host's CLAUDE.md is not a grant target and must survive
+# byte-identical.
 
 set -uo pipefail
 
@@ -20,7 +21,7 @@ cat > "$HOST/CLAUDE.md" <<'EOF'
 # Agent None Host
 
 Host runs adopt with --agent=none. Overlay setup must NOT be invoked
-and managed-block TOUCH must NOT inject sentinels.
+and nothing may write to this host-owned file.
 
 ## Project conventions
 
@@ -28,15 +29,14 @@ These must survive unchanged.
 EOF
 echo "*.pyc" > "$HOST/.gitignore"
 
-# Both grants present to verify both managed-block (depends on overlay)
-# and merge (depends on overlay) record 'skipped' with the right reason.
+# The merge grant (depends on overlay) must record 'skipped' with the
+# right reason.
 mkdir -p "$HOST/.claude"
 cat > "$HOST/.claude/settings.json" <<'EOF'
 {"theme": "host"}
 EOF
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 grants:
-  CLAUDE.md:              managed-block
   .claude/settings.json:  merge
 EOF
 

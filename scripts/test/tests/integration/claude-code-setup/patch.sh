@@ -35,16 +35,12 @@ _mkproj() {
         mkdir -p "$dir/wiki/$wn.wiki"
         : > "$dir/wiki/$wn.wiki/SCHEMA_$wn.md"
     fi
-    # CLAUDE.md with a Knowledge Graph anchor (snippet injects before it)
-    # and no wiki-maintenance markers (so the injection actually runs).
+    # Host-authored CLAUDE.md. setup.sh must not modify it; the assertions
+    # prove base mode leaves it alone.
     cat > "$dir/CLAUDE.md" <<'EOF'
 # Project
 
 Baseline content that must be preserved.
-
-### Knowledge Graph
-
-KG section.
 EOF
 }
 

@@ -39,29 +39,34 @@ for setup in "$T/wiki/agents"/*/setup.sh; do
 done
 
 # --- instantiate.sh produced the expected baseline ---
-# After instantiate "Smoke Test Project" --agent=none, the template should
-# have a real CLAUDE.md (substituted from CLAUDE.md.template).
-if [ -f "$T/CLAUDE.md" ]; then
-    assert "instantiate.sh produced CLAUDE.md" "[ -f '$T/CLAUDE.md' ]"
-    assert_contains "CLAUDE.md has project name substituted (no {{PROJECT_NAME}} leak)" \
-        "$T/CLAUDE.md" "Smoke Test Project"
+# After instantiate "Smoke Test Project" --agent=claude-code, CLAUDE.md is
+# NOT created (host-owned); the behavioral content ships as the tracked
+# .claude/rules/*.md files, and README.md is rendered from its template.
+assert "instantiate.sh did NOT create CLAUDE.md (host-owned now)" \
+    "[ ! -f '$T/CLAUDE.md' ]"
+if [ -f "$T/README.md" ]; then
+    assert_contains "README.md has project name substituted (no {{PROJECT_NAME}} leak)" \
+        "$T/README.md" "Smoke Test Project"
     assert "instantiate.sh did NOT leave {{PROJECT_NAME}} placeholder" \
-        "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
+        "! grep -q '{{PROJECT_NAME}}' '$T/README.md'"
+fi
 
-    # PR #28: Memory boundary subsection is in CLAUDE.md.template, so a
-    # fresh instantiation should carry it through verbatim.
-    assert_contains "CLAUDE.md has '### Memory boundary' subsection" \
-        "$T/CLAUDE.md" "### Memory boundary"
-    assert_contains "CLAUDE.md memory boundary names Claude-memory" \
-        "$T/CLAUDE.md" "Claude-memory holds"
-    assert_contains "CLAUDE.md memory boundary names the wiki" \
-        "$T/CLAUDE.md" "Wiki holds"
+# The memory-boundary content ships as a rule file (kept overlay was
+# claude-code, so .claude/rules/ survives instantiation).
+RULEFILE="$T/.claude/rules/memory-boundary.md"
+if [ -f "$RULEFILE" ]; then
+    assert_contains "memory-boundary rule has the '# Memory boundary' heading" \
+        "$RULEFILE" "# Memory boundary"
+    assert_contains "memory-boundary rule names Claude-memory" \
+        "$RULEFILE" "Claude-memory holds"
+    assert_contains "memory-boundary rule names the wiki" \
+        "$RULEFILE" "Wiki holds"
 fi
 
 # --- The parallel snippet (claude-md-snippet.md) carries the same
-#     subsections. Catches parallel-file-drift on the boundary stanza:
-#     if the boundary text drifts between CLAUDE.md.template and the
-#     snippet, only one of these assertions fires.
+#     subsections for the cursor overlay. Catches parallel-file-drift on
+#     the boundary stanza: if the boundary text drifts between the rule
+#     file and the snippet, only one set of these assertions fires.
 SNIPPET="$T/wiki/agents/claude-code/templates/claude-md-snippet.md"
 if [ -f "$SNIPPET" ]; then
     assert_contains "claude-md-snippet has '### Memory boundary' subsection" \
@@ -305,7 +310,7 @@ assert "wiki-write-protocol README references the new directory name in its layo
 # --- wiki-write-protocol wiring (PR7) ---
 # Three behavioural checks that catch real regressions in the wiring:
 # (1) the agent-agnostic procedure doc ships in the template (otherwise
-#     the references on skill/CLAUDE.md/command files dangle silently —
+#     the references on skill/rules/command files dangle silently —
 #     no other test fails);
 # (2) the per-overlay skill files reference the procedure doc (otherwise
 #     the wiring decays invisibly: the doc exists but no agent reads it);

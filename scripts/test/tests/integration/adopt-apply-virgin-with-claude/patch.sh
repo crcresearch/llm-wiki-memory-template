@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Patch: stage a VIRGIN host (composite < 2 of 3 signals) that already
-# has its own CLAUDE.md and a grants file granting managed-block on it.
-# This exercises the realistic case "project has its own CLAUDE.md and
-# wants to take on the wiki-memory pattern".
+# has its own CLAUDE.md. This exercises the realistic case "project has
+# its own CLAUDE.md and wants to take on the wiki-memory pattern".
 #
 # adopt --apply on this host should:
-#   - run Phase 1 ADD (host has none of the template files)
+#   - run Phase 1 ADD (host has none of the template files; the
+#     behavioral instructions land as .claude/rules/*.md)
 #   - run Phase 2B init-wiki (creates wiki sub-repo)
-#   - run Phase 2B overlay setup (injects sentinel-paired blocks INTO
-#     the host's existing CLAUDE.md WITHOUT destroying its prose)
-#   - record managed-block TOUCH as applied via setup.sh
+#   - run Phase 2B overlay setup
+#   - leave the host's CLAUDE.md byte-identical (no grant covers it;
+#     nothing writes to it)
 #
 # No --force needed; the host starts as virgin.
 
@@ -25,9 +25,9 @@ mkdir -p "$HOST"
 git init -q "$HOST"
 git -C "$HOST" remote add origin "https://github.com/example-org/virgin-claude-host.git"
 
-# Host-authored content. CLAUDE.md has prose ABOVE and BELOW where the
-# overlay's managed blocks will land; both segments must survive the
-# injection unchanged.
+# Host-authored content. The whole CLAUDE.md must survive adoption
+# byte-identical; the snapshot below is what the assertions compare
+# against after both the apply and the re-run.
 cat > "$HOST/README.md" <<'EOF'
 # Virgin Claude Host
 A project that has its own CLAUDE.md and is taking on the wiki pattern.
@@ -39,14 +39,6 @@ cat > "$HOST/CLAUDE.md" <<'EOF'
 This CLAUDE.md was authored by the project owner before adoption.
 It has its own conventions, style notes, and project-specific rules.
 
-## Wiki
-
-(The overlay's setup.sh will inject sentinel-paired blocks here.)
-
-### Knowledge Graph
-
-(Anchor where the overlay's lw:wiki-maintenance block lands BEFORE.)
-
 ## Project conventions
 
 These conventions are host-authored and must survive adoption unchanged.
@@ -54,12 +46,12 @@ EOF
 
 echo "*.pyc" > "$HOST/.gitignore"
 
-# Grants file: managed-block on CLAUDE.md so adopt records the TOUCH
-# (and Phase 2B's invocation of setup.sh actually does the injection).
-cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
-grants:
-  CLAUDE.md:  managed-block
-EOF
+# Snapshot for the byte-identity assertions.
+cp "$HOST/CLAUDE.md" "$STAGE/claude-md.before"
+
+# No grants file: the defaults path (one merge grant) is exercised
+# elsewhere; this fixture is about the host-owned files surviving a
+# full virgin adopt.
 
 # Crucially: do NOT stage llm-wiki.md, discipline-gates.md, or
 # wiki/init-wiki.sh. That keeps the composite detector at 0 of 3 so

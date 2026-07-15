@@ -25,7 +25,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && git rev-parse --show-topleve
 # derived projects (observed: 10 spurious fails in a derived project's
 # CI). Decline WITHOUT creating $STAGE so assertions.sh skips cleanly.
 # Discriminator matches clone_template's issue-#15 guard.
-if [ ! -f "$REPO_ROOT/CLAUDE.md.template" ]; then
+if [ ! -f "$REPO_ROOT/scripts/instantiate.sh" ]; then
     echo "  cursor-setup: not a template checkout (derived project); declining to stage." >&2
     exit 0
 fi

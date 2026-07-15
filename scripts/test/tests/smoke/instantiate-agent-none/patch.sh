@@ -45,7 +45,9 @@ git -C "$T" remote remove origin 2>/dev/null || true
 if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"
-        if [ ! -f CLAUDE.md ]; then
+        # instantiate.sh self-deletes on success, so the outer -f check is
+        # the re-run guard; nothing else marks an instantiated tree.
+        if [ -f scripts/instantiate.sh ]; then
             rc=0
             bash scripts/instantiate.sh "Agent None Project" \
                 --agent=none \

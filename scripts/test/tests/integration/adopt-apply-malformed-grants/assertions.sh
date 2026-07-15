@@ -2,7 +2,7 @@
 # Assertions: a malformed grants YAML should not crash the parser. The
 # minimal awk reader in adopt.sh picks up valid lines and silently
 # skips garbage (missing values, missing keys, non-grants prose).
-# The valid 'CLAUDE.md: managed-block' entry still applies.
+# The valid '.claude/settings.json: merge' entry still applies.
 
 STAGE="$SANDBOX/adopt-apply-malformed-grants"
 HOST="$STAGE/host"
@@ -17,22 +17,22 @@ assert "apply did not abort -- ran to completion (RC=0)" \
 # --- The valid entry was picked up and applied ---
 assert "header reports the grants file was detected" \
     "grep -qE 'Grants file:.*\\.llm-wiki-adopt-grants\\.yml' '$OUT'"
-assert "TOUCH block lists CLAUDE.md (the only valid entry)" \
-    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qE '~ +CLAUDE\\.md +managed-block'"
-assert "manifest reports CLAUDE.md managed-block as created from canonical" \
-    "grep -qF 'CLAUDE.md (managed-block): created from canonical and patched' '$HOST/.llm-wiki-adopt-log.md'"
+assert "TOUCH block lists .claude/settings.json (the only valid entry)" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qE '~ +\\.claude/settings\\.json +merge'"
+assert "manifest reports settings.json merge as created from canonical" \
+    "grep -qF '.claude/settings.json (merge): created from canonical via wiki/agents/claude-code/setup.sh --hook' '$HOST/.llm-wiki-adopt-log.md'"
 assert "host .gitignore untouched (still only the host's own rule)" \
     "[ \"\$(cat '$HOST/.gitignore')\" = '*.pyc' ]"
 assert "wiki/.gitignore was ADDed with the *.wiki/ rule" \
     "grep -qFx '*.wiki/' '$HOST/wiki/.gitignore'"
 
 # --- Garbage lines did NOT classify ---
-# '.claude/settings.json:' (no value) should be skipped, not classified.
+# 'CLAUDE.md:' (no value) should be skipped, not classified.
 # 'malformed line with no colon' should be skipped, ditto.
 # ': value-without-key' should be skipped.
 # 'trailing garbage at the bottom' should be skipped.
-assert "manifest does NOT list .claude/settings.json (was malformed key with no value)" \
-    "! grep -qF '.claude/settings.json (' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest does NOT list CLAUDE.md (was malformed key with no value)" \
+    "! grep -qF -- '- CLAUDE.md (' '$HOST/.llm-wiki-adopt-log.md'"
 assert "TOUCH block does NOT list a 'malformed' or 'garbage' entry" \
     "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qiE 'malformed|garbage|value-without-key'"
 assert "GRANT WARNINGS section does NOT report nonsense entries either" \

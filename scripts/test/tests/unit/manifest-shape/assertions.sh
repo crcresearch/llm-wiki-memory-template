@@ -20,8 +20,8 @@ LW_MANIFEST="$REPO_ROOT_LIB/scripts/lib/template-manifest.sh"
 # placeholders and pruned the unused overlays — there the invariants are
 # legitimately false (observed: 12 spurious fails in a derived project's
 # CI). Same discriminator as clone_template's issue-#15 guard: only the
-# template checkout carries CLAUDE.md.template.
-if [ ! -f "$REPO_ROOT_LIB/CLAUDE.md.template" ]; then
+# template checkout carries the one-shot scripts/instantiate.sh.
+if [ ! -f "$REPO_ROOT_LIB/scripts/instantiate.sh" ]; then
     skip "manifest-shape assertions" "not a template checkout (derived project; manifest tree-invariants do not apply)"
     return 0 2>/dev/null || true
 fi
@@ -49,7 +49,7 @@ assert_eq "double-source preserves shared-infra count" \
 
 # --- HOST_OWNED entries have well-formed grants ----------------------------
 # Each "path|type" must split into two non-empty halves and resolve to a
-# known_grant_type (managed-block, merge) recognised by the accessor.
+# known_grant_type (merge) recognised by the accessor.
 HOST_OWNED_ENTRIES="$(lw_mcall 'printf "%s\n" "${TEMPLATE_HOST_OWNED[@]}"')"
 while IFS= read -r _entry; do
     [[ -n "$_entry" ]] || continue
@@ -58,7 +58,7 @@ while IFS= read -r _entry; do
     assert "HOST_OWNED entry has non-empty path  ($_entry)"  "[ -n '$_path' ]"
     assert "HOST_OWNED entry has non-empty type  ($_entry)"  "[ -n '$_type' ]"
     assert "HOST_OWNED entry has known op type   ($_entry)" \
-        "case '$_type' in managed-block|merge) true ;; *) false ;; esac"
+        "case '$_type' in merge) true ;; *) false ;; esac"
     _resolved="$(lw_mcall "lw_manifest_known_grant_type '$_path'")"
     assert_eq "lw_manifest_known_grant_type('$_path')" "$_type" "$_resolved"
 done <<< "$HOST_OWNED_ENTRIES"
@@ -163,6 +163,16 @@ assert_eq "assemble(detect) host-bare                 = SHARED only" "$N_SHARED"
 # the host's root .gitignore must not resolve to any grant type.
 assert_eq "known_grant_type(.gitignore) is empty (rule moved to wiki/.gitignore)" "" \
     "$(lw_mcall "lw_manifest_known_grant_type '.gitignore'")"
+
+# --- CLAUDE.md is no longer a grant target ----------------------------------
+# The managed-block grant is retired: the behavioral instructions ship as
+# .claude/rules/*.md overlay files and no script writes the host's CLAUDE.md.
+assert_eq "known_grant_type(CLAUDE.md) is empty (managed-block grant retired)" "" \
+    "$(lw_mcall "lw_manifest_known_grant_type 'CLAUDE.md'")"
+assert "CLAUDE.md.template is gone from the template tree" \
+    "[ ! -e '$REPO_ROOT_LIB/CLAUDE.md.template' ]"
+assert "CLAUDE.md.template is gone from TEMPLATE_ONE_SHOT" \
+    "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_ONE_SHOT[@]}\"' | grep -qxF 'CLAUDE.md.template'"
 assert "wiki/.gitignore is in TEMPLATE_SHARED_INFRA" \
     "lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_SHARED_INFRA[@]}\"' | grep -qxF 'wiki/.gitignore'"
 assert "template's wiki/.gitignore carries the *.wiki/ rule" \

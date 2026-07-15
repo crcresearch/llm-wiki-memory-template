@@ -69,9 +69,8 @@ done < "$STAGE/expected-claude.txt"
 # For each path that appears in BOTH instantiate (A) and adopt (B) output,
 # assert byte-equality. Allowlist documents known-asymmetric files.
 ALLOWLIST=(
-    # CLAUDE.md is rendered from a .template by instantiate and from the
-    # overlay's snippet by adopt; the two paths produce intentionally
-    # different prose layouts. TEMPLATE_HOST_OWNED in any case.
+    # CLAUDE.md is host-owned and no longer produced by either path;
+    # allowlisted defensively in case a host authors one.
     "CLAUDE.md"
     # README.md is host-authored (B) or .template-rendered (A); never
     # synced by either tool.
@@ -158,10 +157,11 @@ while IFS= read -r _disk; do
         .git/*) continue ;;
         # Host-authored files that pre-existed: README.md, .git/
         README.md) continue ;;
-        # Host-owned files installed by adopt (managed-block / merge):
-        # the manifest lists them but they live in TEMPLATE_HOST_OWNED,
-        # not SHARED_INFRA; treated as host content by sync tools.
-        # .gitignore is plain host content (no grant) but may pre-exist.
+        # Host-owned files (merge grant or plain host content): the
+        # manifest lists .claude/settings.json in TEMPLATE_HOST_OWNED,
+        # not SHARED_INFRA; CLAUDE.md and .gitignore are plain host
+        # content that may pre-exist. Treated as host content by sync
+        # tools either way.
         CLAUDE.md|.gitignore|.claude/settings.json) continue ;;
         # Adopt's own log artifact: not a manifest entry.
         .llm-wiki-adopt-log.md|.llm-wiki-template-log.md) continue ;;

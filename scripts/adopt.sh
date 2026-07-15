@@ -5,8 +5,8 @@
 # Default mode is dry-run: classify the ADD allowlist against the target
 # repo (ADD / SKIP / REFUSE) and print a report. With --apply it mutates
 # the target: copies every ADD entry (never overwrites), applies the
-# host-owned TOUCH grants (CLAUDE.md managed-block, .claude/settings.json
-# merge) from .llm-wiki-adopt-grants.yml or the built-in
+# host-owned TOUCH grant (.claude/settings.json merge) from
+# .llm-wiki-adopt-grants.yml or the built-in
 # defaults, runs wiki/init-wiki.sh to bootstrap the wiki sub-repo, runs the
 # chosen overlay's wiki/agents/<agent>/setup.sh, optionally wires the GitHub
 # Wiki backend (--github-wiki), and appends a manifest of what changed to
@@ -133,10 +133,10 @@ copies every ADD entry into the target (never overwrites; REFUSE entries
 are left alone) and writes .llm-wiki-adopt-log.md with the manifest of
 what was created. Default is dry-run.
 
-TOUCH grants: by default adopt applies the two standard grants
-(CLAUDE.md managed-block, .claude/settings.json
-merge) -- the integration touchpoints the wiki-memory pattern needs to
-function as designed. To customise, commit a .llm-wiki-adopt-grants.yml
+TOUCH grants: by default adopt applies the one standard grant
+(.claude/settings.json merge) -- the integration touchpoint the
+wiki-memory pattern needs to function as designed (SessionStart hook
+registration). To customise, commit a .llm-wiki-adopt-grants.yml
 at the host repo root before --apply; it overrides the defaults entirely
 (an empty 'grants:' map opts out of all touches).
 
@@ -321,20 +321,18 @@ done
 # Absent targets are NOT rejected. TOUCH grants govern HOW adopt may
 # safely modify a host file, not WHETHER adopt may create one. When
 # the target is absent the host has no content to preserve, so the
-# overlay's seed is installed. CLAUDE.md already behaved this way via
-# the init-wiki side-channel; this brought .claude/settings.json into
-# the same shape. Reported as design inconsistency by Chris Sweet on
-# PR #51 (items 3, 4, 5).
+# overlay's seed is installed (for .claude/settings.json, setup.sh --hook
+# creates it from canonical). Reported as design inconsistency by Chris
+# Sweet on PR #51 (items 3, 4, 5).
 #
 # When the host did not author a .llm-wiki-adopt-grants.yml, adopt uses
 # the manifest's TEMPLATE_HOST_OWNED list as the default grant set: the
-# two standard grants that every wiki-memory adopter has historically
-# wanted (CLAUDE.md managed-block, .claude/settings.json merge).
-# Without this default the adoption is partial: the SessionStart hook
-# is never registered, so claude-code does not auto-pull the wiki at
-# session start. The host can override by committing an explicit
-# .llm-wiki-adopt-grants.yml -- including an empty 'grants:' map to opt
-# out of all touches.
+# one standard grant that every wiki-memory adopter has historically
+# wanted (.claude/settings.json merge). Without this default the
+# adoption is partial: the SessionStart hook is never registered, so
+# claude-code does not auto-pull the wiki at session start. The host can
+# override by committing an explicit .llm-wiki-adopt-grants.yml --
+# including an empty 'grants:' map to opt out of all touches.
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
 ACT_TOUCH=()           # "path|type|was_absent"
 ACT_TOUCH_INVALID=()   # "path  (reason)"
@@ -731,7 +729,7 @@ fi
 
 # --- Overlay setup (Phase 2B) -----------------------------------------------
 # wiki/agents/<AGENT>/setup.sh is now in the host (copied by ADD). It is
-# idempotent (lw_inject_block no-ops when sentinels are present), so safe
+# idempotent (each of its steps is presence-guarded), so safe
 # to invoke even on subsequent --apply runs. Skipped entirely when
 # --agent=none.
 OVERLAY_SETUP_STATUS="not-run"
@@ -757,10 +755,11 @@ else
     fi
 fi
 
-# --- TOUCH apply (Phase 2B managed-block, Phase 3 merge) --------------------
+# --- TOUCH apply (Phase 3 merge) ---------------------------------------------
 # For valid TOUCH entries, dispatch by mechanism:
-#   managed-block -> Phase 2B (overlay setup.sh orchestration)
-#   merge         -> Phase 3 (jq deep-merge via overlay setup.sh --hook)
+#   merge -> Phase 3 (jq deep-merge via overlay setup.sh --hook)
+# (managed-block was retired with the CLAUDE.md grant; the behavioral
+# instructions ship as .claude/rules/*.md ADD entries instead.)
 #
 # Each entry's status is captured for the manifest.
 APPLIED_TOUCHES=()
@@ -772,26 +771,6 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
         t_type="${rest%%|*}"
         t_was_absent="${rest#*|}"
         case "$t_type" in
-            managed-block)
-                # The overlay setup.sh owns CLAUDE.md sentinel injection
-                # (and analogous host files for non-claude overlays). Adopt
-                # delegates; the result mirrors the overlay's outcome.
-                # When the host file was absent, init-wiki has already
-                # seeded a fresh CLAUDE.md before this dispatch runs and
-                # the overlay setup then patches it -- so the user-visible
-                # outcome is "created from canonical, then patched".
-                if [[ "$OVERLAY_SETUP_STATUS" == "applied" ]]; then
-                    if [[ "$t_was_absent" == "1" ]]; then
-                        APPLIED_TOUCHES+=("$t_path ($t_type): created from canonical and patched via wiki/agents/$AGENT/setup.sh")
-                    else
-                        APPLIED_TOUCHES+=("$t_path ($t_type): applied via wiki/agents/$AGENT/setup.sh")
-                    fi
-                elif [[ "$OVERLAY_SETUP_STATUS" == "skipped" ]]; then
-                    APPLIED_TOUCHES+=("$t_path ($t_type): skipped ($OVERLAY_SETUP_DETAIL)")
-                else
-                    APPLIED_TOUCHES+=("$t_path ($t_type): $OVERLAY_SETUP_STATUS ($OVERLAY_SETUP_DETAIL)")
-                fi
-                ;;
             merge)
                 # Mirror Phase 2B's pattern: delegate to overlay setup.sh
                 # with the flag that performs the jq deep-merge for this

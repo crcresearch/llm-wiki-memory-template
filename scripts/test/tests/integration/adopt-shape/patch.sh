@@ -56,18 +56,20 @@ echo '{ "permissions": { "allow": ["Bash"] } }' > "$HOST/.claude/settings.json"
 
 # Author a grants file with four deliberately-chosen entries:
 #   .claude/settings.json -> merge          host file present, grant valid -> TOUCH
-#   Makefile              -> managed-block  not in KNOWN_GRANTS            -> INVALID
-#   CLAUDE.md             -> managed-block  not present in host            -> TOUCH [absent]
-#   .gitignore            -> append-only    grant type retired             -> INVALID
-# This covers each classification outcome adopt distinguishes, plus the
-# regression case: the old .gitignore append-only grant must now be
-# refused as unknown (the wiki ignore rule ships as wiki/.gitignore).
+#   Makefile              -> merge          not in KNOWN_GRANTS            -> INVALID
+#   CLAUDE.md             -> managed-block  grant retired                  -> INVALID
+#   .gitignore            -> append-only    grant retired                  -> INVALID
+# This covers each classification outcome adopt distinguishes, plus two
+# regression cases: the old .gitignore append-only grant and the old
+# CLAUDE.md managed-block grant must both be refused as unknown (the wiki
+# ignore rule ships as wiki/.gitignore; the behavioral instructions ship
+# as .claude/rules/*.md).
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 # Adopt grants for the synthetic host (fixture).
 grants:
   .claude/settings.json:  merge          # valid; host file exists -> TOUCH
-  Makefile:    managed-block    # unknown target in template -> INVALID
-  CLAUDE.md:   managed-block    # valid type but host has no CLAUDE.md -> TOUCH [absent]
+  Makefile:    merge            # unknown target in template -> INVALID
+  CLAUDE.md:   managed-block    # retired grant -> INVALID
   .gitignore:  append-only      # retired grant -> INVALID
 EOF
 

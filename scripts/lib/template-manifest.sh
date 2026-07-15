@@ -112,6 +112,10 @@ TEMPLATE_OVERLAY_CLAUDE=(
     ".claude/skills/wiki-lint.md"
     "wiki/agents/claude-code/setup.sh"
     "wiki/agents/claude-code/README.md"
+    # No longer consumed by claude-code/setup.sh (the CLAUDE.md sentinel
+    # injection is retired in favor of .claude/rules/*.md), but
+    # wiki/agents/cursor/setup.sh still reads it as its SNIPPET_FILE.
+    # Remove together with the cursor CLAUDE.md patch decision.
     "wiki/agents/claude-code/templates/claude-md-snippet.md"
     "wiki/agents/claude-code/templates/memory-seed.md"
     "wiki/agents/claude-code/templates/session-start-hook.sh"
@@ -165,9 +169,11 @@ TEMPLATE_SUBSTITUTE_FILES=(
 # host owns the content. update-from-template ignores these entirely; adopt
 # uses them to seed DEFAULT_GRANTS when no .llm-wiki-adopt-grants.yml is
 # present. Format: "path|operation-type" where operation-type matches the
-# known_grant_type vocabulary (managed-block, merge).
+# known_grant_type vocabulary (merge).
+# CLAUDE.md is no longer listed: the managed-block grant is retired along
+# with every CLAUDE.md writer; the behavioral instructions ship as
+# .claude/rules/*.md overlay files instead.
 TEMPLATE_HOST_OWNED=(
-    "CLAUDE.md|managed-block"
     ".claude/settings.json|merge"
 )
 
@@ -178,7 +184,6 @@ TEMPLATE_HOST_OWNED=(
 # shellcheck disable=SC2034  # consumed by docs/tests, not by sync logic
 TEMPLATE_ONE_SHOT=(
     "scripts/instantiate.sh"
-    "CLAUDE.md.template"
     "README.md.template"
     ".claude/settings.json.template"
     ".cursorrules.template"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Assertions: verify clone_template's derived-project guard (issue #15).
 # The guard returns 1 when MVP_TEMPLATE_LOCAL points at a derived project
-# (CLAUDE.md present, CLAUDE.md.template absent), and 0 when it points
-# at the canonical template (CLAUDE.md.template present).
+# (scripts/instantiate.sh absent; it self-deletes at instantiation), and 0
+# when it points at the canonical template (scripts/instantiate.sh present).
 #
 # This is a regression test: if a future refactor of clone_template
 # breaks the guard, the smoke template-bootstrap and instantiate-agent-none
@@ -21,14 +21,12 @@ assert "lib/template.sh exists"             "[ -f '$TEMPLATE_LIB' ]"
 assert "lib/template.sh passes bash -n"     "bash -n '$TEMPLATE_LIB'"
 
 # --- Sanity: the fixtures from patch.sh are present ---
-assert "fake-template fixture has CLAUDE.md.template" \
-    "[ -f '$TEMPL/CLAUDE.md.template' ]"
-assert "fake-template fixture has no CLAUDE.md" \
-    "[ ! -f '$TEMPL/CLAUDE.md' ]"
-assert "fake-derived fixture has CLAUDE.md" \
+assert "fake-template fixture has scripts/instantiate.sh" \
+    "[ -f '$TEMPL/scripts/instantiate.sh' ]"
+assert "fake-derived fixture has no scripts/instantiate.sh" \
+    "[ ! -f '$DERIVED/scripts/instantiate.sh' ]"
+assert "fake-derived fixture has CLAUDE.md (guard must not key on it)" \
     "[ -f '$DERIVED/CLAUDE.md' ]"
-assert "fake-derived fixture has no CLAUDE.md.template" \
-    "[ ! -f '$DERIVED/CLAUDE.md.template' ]"
 
 # --- Helper: run clone_template in a subshell with given inputs ---
 # Returns the exit code of clone_template.
@@ -63,8 +61,8 @@ assert_eq "clone_template returns 0 for fake-template (template-like input)" \
     "0" "$RC_OK"
 assert "clone_template created target dir for fake-template" \
     "[ -d '$TARGET_OK' ]"
-assert "clone_template copied CLAUDE.md.template into target" \
-    "[ -f '$TARGET_OK/CLAUDE.md.template' ]"
+assert "clone_template copied scripts/instantiate.sh into target" \
+    "[ -f '$TARGET_OK/scripts/instantiate.sh' ]"
 
 # --- Case 2: fake-derived should be refused (returns 1, no target created) ---
 TARGET_NO="$ROOT/out-derived"
@@ -80,3 +78,18 @@ assert "clone_template stderr mentions 'derived' on the refusal path" \
     "grep -qi 'derived' '$STDERR_NO'"
 assert "clone_template stderr references issue #15 on the refusal path" \
     "grep -qF 'issue #15' '$STDERR_NO'"
+
+# --- Case 3: derived project WITHOUT CLAUDE.md is still refused ---
+# The normal shape of a new-style derived project (instantiate no longer
+# creates CLAUDE.md). The retired CLAUDE.md-based discriminator passed
+# this through as template-like; the instantiate.sh-based one refuses it.
+DERIVED_BARE="$ROOT/fake-derived-no-claude"
+TARGET_BARE="$ROOT/out-derived-no-claude"
+rm -rf "$TARGET_BARE"
+STDERR_BARE="$ROOT/stderr-derived-no-claude.log"
+_clone_with_local "$DERIVED_BARE" "$TARGET_BARE" "$STDERR_BARE"
+RC_BARE=$?
+assert_eq "clone_template returns 1 for a CLAUDE.md-less derived project" \
+    "1" "$RC_BARE"
+assert "clone_template did NOT create target dir for CLAUDE.md-less derived" \
+    "[ ! -d '$TARGET_BARE' ]"

@@ -182,6 +182,13 @@ install_feature() {
                 } >> CLAUDE.md
                 echo "  + patched CLAUDE.md with marker '$marker'"
             fi
+        elif [[ -f "$section_path" ]]; then
+            # The template no longer creates CLAUDE.md (it is host-owned),
+            # so a fresh project may not have one. Skip loudly instead of
+            # silently: the feature's usage notes are otherwise lost.
+            echo "  = CLAUDE.md not present; skipped the '$marker' section patch."
+            echo "    (Usage notes live at $section_path; add them to your own"
+            echo "     CLAUDE.md or a .claude/rules/ file if you want them in context.)"
         fi
     fi
 

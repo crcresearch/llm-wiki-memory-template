@@ -23,8 +23,10 @@
 #   manifest and nothing else.
 #
 # What does NOT get touched (project-specific):
-#   CLAUDE.md, .gitignore, .claude/settings.json  (TEMPLATE_HOST_OWNED: the
+#   .claude/settings.json                         (TEMPLATE_HOST_OWNED: the
 #       template defines the operation type but the host owns the content)
+#   CLAUDE.md, .gitignore                         (plain host content; the
+#       template never creates or edits them)
 #   README.md, .cursorrules                       (project's own)
 #   .claude/settings.local.json                   (per-user, gitignored)
 #   .claude/hooks/                                (per-machine, opt-in)

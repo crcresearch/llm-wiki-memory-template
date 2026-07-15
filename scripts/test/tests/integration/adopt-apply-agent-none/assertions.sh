@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Assertions: --agent=none on a virgin host with managed-block and merge
-# grants. Overlay setup must NOT run; managed-block and merge TOUCHes
-# must be recorded as 'skipped' (not failed, not applied); host's
-# CLAUDE.md must remain entirely unchanged (no sentinel injection).
+# Assertions: --agent=none on a virgin host with a merge grant. Overlay
+# setup must NOT run; the merge TOUCH must be recorded as 'skipped' (not
+# failed, not applied); the host's CLAUDE.md must remain entirely
+# unchanged (it is not a grant target anymore).
 
 STAGE="$SANDBOX/adopt-apply-agent-none"
 HOST="$STAGE/host"
@@ -18,15 +18,11 @@ assert "manifest reports overlay setup as skipped (--agent=none)" \
 assert "manifest detail mentions '--agent=none' as the reason" \
     "grep -qF -- '--agent=none, no overlay' '$HOST/.llm-wiki-adopt-log.md'"
 
-# managed-block TOUCH records 'skipped', not 'applied' and not 'failed'.
-assert "manifest reports CLAUDE.md managed-block as skipped" \
-    "grep -qF 'CLAUDE.md (managed-block): skipped' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest does NOT report managed-block as applied" \
-    "! grep -qF 'CLAUDE.md (managed-block): applied' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest does NOT report managed-block as failed" \
-    "! grep -qF 'CLAUDE.md (managed-block): failed' '$HOST/.llm-wiki-adopt-log.md'"
+# CLAUDE.md never classifies (managed-block grant retired).
+assert "manifest does NOT list a CLAUDE.md TOUCH at all" \
+    "! grep -qF -- '- CLAUDE.md (' '$HOST/.llm-wiki-adopt-log.md'"
 
-# Same story for the merge grant.
+# The merge grant records 'skipped', not 'applied' and not 'failed'.
 assert "manifest reports settings.json merge as skipped" \
     "grep -qF '.claude/settings.json (merge): skipped' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest does NOT report merge as applied" \

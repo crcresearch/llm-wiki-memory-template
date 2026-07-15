@@ -16,7 +16,8 @@ fi
 assert "instantiate.sh exited 0" \
     "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
 
-assert "instantiate.sh produced CLAUDE.md" "[ -f '$T/CLAUDE.md' ]"
+assert "instantiate.sh did NOT create CLAUDE.md (host-owned now)" \
+    "[ ! -f '$T/CLAUDE.md' ]"
 
 # --- F1: namespace from origin (widget), not basename (clonedir) ---
 assert "F1: wiki dir uses the origin name (widget.wiki)" \
@@ -30,8 +31,10 @@ assert "F1: files namespaced with the origin name (SCHEMA_widget.md)" \
 assert "F1: Home_widget.md exists" \
     "[ -f '$T/wiki/widget.wiki/Home_widget.md' ]"
 
-# --- F1: the rendered CLAUDE.md points at the origin-named wiki path ---
-assert_contains "F1: CLAUDE.md references wiki/widget.wiki/" \
-    "$T/CLAUDE.md" "wiki/widget\.wiki/"
-assert "F1: CLAUDE.md has no {{REPO_NAME}} leak" \
-    "! grep -q '{{REPO_NAME}}' '$T/CLAUDE.md'"
+# --- F1: the stamped wiki pages point at the origin-named files ---
+# (CLAUDE.md is no longer rendered; the wiki's own Home page carries the
+# namespaced references init-wiki stamped from the handed-down name.)
+assert_contains "F1: Home_widget.md references index_widget" \
+    "$T/wiki/widget.wiki/Home_widget.md" "index_widget"
+assert "F1: stamped wiki pages have no {{REPO_NAME}} leak" \
+    "! grep -q '{{REPO_NAME}}' '$T/wiki/widget.wiki/Home_widget.md'"

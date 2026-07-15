@@ -9,7 +9,7 @@
 # parallel directories under wiki/agents/.
 #
 # Usage:
-#   ./wiki/agents/claude-code/setup.sh                       # base: CLAUDE.md + verify commands & skills
+#   ./wiki/agents/claude-code/setup.sh                       # base: verify wiki, commands & skills
 #   ./wiki/agents/claude-code/setup.sh --hook                # + SessionStart hook
 #   ./wiki/agents/claude-code/setup.sh --seed-memory         # + personal memory seed
 #   ./wiki/agents/claude-code/setup.sh --posttooluse-hook    # + PostToolUse advisory hook
@@ -30,8 +30,9 @@
 # What it does:
 #   Base mode:
 #     1. Verifies the wiki is present (else prints how to run init-wiki.sh).
-#     2. Patches CLAUDE.md with the "Wiki maintenance behavior" subsection,
-#        if not already present (idempotent marker check).
+#        The behavioral instructions (memory boundary, wiki maintenance)
+#        ship as .claude/rules/*.md with the overlay; nothing is written
+#        to the host's CLAUDE.md.
 #     3a. Reports presence/absence of .claude/commands/wiki-*.md (slash
 #         commands invoked via /wiki-experiment, /wiki-source, /wiki-lint).
 #     3b. Reports presence/absence of .claude/skills/wiki-*.md (model-side
@@ -94,7 +95,6 @@ REPO_ROOT=$(lw_repo_root)
 REPO_NAME=$(lw_discover_wiki_name "$REPO_ROOT")
 WIKI_DIR="$REPO_ROOT/wiki/${REPO_NAME}.wiki"
 SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
-CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 
 OVERLAY_DIR="$REPO_ROOT/wiki/agents/claude-code"
 TEMPLATES_DIR="$OVERLAY_DIR/templates"
@@ -112,57 +112,9 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
     exit 1
 fi
 
-# --- Step 2: patch CLAUDE.md ---
-# The snippet at $SNIPPET_FILE carries TWO subsections, each delimited by a
-# paired sentinel (<!-- lw:memory-boundary -->, <!-- lw:wiki-maintenance -->).
-# Idempotency is the presence of the opening sentinel, not a prose-heading grep
-# (which false-negatived on wording drift, duplicating, and false-positived on
-# the old leaked comment, F7). Each subsection injects independently, so a
-# project that has one but not the other still gets the missing one.
-SNIPPET_FILE="$TEMPLATES_DIR/claude-md-snippet.md"
-KG_ANCHOR="### Knowledge Graph"
-
-# Body of one subsection, read from BETWEEN its sentinel pair in the template
-# (so the template's header comment never leaks in), with ${REPO_NAME}
-# substituted. lw_inject_block re-wraps this body in the same sentinels.
-extract_block() {
-    awk -v open="<!-- lw:$1 -->" -v endm="<!-- /lw:$1 -->" '
-        $0 == open { grab=1; next }
-        $0 == endm { grab=0 }
-        grab       { print }
-    ' "$SNIPPET_FILE" | sed "s/\${REPO_NAME}/$REPO_NAME/g"
-}
-
-if [[ ! -f "$CLAUDE_MD" ]]; then
-    echo "WARNING: CLAUDE.md not found at $CLAUDE_MD. Skipping CLAUDE.md patch." >&2
-    lw_record_skip "CLAUDE.md: not found (skipped)"
-elif [[ ! -f "$SNIPPET_FILE" ]]; then
-    lw_record_skip "CLAUDE.md: template snippet not found at $SNIPPET_FILE (skipped)"
-else
-    patched=false
-    # Migrate any pre-sentinel prose sections in place first (wrap, preserving
-    # local edits), so the sentinel-based injection below recognizes them and
-    # does not duplicate.
-    if lw_wrap_section "$CLAUDE_MD" memory-boundary "### Memory boundary"; then
-        lw_record_change "CLAUDE.md: migrated legacy 'Memory boundary' section to sentinels"; patched=true
-    fi
-    if lw_wrap_section "$CLAUDE_MD" wiki-maintenance "### Wiki maintenance behavior"; then
-        lw_record_change "CLAUDE.md: migrated legacy 'Wiki maintenance behavior' section to sentinels"; patched=true
-    fi
-
-    # Inject each still-missing subsection. memory-boundary precedes
-    # wiki-maintenance; anchor it on the latter's sentinel when present, else
-    # the Knowledge Graph subsection.
-    MB_ANCHOR="$KG_ANCHOR"
-    grep -qF '<!-- lw:wiki-maintenance -->' "$CLAUDE_MD" 2>/dev/null && MB_ANCHOR='<!-- lw:wiki-maintenance -->'
-    if lw_inject_block "$CLAUDE_MD" memory-boundary "$(extract_block memory-boundary)" "$MB_ANCHOR"; then
-        lw_record_change "CLAUDE.md: injected 'Memory boundary' subsection"; patched=true
-    fi
-    if lw_inject_block "$CLAUDE_MD" wiki-maintenance "$(extract_block wiki-maintenance)" "$KG_ANCHOR"; then
-        lw_record_change "CLAUDE.md: injected 'Wiki maintenance behavior' subsection"; patched=true
-    fi
-    $patched || lw_record_skip "CLAUDE.md: 'Memory boundary' and 'Wiki maintenance behavior' both already present (skipped)"
-fi
+# The behavioral instructions that used to be injected into CLAUDE.md
+# (memory boundary, wiki maintenance) ship as .claude/rules/*.md files with
+# this overlay; this script no longer reads or writes the host's CLAUDE.md.
 
 # --- Step 3a: verify slash commands present ---
 COMMANDS_MISSING=()
@@ -402,7 +354,6 @@ echo ""
 NEXT=()
 if lw_changed_p; then
     NEXT+=("Review the changes above. Repo-tracked files that may have been modified:")
-    NEXT+=("  - CLAUDE.md (only if 'Wiki maintenance behavior' subsection was missing)")
     NEXT+=("  - .claude/settings.json (only if SessionStart hook was merged in)")
     NEXT+=("  - .claude/hooks/ensure-wiki.py (new, only if --hook was passed)")
     NEXT+=("  - .claude/hooks/session-start.sh (new, only if --hook was passed)")

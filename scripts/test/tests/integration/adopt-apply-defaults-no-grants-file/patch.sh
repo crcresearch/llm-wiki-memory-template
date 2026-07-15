@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Patch: virgin host, no grants file. Expected new behaviour (option D):
-# adopt classifies the two standard grants (CLAUDE.md managed-block,
-# .claude/settings.json merge) automatically and applies them, so the
-# host gets a fully-functional wiki-memory adoption without
-# hand-authoring YAML.
+# Patch: virgin host, no grants file. Expected behaviour (option D):
+# adopt classifies the one standard grant (.claude/settings.json merge)
+# automatically and applies it, so the host gets a fully-functional
+# wiki-memory adoption without hand-authoring YAML.
 
 set -uo pipefail
 

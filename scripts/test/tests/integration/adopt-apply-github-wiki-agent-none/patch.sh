@@ -3,7 +3,7 @@
 # --agent=none. The github-wiki sub-step is agent-orthogonal (the wiki is
 # useful regardless of which agent consumes it), so the seed-push should
 # still run and either succeed or fail with the 404 workaround. The
-# overlay setup, in contrast, must skip and its managed-block / merge
+# overlay setup, in contrast, must skip and its merge
 # TOUCH grants must report 'skipped (--agent=none, ...)'.
 
 set -uo pipefail

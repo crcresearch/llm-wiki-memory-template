@@ -1,14 +1,15 @@
 <!--
   Template: Memory boundary + Wiki maintenance behavior subsections for CLAUDE.md.
-  wiki/agents/{claude-code,cursor}/setup.sh inject each subsection into the
+  Consumed ONLY by wiki/agents/cursor/setup.sh now: the claude-code overlay
+  ships the same content as .claude/rules/*.md files and no longer writes
+  the host's CLAUDE.md. cursor/setup.sh injects each subsection into the
   ## Wiki section, immediately before the ### Knowledge Graph subsection,
   wrapped in paired sentinels for idempotency (lw:memory-boundary and
   lw:wiki-maintenance). setup.sh extracts the body BETWEEN each sentinel pair
   below and re-wraps it via lw_inject_block, so this header comment (outside any
   pair) is never injected. Projects created before this format carry bare "###"
   headings; setup.sh's shim wraps those in sentinels on the next run so
-  re-injection stays idempotent. When adding a subsection, give it its own
-  sentinel pair and a matching inject call in both setup.sh scripts.
+  re-injection stays idempotent.
 -->
 
 <!-- lw:memory-boundary -->

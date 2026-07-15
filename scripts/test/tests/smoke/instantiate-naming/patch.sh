@@ -39,7 +39,7 @@ fi
 git -C "$T" remote remove origin 2>/dev/null || true
 git -C "$T" remote add origin "https://github.com/acme/widget.git"
 
-if [ -f "$T/scripts/instantiate.sh" ] && [ ! -f "$T/CLAUDE.md" ]; then
+if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"
         rc=0

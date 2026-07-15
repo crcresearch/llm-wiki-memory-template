@@ -34,14 +34,13 @@ clone_template() {
         # instantiated state (real CLAUDE.md, wiki/<repo>.wiki/, etc.) and
         # make the bootstrap assertions meaningless (16 fails, all spurious).
         #
-        # Heuristic: the canonical template ships CLAUDE.md.template and
-        # has no CLAUDE.md; a derived project has CLAUDE.md and (after
-        # instantiate.sh self-deletes the one-shot template) typically no
-        # CLAUDE.md.template either. The discriminator is the presence of
-        # CLAUDE.md.template.
-        if [ -f "$local_clone/CLAUDE.md" ] && [ ! -f "$local_clone/CLAUDE.md.template" ]; then
+        # Heuristic: the canonical template ships scripts/instantiate.sh
+        # (one-shot; a successful instantiate self-deletes it), so a derived
+        # project lacks it. The discriminator is the presence of
+        # scripts/instantiate.sh.
+        if [ ! -f "$local_clone/scripts/instantiate.sh" ]; then
             echo "  Note: MVP_TEMPLATE_LOCAL=$local_clone looks like a derived" >&2
-            echo "        project (has CLAUDE.md, lacks CLAUDE.md.template)." >&2
+            echo "        project (lacks scripts/instantiate.sh)." >&2
             echo "        Template-bootstrap smoke tests apply to the template" >&2
             echo "        repo only; declining to clone here. Smoke assertions" >&2
             echo "        will skip cleanly. See issue #15." >&2

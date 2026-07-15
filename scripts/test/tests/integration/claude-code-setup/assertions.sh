@@ -18,15 +18,18 @@ SETUP="$REPO_ROOT_CC/wiki/agents/claude-code/setup.sh"
 assert "setup.sh exists"            "[ -f '$SETUP' ]"
 assert "setup.sh passes bash -n"    "bash -n '$SETUP'"
 
-# --- Identity: name from wiki/<name>.wiki, not the clone dir basename ---
-# Dir basename is 'checkout'; wiki is 'sigil'. Base mode injects the snippet,
-# which renders wiki/<name>.wiki paths.
+# --- Base mode: CLAUDE.md is never touched anymore ---
+# The behavioral instructions ship as .claude/rules/*.md; base mode only
+# verifies the wiki, commands, and skills. Identity (wiki name vs clone
+# dir basename) is proven by the --seed-memory leg below.
 ( cd "$STAGE/checkout" && CLAUDE_CONFIG_DIR="$STAGE/cfg" bash "$SETUP" ) >/dev/null 2>&1
-assert "identity: CLAUDE.md references the wiki name (sigil)" \
-    "grep -qF 'wiki/sigil.wiki/' '$STAGE/checkout/CLAUDE.md'"
-assert "identity: CLAUDE.md does NOT use the clone dir name (checkout)" \
-    "! grep -qF 'wiki/checkout.wiki/' '$STAGE/checkout/CLAUDE.md'"
-assert "identity: baseline CLAUDE.md content preserved" \
+RC_BASE=$?
+assert "base mode exits 0 with a wiki present" "[ $RC_BASE -eq 0 ]"
+assert "base mode did NOT write the wiki name into CLAUDE.md" \
+    "! grep -qF 'wiki/sigil.wiki/' '$STAGE/checkout/CLAUDE.md'"
+assert "base mode injected NO lw sentinels into CLAUDE.md" \
+    "! grep -qF '<!-- lw:' '$STAGE/checkout/CLAUDE.md'"
+assert "baseline CLAUDE.md content preserved" \
     "grep -qF 'Baseline content that must be preserved' '$STAGE/checkout/CLAUDE.md'"
 
 # --- Memory: --seed-memory honors CLAUDE_CONFIG_DIR and uses the wiki name ---

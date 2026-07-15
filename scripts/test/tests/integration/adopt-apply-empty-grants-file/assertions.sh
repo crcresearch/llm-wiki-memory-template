@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Assertions: an explicit empty grants file is the host's opt-out from
 # the defaults. Adopt must read the file, classify zero grants, and
-# leave the default targets untouched by the TOUCH dispatch.
-# Note: CLAUDE.md still receives the overlay setup's unconditional
-# sentinel injection in Phase 2B (since --agent=claude-code), so its
-# presence on disk is NOT a discriminator. Discriminator is the
-# absence of .claude/settings.json (a TOUCH-gated path). ADD entries
-# such as wiki/.gitignore are NOT grant-gated and still land.
+# leave the default target untouched by the TOUCH dispatch.
+# Discriminator is the absence of .claude/settings.json (the TOUCH-gated
+# path). ADD entries such as wiki/.gitignore and .claude/rules/*.md are
+# NOT grant-gated and still land.
 
 STAGE="$SANDBOX/adopt-apply-empty-grants-file"
 HOST="$STAGE/host"
