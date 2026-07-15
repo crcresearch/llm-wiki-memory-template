@@ -47,6 +47,12 @@ assert "host's settings.json was NOT modified (merge was skipped)" \
     "grep -qF '\"theme\": \"host\"' '$HOST/.claude/settings.json' && \\
      ! grep -qF 'SessionStart' '$HOST/.claude/settings.json'"
 
+# Overlay-gated ADD entries did not leak past --agent=none. The host has
+# .claude/ (its own settings.json), so directory presence cannot gate this;
+# only the assemble(agent) filter keeps overlay files out of the ADD set.
+assert "no .claude/rules/ overlay files ADDed under --agent=none" \
+    "[ ! -e '$HOST/.claude/rules/wiki-as-memory.md' ]"
+
 # Phase 1 ADD still ran -- init-wiki status captured as well.
 assert "manifest records init-wiki status" \
     "grep -qE -- '- init-wiki: (applied|already-present)' '$HOST/.llm-wiki-adopt-log.md'"

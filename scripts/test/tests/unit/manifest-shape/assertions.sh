@@ -196,3 +196,17 @@ assert "tree_files dir-mode lists the harness runner" \
     "lw_mcall \"lw_manifest_tree_files dir '$REPO_ROOT_LIB'\" | grep -qx 'scripts/test/run.sh'"
 assert "tree_files dir-mode returns a substantial member set" \
     "[ \"$(lw_mcall "lw_manifest_tree_files dir '$REPO_ROOT_LIB'" | wc -l | tr -d ' ')\" -gt 50 ]"
+
+# --- Claude rule files ship in the overlay, name-agnostic -------------------
+# .claude/rules/*.md carry the template's behavioral instructions without
+# touching the host's CLAUDE.md. Adopt ADDs files verbatim (no substitution
+# pass), so a {{REPO_NAME}} marker in a rule would land unstamped on adopted
+# hosts; the name-agnostic contract below is what keeps them correct there.
+for _rule in .claude/rules/wiki-as-memory.md .claude/rules/memory-boundary.md; do
+    assert "rule is in TEMPLATE_OVERLAY_CLAUDE: $_rule" \
+        "lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_OVERLAY_CLAUDE[@]}\"' | grep -qxF '$_rule'"
+    assert "rule is NOT in TEMPLATE_SUBSTITUTE_FILES: $_rule" \
+        "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_SUBSTITUTE_FILES[@]}\"' | grep -qxF '$_rule'"
+    assert "rule carries no {{REPO_NAME}} marker (name-agnostic): $_rule" \
+        "! grep -qF '{{REPO_NAME}}' '$REPO_ROOT_LIB/$_rule'"
+done

@@ -156,7 +156,7 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 
 - `llm-wiki.md`, `wiki/init-wiki.sh`
 - `wiki/agents/<agent>/setup.sh` and `wiki/agents/<agent>/templates/*` for every overlay present in the project
-- `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md` (only if `.claude/` exists in the project)
+- `.claude/rules/wiki-as-memory.md`, `.claude/rules/memory-boundary.md`, `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md` (only if `.claude/` exists in the project)
 - `.cursor/rules/wiki-*.mdc` (only if `.cursor/` exists in the project)
 - `scripts/update-from-template.sh`, `scripts/check-template-version.sh` (`scripts/instantiate.sh` is one-shot and intentionally absent from derived projects, so it is never synced)
 

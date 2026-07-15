@@ -51,6 +51,16 @@ assert "ADD: .claude/commands/ directory created (mkdir -p worked)" \
 assert "ADD: .claude/skills/ directory created (mkdir -p worked)" \
     "[ -d '$HOST/.claude/skills' ]"
 
+# Rule files: Claude Code auto-discovers .claude/rules/*.md, so landing on
+# disk is the whole installation. They are name-agnostic by contract
+# (manifest-shape enforces it), so the verbatim cp -p copy is also correct.
+assert "ADD: .claude/rules/wiki-as-memory.md created in host" \
+    "[ -f '$HOST/.claude/rules/wiki-as-memory.md' ]"
+assert "ADD: .claude/rules/memory-boundary.md created in host" \
+    "[ -f '$HOST/.claude/rules/memory-boundary.md' ]"
+assert "ADD: copied wiki-as-memory rule is byte-equal to template" \
+    "cmp -s '$TEMPLATE_ROOT_AA/.claude/rules/wiki-as-memory.md' '$HOST/.claude/rules/wiki-as-memory.md'"
+
 # Byte-equal to template (cp -p preserves content/perms).
 assert "ADD: copied wiki/init-wiki.sh is byte-equal to template" \
     "cmp -s '$TEMPLATE_ROOT_AA/wiki/init-wiki.sh' '$HOST/wiki/init-wiki.sh'"

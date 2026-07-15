@@ -94,6 +94,15 @@ TEMPLATE_SYNC_TREES=(
 # --agent=claude-code, or when update/check detects an existing claude
 # overlay on the host (presence of .claude/ or wiki/agents/claude-code/).
 TEMPLATE_OVERLAY_CLAUDE=(
+    # Rule files are auto-discovered by Claude Code from .claude/rules/ and
+    # loaded with CLAUDE.md priority; they carry the template's behavioral
+    # instructions so nothing has to be injected into the host's CLAUDE.md.
+    # Deliberately name-agnostic (wiki/<repo>.wiki/ phrasing, no {{REPO_NAME}}
+    # marker): adopt's ADD copies files verbatim with no substitution pass, so
+    # a placeholder here would land unstamped on adopted hosts. Keep them out
+    # of TEMPLATE_SUBSTITUTE_FILES.
+    ".claude/rules/wiki-as-memory.md"
+    ".claude/rules/memory-boundary.md"
     ".claude/commands/wiki-experiment.md"
     ".claude/commands/wiki-source.md"
     ".claude/commands/wiki-lint.md"
