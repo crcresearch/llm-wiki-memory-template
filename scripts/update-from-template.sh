@@ -259,8 +259,8 @@ if git cat-file -e "$TEMPLATE_REF:.gitignore" 2>/dev/null && [[ -f "$REPO_ROOT/.
         echo "          The template's .gitignore differs from yours. This script"
         echo "          will not overwrite it. Review with:"
         echo "            git diff $TEMPLATE_REF -- .gitignore"
-        echo "          Adopt installs an append-only wiki sub-repo rule via the"
-        echo "          .gitignore grant; see scripts/adopt.sh."
+        echo "          (The wiki sub-repo ignore rule ships as wiki/.gitignore,"
+        echo "          a synced template file, so it needs no back-porting.)"
     fi
     rm -f "$TEMPLATE_GI"
 fi

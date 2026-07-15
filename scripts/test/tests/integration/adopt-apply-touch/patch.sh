@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# Patch: stage a host with TOUCH grants and run adopt.sh --apply (Phase 2A:
-# append-only TOUCH apply).
+# Patch: stage a host with TOUCH grants and run adopt.sh --apply.
 #
 # Verifies:
-#  - .gitignore gets a sentinel-paired lw:wiki-rules block at the end,
-#    with the canonical wiki/*.wiki/ rule inside.
-#  - The host's prior .gitignore content is preserved verbatim above the
-#    new block.
-#  - managed-block and merge grants are classified but reported as
-#    deferred (Phase 2B / Phase 3) in the manifest.
-#  - Re-running --apply is idempotent: lw_inject_block detects the
-#    opening sentinel and returns 'already-present' instead of
-#    duplicating the block.
+#  - The host's .gitignore is never modified: the wiki sub-repo ignore
+#    rule arrives as the ADDed wiki/.gitignore instead.
+#  - managed-block and merge grants are classified and applied via the
+#    overlay setup.sh (Phase 2B / Phase 3).
+#  - Re-running --apply is idempotent: the overlay's lw_inject_block
+#    detects existing sentinels and the host .gitignore stays
+#    byte-identical across both runs.
 
 set -uo pipefail
 
@@ -62,14 +59,17 @@ cp "$TEMPLATE_ROOT/llm-wiki.md" "$HOST/llm-wiki.md"
 mkdir -p "$HOST/wiki"
 cp "$TEMPLATE_ROOT/wiki/init-wiki.sh" "$HOST/wiki/init-wiki.sh"
 
-# Grants file covering all three TOUCH types so the test exercises each
+# Grants file covering both TOUCH types so the test exercises each
 # branch of the apply-mode dispatch.
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 grants:
-  .gitignore:             append-only
   CLAUDE.md:              managed-block
   .claude/settings.json:  merge
 EOF
+
+# Snapshot the host's .gitignore: assertions prove it survives BOTH
+# --apply runs byte-identical (adopt must never modify it).
+cp "$HOST/.gitignore" "$STAGE/gitignore.before"
 
 # Commit so the working tree is clean (adopt's safety guard refuses
 # --apply otherwise).

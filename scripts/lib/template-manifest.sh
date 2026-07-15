@@ -23,6 +23,10 @@ _LW_MANIFEST_SOURCED=1
 TEMPLATE_SHARED_INFRA=(
     "llm-wiki.md"
     "wiki/init-wiki.sh"
+    # Ignores wiki/<repo>.wiki/ from inside wiki/. Shipping the rule as a
+    # template-owned file keeps the host's root .gitignore host-owned and
+    # untouched; it replaced the old .gitignore append-only grant.
+    "wiki/.gitignore"
     # Synced VERBATIM (deliberately not in TEMPLATE_SUBSTITUTE_FILES): its
     # {{REPO_NAME}} markers are stamped by init-wiki.sh's wiki/*.md.template
     # loop at wiki-init time, in the host. Substituting at sync time would
@@ -152,10 +156,9 @@ TEMPLATE_SUBSTITUTE_FILES=(
 # host owns the content. update-from-template ignores these entirely; adopt
 # uses them to seed DEFAULT_GRANTS when no .llm-wiki-adopt-grants.yml is
 # present. Format: "path|operation-type" where operation-type matches the
-# known_grant_type vocabulary (managed-block, append-only, merge).
+# known_grant_type vocabulary (managed-block, merge).
 TEMPLATE_HOST_OWNED=(
     "CLAUDE.md|managed-block"
-    ".gitignore|append-only"
     ".claude/settings.json|merge"
 )
 
@@ -236,28 +239,4 @@ lw_manifest_known_grant_type() {
         [[ "${entry%%|*}" == "$p" ]] && { echo "${entry##*|}"; return 0; }
     done
     echo ""
-}
-
-# Echo the sentinel label for $1's append-only payload, or empty if none.
-# managed-block grants intentionally return empty: the overlay's setup.sh
-# injects two paired-sentinel blocks rather than a single wrapper, so adopt
-# does not own those names.
-lw_manifest_known_grant_sentinel() {
-    case "$1" in
-        .gitignore)  echo "lw:wiki-rules" ;;
-        *)           echo "" ;;
-    esac
-}
-
-# Echo the canonical payload for $1's append-only grant. Inserted between
-# paired lw_inject_block sentinels at the target's end-of-file.
-lw_manifest_known_grant_payload() {
-    case "$1" in
-        .gitignore)
-            cat <<'EOF'
-# wiki sub-repo: separate git remote, not part of the host's tracked tree
-wiki/*.wiki/
-EOF
-            ;;
-    esac
 }

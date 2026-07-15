@@ -1,9 +1,8 @@
 __pycache__
 
-# Wiki sub-repo: separate git repo with its own remote; cloned by
-# wiki/init-wiki.sh (use --github when the wiki has a GitHub Wiki remote).
-# Listed here so the main repo does not pick it up as untracked content.
-wiki/*.wiki/
+# The wiki sub-repo ignore rule lives in wiki/.gitignore (a synced,
+# template-owned file), not here: this root .gitignore is host-owned in
+# derived projects and adopt never touches it.
 
 # Per-user Claude Code overrides (settings.local.json is the conventional
 # local-override file; never share it).

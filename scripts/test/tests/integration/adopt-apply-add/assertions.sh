@@ -66,8 +66,8 @@ assert "manifest .llm-wiki-adopt-log.md exists" \
     "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 assert "manifest has the top-level heading" \
     "grep -qF '# llm-wiki adopt log' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest names this run as 'adopt --apply (phases 1, 2A, 2B, 3)'" \
-    "grep -qF 'adopt --apply (phases 1, 2A, 2B, 3)' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest names this run as 'adopt --apply (phases 1, 2B, 3)'" \
+    "grep -qF 'adopt --apply (phases 1, 2B, 3)' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records project name" \
     "grep -qF -- '- project: apply-host' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records the signal count" \

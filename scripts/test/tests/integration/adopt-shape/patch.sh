@@ -50,17 +50,25 @@ mkdir -p "$HOST/wiki/agents"
 echo "# Host-modified discipline gates (must not be overwritten)" \
     > "$HOST/wiki/agents/discipline-gates.md"
 
-# Author a grants file with three deliberately-chosen entries:
-#   .gitignore     -> append-only       host file present, grant valid    -> TOUCH
-#   Makefile       -> managed-block     not in KNOWN_GRANTS                -> INVALID
-#   CLAUDE.md      -> managed-block     not present in host                -> MISSING
-# This covers each of the three classification outcomes adopt distinguishes.
+# Host .claude/settings.json so one grant is a valid+present TOUCH.
+mkdir -p "$HOST/.claude"
+echo '{ "permissions": { "allow": ["Bash"] } }' > "$HOST/.claude/settings.json"
+
+# Author a grants file with four deliberately-chosen entries:
+#   .claude/settings.json -> merge          host file present, grant valid -> TOUCH
+#   Makefile              -> managed-block  not in KNOWN_GRANTS            -> INVALID
+#   CLAUDE.md             -> managed-block  not present in host            -> TOUCH [absent]
+#   .gitignore            -> append-only    grant type retired             -> INVALID
+# This covers each classification outcome adopt distinguishes, plus the
+# regression case: the old .gitignore append-only grant must now be
+# refused as unknown (the wiki ignore rule ships as wiki/.gitignore).
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 # Adopt grants for the synthetic host (fixture).
 grants:
-  .gitignore:  append-only      # valid; host file exists -> TOUCH
+  .claude/settings.json:  merge          # valid; host file exists -> TOUCH
   Makefile:    managed-block    # unknown target in template -> INVALID
-  CLAUDE.md:   managed-block    # valid type but host has no CLAUDE.md -> MISSING
+  CLAUDE.md:   managed-block    # valid type but host has no CLAUDE.md -> TOUCH [absent]
+  .gitignore:  append-only      # retired grant -> INVALID
 EOF
 
 ADOPT="$TEMPLATE_ROOT/scripts/adopt.sh"

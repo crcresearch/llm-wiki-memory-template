@@ -163,7 +163,7 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 **What it does NOT touch** (project-specific content):
 
 - `CLAUDE.md` (your project's narrative)
-- `.gitignore` (host-owned, append-only; the post-sync report prints an advisory when it diverges from the template's, so you can back-port new ignore rules manually)
+- `.gitignore` (host-owned and never modified; the post-sync report prints an advisory when it diverges from the template's, so you can back-port new ignore rules manually. The wiki sub-repo ignore rule ships as `wiki/.gitignore`, a synced template file)
 - `.cursorrules` (your project's narrative for Cursor)
 - `README.md` (your project's user-facing docs)
 - `.claude/settings.json` (your project's permissions)

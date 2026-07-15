@@ -5,8 +5,8 @@
 # Default mode is dry-run: classify the ADD allowlist against the target
 # repo (ADD / SKIP / REFUSE) and print a report. With --apply it mutates
 # the target: copies every ADD entry (never overwrites), applies the
-# host-owned TOUCH grants (CLAUDE.md managed-block, .gitignore append-only,
-# .claude/settings.json merge) from .llm-wiki-adopt-grants.yml or the built-in
+# host-owned TOUCH grants (CLAUDE.md managed-block, .claude/settings.json
+# merge) from .llm-wiki-adopt-grants.yml or the built-in
 # defaults, runs wiki/init-wiki.sh to bootstrap the wiki sub-repo, runs the
 # chosen overlay's wiki/agents/<agent>/setup.sh, optionally wires the GitHub
 # Wiki backend (--github-wiki), and appends a manifest of what changed to
@@ -33,11 +33,10 @@ source "$HERE/lib/template-manifest.sh"
 # --- ADD allowlist + KNOWN_GRANTS -------------------------------------------
 # Both vocabularies live in scripts/lib/template-manifest.sh. The ADD set
 # is assembled by lw_manifest_assemble_active_files in agent mode (the
-# --agent flag drives overlay inclusion). The known-grant lookups
-# (lw_manifest_known_grant_type / _sentinel / _payload) are the single
-# source of truth for what operations the template performs on host-
-# owned files. To add a synced path or a new host-owned grant, edit the
-# manifest and nothing else.
+# --agent flag drives overlay inclusion). The known-grant lookup
+# (lw_manifest_known_grant_type) is the single source of truth for what
+# operations the template performs on host-owned files. To add a synced
+# path or a new host-owned grant, edit the manifest and nothing else.
 
 # --- parse_grants_file ------------------------------------------------------
 # Minimal YAML reader for the .llm-wiki-adopt-grants.yml host file. Accepts
@@ -134,8 +133,8 @@ copies every ADD entry into the target (never overwrites; REFUSE entries
 are left alone) and writes .llm-wiki-adopt-log.md with the manifest of
 what was created. Default is dry-run.
 
-TOUCH grants: by default adopt applies the three standard grants
-(CLAUDE.md managed-block, .gitignore append-only, .claude/settings.json
+TOUCH grants: by default adopt applies the two standard grants
+(CLAUDE.md managed-block, .claude/settings.json
 merge) -- the integration touchpoints the wiki-memory pattern needs to
 function as designed. To customise, commit a .llm-wiki-adopt-grants.yml
 at the host repo root before --apply; it overrides the defaults entirely
@@ -322,23 +321,22 @@ done
 # Absent targets are NOT rejected. TOUCH grants govern HOW adopt may
 # safely modify a host file, not WHETHER adopt may create one. When
 # the target is absent the host has no content to preserve, so the
-# canonical payload (or overlay's seed) is installed. CLAUDE.md
-# already behaved this way via the init-wiki side-channel; this brings
-# .gitignore and .claude/settings.json into the same shape. Reported
-# as design inconsistency by Chris Sweet on PR #51 (items 3, 4, 5).
+# overlay's seed is installed. CLAUDE.md already behaved this way via
+# the init-wiki side-channel; this brought .claude/settings.json into
+# the same shape. Reported as design inconsistency by Chris Sweet on
+# PR #51 (items 3, 4, 5).
 #
 # When the host did not author a .llm-wiki-adopt-grants.yml, adopt uses
 # the manifest's TEMPLATE_HOST_OWNED list as the default grant set: the
-# three standard grants that every wiki-memory adopter has historically
-# wanted (CLAUDE.md managed-block, .gitignore append-only,
-# .claude/settings.json merge). Without this default the adoption is
-# partial: wiki sub-repo shows untracked forever, and the SessionStart
-# hook is never registered, so claude-code does not auto-pull the wiki
-# at session start. The host can override by committing an explicit
+# two standard grants that every wiki-memory adopter has historically
+# wanted (CLAUDE.md managed-block, .claude/settings.json merge).
+# Without this default the adoption is partial: the SessionStart hook
+# is never registered, so claude-code does not auto-pull the wiki at
+# session start. The host can override by committing an explicit
 # .llm-wiki-adopt-grants.yml -- including an empty 'grants:' map to opt
 # out of all touches.
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
-ACT_TOUCH=()           # "path|type|sentinel|was_absent"
+ACT_TOUCH=()           # "path|type|was_absent"
 ACT_TOUCH_INVALID=()   # "path  (reason)"
 N_GRANTS=0
 GRANTS_SOURCE="defaults"   # "defaults" or "file"
@@ -357,13 +355,12 @@ if [[ -f "$GRANTS_FILE" ]]; then
             ACT_TOUCH_INVALID+=("$g_path  (type mismatch: grant says '$g_type', template knows '$expected')")
             continue
         fi
-        sentinel="$(lw_manifest_known_grant_sentinel "$g_path")"
         if [[ -e "$TARGET/$g_path" ]]; then
             was_absent=0
         else
             was_absent=1
         fi
-        ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
+        ACT_TOUCH+=("$g_path|$g_type|$was_absent")
     done < <(parse_grants_file "$GRANTS_FILE")
 else
     # No grants file: classify TEMPLATE_HOST_OWNED entries as TOUCH. Same
@@ -373,13 +370,12 @@ else
         g_path="${entry%%|*}"
         g_type="${entry#*|}"
         N_GRANTS=$((N_GRANTS + 1))
-        sentinel="$(lw_manifest_known_grant_sentinel "$g_path")"
         if [[ -e "$TARGET/$g_path" ]]; then
             was_absent=0
         else
             was_absent=1
         fi
-        ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
+        ACT_TOUCH+=("$g_path|$g_type|$was_absent")
     done
 fi
 
@@ -461,22 +457,16 @@ if [[ ${#ACT_TOUCH[@]} -eq 0 ]]; then
     echo "  (none)"
 else
     for entry in "${ACT_TOUCH[@]}"; do
-        # entry = "path|type|sentinel|was_absent"
+        # entry = "path|type|was_absent"
         t_path="${entry%%|*}"
         rest="${entry#*|}"
         t_type="${rest%%|*}"
-        rest2="${rest#*|}"
-        t_sent="${rest2%%|*}"
-        t_was_absent="${rest2#*|}"
+        t_was_absent="${rest#*|}"
         marker=""
         if [[ "$t_was_absent" == "1" ]]; then
             marker=" [absent; will create from canonical]"
         fi
-        if [[ -n "$t_sent" ]]; then
-            printf "  ~ %-32s %s (sentinel %s)%s\n" "$t_path" "$t_type" "$t_sent" "$marker"
-        else
-            printf "  ~ %-32s %s%s\n" "$t_path" "$t_type" "$marker"
-        fi
+        printf "  ~ %-32s %s%s\n" "$t_path" "$t_type" "$marker"
     done
 fi
 echo ""
@@ -546,8 +536,8 @@ fi
 # pattern already present (>= ADOPTION_THRESHOLD signals), the right tool is
 # update-from-template.sh, which consumes the same template manifest and handles drift
 # between template versions. Re-running adopt --apply on an adopted host
-# would re-trigger Phase 1 ADD (no-op for SKIPs, REFUSE for divergences),
-# Phase 2A (idempotent), and Phase 2B (which invokes host's possibly-drifted
+# would re-trigger Phase 1 ADD (no-op for SKIPs, REFUSE for divergences)
+# and Phase 2B (which invokes host's possibly-drifted
 # init-wiki.sh / overlay setup.sh, with brittle results). Cleaner to refuse
 # and route. --force is the escape hatch when the user really means it.
 if [[ "$ADOPTION_COUNT" -ge "$ADOPTION_THRESHOLD" && "$FORCE" -eq 0 ]]; then
@@ -603,7 +593,7 @@ fi
 # update mode based on the presence of wiki/<repo>.wiki/, so calling it is
 # safe whether or not the sub-repo exists. Captures status for the manifest
 # but does NOT abort adopt on failure: a host that can't init wiki still
-# benefits from the ADDed files and any append-only TOUCH that already ran.
+# benefits from the ADDed files.
 #
 # When --github-wiki is passed, a sub-step runs BEFORE init-wiki to bootstrap
 # the GitHub Wiki backend (seed-push to materialize <repo>.wiki.git), then
@@ -767,48 +757,21 @@ else
     fi
 fi
 
-# --- TOUCH apply (Phase 2A append-only, Phase 2B managed-block) -------------
+# --- TOUCH apply (Phase 2B managed-block, Phase 3 merge) --------------------
 # For valid TOUCH entries, dispatch by mechanism:
-#   append-only   -> lw_inject_block with the per-target payload at EOF
-#   managed-block -> deferred to Phase 2B (overlay setup.sh orchestration)
-#   merge         -> deferred to Phase 3 (jq deep-merge)
+#   managed-block -> Phase 2B (overlay setup.sh orchestration)
+#   merge         -> Phase 3 (jq deep-merge via overlay setup.sh --hook)
 #
-# Each entry's status is captured for the manifest. Status strings:
-#   applied         -- adopt wrote the sentinel-paired block
-#   already-present -- adopt detected the opening sentinel and left it alone
-#   deferred        -- the mechanism is not implemented in this phase yet
+# Each entry's status is captured for the manifest.
 APPLIED_TOUCHES=()
 if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
     for entry in "${ACT_TOUCH[@]}"; do
-        # entry = "path|type|sentinel|was_absent"
+        # entry = "path|type|was_absent"
         t_path="${entry%%|*}"
         rest="${entry#*|}"
         t_type="${rest%%|*}"
-        rest2="${rest#*|}"
-        t_sent="${rest2%%|*}"
-        t_was_absent="${rest2#*|}"
+        t_was_absent="${rest#*|}"
         case "$t_type" in
-            append-only)
-                payload="$(lw_manifest_known_grant_payload "$t_path")"
-                # lw_inject_block wraps its second arg in '<!-- lw:KEY -->'
-                # internally, so we pass the key WITHOUT the lw: prefix that
-                # lw_manifest_known_grant_sentinel returns for display purposes.
-                bare_key="${t_sent#lw:}"
-                # lw_inject_block returns 0 on inject, 1 if opening sentinel
-                # already present (idempotency). When the target was absent
-                # in the host, the append (via '>>') creates the file from
-                # nothing -- adopt itself fills in the canonical payload
-                # because there is no host content to preserve.
-                if lw_inject_block "$TARGET/$t_path" "$bare_key" "$payload" ""; then
-                    if [[ "$t_was_absent" == "1" ]]; then
-                        APPLIED_TOUCHES+=("$t_path ($t_type): created from canonical")
-                    else
-                        APPLIED_TOUCHES+=("$t_path ($t_type): applied")
-                    fi
-                else
-                    APPLIED_TOUCHES+=("$t_path ($t_type): already-present")
-                fi
-                ;;
             managed-block)
                 # The overlay setup.sh owns CLAUDE.md sentinel injection
                 # (and analogous host files for non-claude overlays). Adopt
@@ -878,7 +841,7 @@ FIRST_ENTRY=0
 [[ -f "$ADOPT_LOG" ]] || FIRST_ENTRY=1
 {
     (( FIRST_ENTRY )) && printf '# llm-wiki adopt log\n\n'
-    printf '## [%s] adopt --apply (phases 1, 2A, 2B, 3)\n' "$TODAY"
+    printf '## [%s] adopt --apply (phases 1, 2B, 3)\n' "$TODAY"
     printf -- '- project: %s\n' "$PROJECT_NAME"
     printf -- '- agent: %s\n' "$AGENT"
     printf -- '- signals matched: %s of 3 (%s)\n' \

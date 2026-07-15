@@ -81,8 +81,9 @@ ALLOWLIST=(
     # over time but the byte content does not, and HOST_OWNED is exactly
     # the contract that says don't enforce equality here.
     ".claude/settings.json"
-    # .gitignore: HOST_OWNED. A picks up template's; B picks up host's
-    # with adopt's append-only block. Different by design.
+    # .gitignore: host-owned and never touched by adopt. A picks up the
+    # template's; B keeps the host's own. Different by design; the wiki
+    # ignore rule converges via wiki/.gitignore (SHARED_INFRA).
     ".gitignore"
     # wiki/<name>.wiki/: separate git remote, not synced.
     # The convergence loop below filters wiki/*.wiki/ prefixes wholesale.
@@ -157,10 +158,10 @@ while IFS= read -r _disk; do
         .git/*) continue ;;
         # Host-authored files that pre-existed: README.md, .git/
         README.md) continue ;;
-        # Host-owned files installed by adopt (managed-block / merge /
-        # append-only): the manifest lists them but they live in
-        # TEMPLATE_HOST_OWNED, not SHARED_INFRA; treated as host content
-        # by sync tools.
+        # Host-owned files installed by adopt (managed-block / merge):
+        # the manifest lists them but they live in TEMPLATE_HOST_OWNED,
+        # not SHARED_INFRA; treated as host content by sync tools.
+        # .gitignore is plain host content (no grant) but may pre-exist.
         CLAUDE.md|.gitignore|.claude/settings.json) continue ;;
         # Adopt's own log artifact: not a manifest entry.
         .llm-wiki-adopt-log.md|.llm-wiki-template-log.md) continue ;;
