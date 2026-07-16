@@ -41,7 +41,7 @@
 #                    itself (so working in a template clone gives Claude Code
 #                    llm-wiki context; the behavioral instructions already ship
 #                    as tracked .claude/rules/*.md files). Does NOT clone the
-#                    wiki, run init-wiki.sh, modify .claude/commands or
+#                    wiki, run init-wiki.sh, modify
 #                    .claude/skills, or self-delete. Prerequisite: clone the
 #                    template's GitHub Wiki to wiki/llm-wiki-memory-template.wiki/
 #                    manually before running this. All resulting artifacts are
@@ -211,7 +211,7 @@ fi
 #   3. Does NOT call init-wiki.sh; the contributor clones the template's
 #      own GitHub Wiki manually to wiki/llm-wiki-memory-template.wiki/
 #      (one-time, documented in README).
-#   4. Does NOT touch .claude/commands or .claude/skills (avoids
+#   4. Does NOT touch .claude/skills (avoids
 #      dirtying tracked template files with REPO_NAME substitution).
 # All resulting artifacts (.claude/settings.json, .claude/hooks/, the
 # wiki clone) are excluded locally via .git/info/exclude, which this
@@ -469,7 +469,9 @@ esac
 # Claude Code
 if $keep_claude_code; then
     # Substitute {{REPO_NAME}} in shipped .claude/ files (one-shot at instantiate).
-    for f in "$REPO_ROOT/.claude/commands/"wiki-*.md "$REPO_ROOT/.claude/skills/"wiki-*.md; do
+    # Skills are directory-per-skill (<name>/SKILL.md); flat .claude/skills/*.md
+    # files are not discovered by Claude Code.
+    for f in "$REPO_ROOT/.claude/skills/"wiki-*/SKILL.md; do
         [[ -f "$f" ]] || continue
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$f"
         rm -f "${f}.bak"

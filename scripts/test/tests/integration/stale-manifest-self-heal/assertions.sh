@@ -29,8 +29,8 @@ assert "scripts/wiki-reciprocity.py delivered" \
 
 # Control: the normal sync path is unaffected (old-list file synced with
 # {{REPO_NAME}} substituted from the on-disk wiki name).
-CTRL="$H/.claude/commands/wiki-experiment.md"
-assert "control: old-list file synced" "grep -q 'command for stalehost' '$CTRL'"
+CTRL="$H/.claude/skills/wiki-experiment/SKILL.md"
+assert "control: old-list file synced" "grep -q 'skill for stalehost' '$CTRL'"
 assert "control: no {{REPO_NAME}} left" "! grep -q '{{REPO_NAME}}' '$CTRL'"
 
 # Convergence: a second run sources the now-healthy on-disk manifest, does

@@ -68,6 +68,22 @@ fi
 # .cursor/, so it is not visible to this smoke test. The retired
 # claude-md-snippet.md used to be asserted here.)
 
+# --- Skills substituted at instantiate time ---
+# instantiate.sh's glob (.claude/skills/wiki-*/SKILL.md) is the only
+# substitution pass these files get; if the glob drifts from the layout it
+# silently matches nothing and {{REPO_NAME}} leaks into every derived
+# project. Positive + negative pair: the rendered wiki path can only appear
+# if substitution actually ran, so a missing/renamed file cannot fake the
+# negative check into a pass.
+SKILL_LINT="$T/.claude/skills/wiki-lint/SKILL.md"
+REPO_NAME_TB=$(basename "$T")
+assert ".claude/skills/wiki-lint/SKILL.md present post-instantiate" \
+    "[ -f '$SKILL_LINT' ]"
+assert "SKILL.md substituted with the repo name (wiki/${REPO_NAME_TB}.wiki/)" \
+    "grep -qF 'wiki/${REPO_NAME_TB}.wiki/' '$SKILL_LINT'"
+assert "SKILL.md has no {{REPO_NAME}} leak" \
+    "! grep -qF '{{REPO_NAME}}' '$SKILL_LINT'"
+
 # --- init-wiki.sh produced the expected wiki structure ---
 # init-wiki.sh is called by instantiate.sh and creates the wiki sub-repo
 # with namespaced nav files.
@@ -311,17 +327,14 @@ WWP_DOC="$T/wiki/agents/wiki-write-protocol.md"
 assert "wiki-write-protocol.md ships in the template repo" \
     "[ -f '$WWP_DOC' ]"
 
+# Unconditional (no [ -f ] guard): a renamed or misplaced skill directory
+# must fail here, not silently skip the reference check.
 for skill in wiki-experiment wiki-source wiki-lint; do
-    skill_path="$T/.claude/skills/${skill}.md"
-    cmd_path="$T/.claude/commands/${skill}.md"
-    if [ -f "$skill_path" ]; then
-        assert_contains ".claude/skills/${skill}.md references wiki-write-protocol.md" \
-            "$skill_path" "wiki-write-protocol.md"
-    fi
-    if [ -f "$cmd_path" ]; then
-        assert_contains ".claude/commands/${skill}.md references wiki-write-protocol.md" \
-            "$cmd_path" "wiki-write-protocol.md"
-    fi
+    skill_path="$T/.claude/skills/${skill}/SKILL.md"
+    assert ".claude/skills/${skill}/SKILL.md ships in the template repo" \
+        "[ -f '$skill_path' ]"
+    assert_contains ".claude/skills/${skill}/SKILL.md references wiki-write-protocol.md" \
+        "$skill_path" "wiki-write-protocol.md"
 done
 
 # scripts/lib/template-manifest.sh is the single source of truth that the

@@ -3,7 +3,7 @@
 # .claude/rules/ from a derived project, while keeping the rest of .claude/.
 #
 # The contrast that proves the strip: the dev-only rule ships in the template
-# (precondition) and .claude/ + .claude/commands/ survive the claude-code
+# (precondition) and .claude/ + .claude/skills/ survive the claude-code
 # overlay, but the dev-only rule is gone afterwards while a sibling
 # consumer-facing rule is left untouched. Neutralizing the strip flips the
 # "stripped" assertion red; regressing to a whole-directory rm -rf flips the
@@ -32,8 +32,8 @@ assert "template shipped .claude/rules/ before instantiation" \
 # vacuous, so they guard against that.
 assert "instantiate kept .claude/ (claude-code overlay)" \
     "[ -d '$T/.claude' ]"
-assert "instantiate kept .claude/commands/ (overlay content intact)" \
-    "[ -d '$T/.claude/commands' ]"
+assert "instantiate kept .claude/skills/ (overlay content intact)" \
+    "[ -f '$T/.claude/skills/wiki-lint/SKILL.md' ]"
 
 # Behaviour under test: the named dev-only rules did not propagate.
 assert "instantiate stripped the dev-only observe-the-failure rule" \

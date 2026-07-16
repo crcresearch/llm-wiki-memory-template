@@ -45,5 +45,5 @@ Honest reporting: bad results and contradicted claims get filed truthfully, not 
 Never report metrics from projections, only from real script outputs.
 See `wiki/agents/discipline-gates.md` for the canonical "Universal Rationalizations (Always Wrong)" table that names the failure modes the Verification Gate catches.
 
-Slash commands `/wiki-experiment`, `/wiki-source`, and `/wiki-lint` (`.claude/commands/`, backed by skills in `.claude/skills/`) invoke each operation explicitly.
+Skills `/wiki-experiment`, `/wiki-source`, and `/wiki-lint` (`.claude/skills/<name>/SKILL.md`) invoke each operation explicitly.
 They are a safety net: the proactive behavior described above is the default.

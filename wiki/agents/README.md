@@ -7,7 +7,7 @@ assistant to treat the project's wiki as durable memory.
 
 Today the template ships:
 
-- `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs slash commands at `.claude/commands/`, model-side skills at `.claude/skills/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
+- `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs skills at `.claude/skills/<name>/SKILL.md`, behavioral rules at `.claude/rules/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
 - `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Installs rules at `.cursor/rules/*.mdc` (preferred) or a legacy `.cursorrules` file. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
 
 The minimal mode (`--agent=none` in `scripts/instantiate.sh`) ships

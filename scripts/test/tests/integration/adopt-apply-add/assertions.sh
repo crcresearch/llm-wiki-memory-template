@@ -31,25 +31,25 @@ assert "ADD: scripts/update-from-template.sh created in host" \
 assert "ADD: scripts/lib/ directory created (mkdir -p worked)" \
     "[ -d '$HOST/scripts/lib' ]"
 
-# Slash commands and skills referenced by the CLAUDE.md template the
-# overlay installs. Without these on disk, /wiki-experiment etc. fail
-# at runtime. PR #51 item #2.
-assert "ADD: .claude/commands/wiki-experiment.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-experiment.md' ]"
-assert "ADD: .claude/commands/wiki-source.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-source.md' ]"
-assert "ADD: .claude/commands/wiki-lint.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-lint.md' ]"
-assert "ADD: .claude/skills/wiki-experiment.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-experiment.md' ]"
-assert "ADD: .claude/skills/wiki-source.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-source.md' ]"
-assert "ADD: .claude/skills/wiki-lint.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-lint.md' ]"
-assert "ADD: .claude/commands/ directory created (mkdir -p worked)" \
-    "[ -d '$HOST/.claude/commands' ]"
-assert "ADD: .claude/skills/ directory created (mkdir -p worked)" \
-    "[ -d '$HOST/.claude/skills' ]"
+# Skills (directory-per-skill layout). Without these on disk,
+# /wiki-experiment etc. fail at runtime. PR #51 item #2. Each SKILL.md
+# lives one directory deeper than the old flat files, so these also
+# exercise adopt's mkdir -p on a two-level path.
+assert "ADD: .claude/skills/wiki-experiment/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-experiment/SKILL.md' ]"
+assert "ADD: .claude/skills/wiki-source/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-source/SKILL.md' ]"
+assert "ADD: .claude/skills/wiki-lint/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-lint/SKILL.md' ]"
+assert "ADD: copied SKILL.md is byte-equal to template" \
+    "cmp -s '$TEMPLATE_ROOT_AA/.claude/skills/wiki-lint/SKILL.md' '$HOST/.claude/skills/wiki-lint/SKILL.md'"
+# The retired flat/commands layout must NOT come back: the manifest is the
+# only source of these paths, so their absence proves the old entries are
+# gone rather than merely renamed alongside.
+assert "ADD: no flat .claude/skills/wiki-lint.md created" \
+    "[ ! -f '$HOST/.claude/skills/wiki-lint.md' ]"
+assert "ADD: no .claude/commands/ directory created" \
+    "[ ! -d '$HOST/.claude/commands' ]"
 
 # Rule files: Claude Code auto-discovers .claude/rules/*.md, so landing on
 # disk is the whole installation. They are name-agnostic by contract

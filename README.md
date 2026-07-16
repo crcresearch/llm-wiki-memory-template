@@ -93,7 +93,7 @@ After this, Claude Code opened in the template clone has:
 - A `SessionStart` hook injecting the wiki reminder at every session start.
 - A `PostToolUse` hook nudging the verification-gate workflow on every wiki write.
 
-**All three artifacts** (`wiki/llm-wiki-memory-template.wiki/`, `.claude/settings.json`, `.claude/hooks/`) **are excluded locally** via `.git/info/exclude`, which `--dev-self` writes (and re-writes idempotently on re-runs). The exclusion is deliberately not in the tracked `.gitignore`: leading-slash anchors there would resolve to a derived project's own root after `update-from-template.sh` synced the file, shadowing that project's real `.claude/settings.json` and `.claude/hooks/`. The artifacts are local-only by construction: never committed, never propagated to derived projects (which generate their own equivalents via Paths A or B). `--dev-self` does not call `init-wiki.sh`, does not modify `.claude/commands/` or `.claude/skills/`, and does not self-delete.
+**All three artifacts** (`wiki/llm-wiki-memory-template.wiki/`, `.claude/settings.json`, `.claude/hooks/`) **are excluded locally** via `.git/info/exclude`, which `--dev-self` writes (and re-writes idempotently on re-runs). The exclusion is deliberately not in the tracked `.gitignore`: leading-slash anchors there would resolve to a derived project's own root after `update-from-template.sh` synced the file, shadowing that project's real `.claude/settings.json` and `.claude/hooks/`. The artifacts are local-only by construction: never committed, never propagated to derived projects (which generate their own equivalents via Paths A or B). `--dev-self` does not call `init-wiki.sh`, does not modify `.claude/skills/`, and does not self-delete.
 
 #### Updating after a template-side hook change
 
@@ -113,7 +113,7 @@ The `rm -f` is what makes `setup.sh` re-install rather than skip. `.claude/setti
 
 1. Substitutes placeholders in `README.md.template` (`{{PROJECT_NAME}}`, `{{REPO_NAME}}`, `{{OWNER}}`, `{{DESCRIPTION}}`) and writes `README.md`. It does NOT create a `CLAUDE.md`; that file is yours to write (the behavioral instructions ship as `.claude/rules/` and `.cursor/rules/` files instead).
 2. Runs `wiki/init-wiki.sh` to bootstrap the wiki sub-repository at `wiki/<repo-name>.wiki/`. With `--github-wiki`, this clones the GitHub Wiki; without, it inits a local-only repo.
-3. Substitutes `{{REPO_NAME}}` in shipped `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, and `.claude/settings.json.template` files; renames `.claude/settings.json.template` to `.claude/settings.json`.
+3. Substitutes `{{REPO_NAME}}` in shipped `.claude/skills/wiki-*/SKILL.md`, `.cursor/rules/`, and `.claude/settings.json.template` files; renames `.claude/settings.json.template` to `.claude/settings.json`.
 4. Runs the chosen overlay's `setup.sh` (Claude Code, Cursor, or both). Deletes the unused overlay directories so the project ships only what it uses.
 5. **Self-deletes** at the end of a successful run. `instantiate.sh` is a one-shot bootstrap script; after a project is instantiated, the file does not exist in it.
 
@@ -155,7 +155,7 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 
 - `llm-wiki.md`, `wiki/init-wiki.sh`
 - `wiki/agents/<agent>/setup.sh` and `wiki/agents/<agent>/templates/*` for every overlay present in the project
-- `.claude/rules/wiki-as-memory.md`, `.claude/rules/memory-boundary.md`, `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md` (only if `.claude/` exists in the project)
+- `.claude/rules/wiki-as-memory.md`, `.claude/rules/memory-boundary.md`, `.claude/skills/wiki-*/SKILL.md` (only if `.claude/` exists in the project)
 - `.cursor/rules/wiki-*.mdc`, `.cursor/rules/memory-boundary.mdc` (only if `.cursor/` exists in the project)
 - `scripts/update-from-template.sh`, `scripts/check-template-version.sh` (`scripts/instantiate.sh` is one-shot and intentionally absent from derived projects, so it is never synced)
 
@@ -205,8 +205,7 @@ llm-wiki-memory-template/
   .gitignore                     ignores wiki sub-repo, settings.local.json, .venv
   .claude/                       Claude Code overlay artefacts
     rules/                       auto-discovered behavioral rules -- wiki-as-memory, memory-boundary
-    commands/                    slash commands -- /wiki-experiment, /wiki-source, /wiki-lint
-    skills/                      model-side procedure references
+    skills/                      directory-per-skill -- /wiki-experiment, /wiki-source, /wiki-lint
     settings.json.template       permissions allowlist for wiki-flow commands
   .cursor/                       Cursor overlay artefacts
     rules/                       Cursor's .mdc rules format
@@ -244,7 +243,7 @@ See [llm-wiki.md](llm-wiki.md) for the underlying pattern and [wiki/agents/READM
 Each agent overlay lives in `wiki/agents/<agent>/` and follows a small contract documented in [wiki/agents/README.md](wiki/agents/README.md). To add support for a new agent:
 
 1. Copy `wiki/agents/claude-code/` to `wiki/agents/<your-agent>/` as a starting point.
-2. Adjust `setup.sh` to install the agent's project-level configuration files (its equivalent of `.claude/commands/`).
+2. Adjust `setup.sh` to install the agent's project-level configuration files (its equivalent of `.claude/skills/`).
 3. Update `templates/` with the agent-appropriate phrasings (rule format, command format, etc.).
 4. Open a PR against this template repo so other projects in the organization can pick it up.
 

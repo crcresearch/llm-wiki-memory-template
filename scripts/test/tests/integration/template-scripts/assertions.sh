@@ -28,7 +28,7 @@ assert "check-template-version.sh passes bash -n" "bash -n '$CHECK'"
 UP_LOG="$STAGE/up.log"
 run_in "$STAGE/up-clone" "$UP_LOG" "$UPDATE" --template-url="$STAGE/template-main"; RC=$?
 assert "update: run exits 0 against template-main" "[ $RC -eq 0 ]"
-UPF="$STAGE/up-clone/.claude/commands/wiki-experiment.md"
+UPF="$STAGE/up-clone/.claude/skills/wiki-experiment/SKILL.md"
 assert "F1/F2: substitution uses the wiki name (widget)" "grep -q 'command for widget' '$UPF'"
 assert "F1/F2: no {{REPO_NAME}} left in the synced file"  "! grep -q '{{REPO_NAME}}' '$UPF'"
 assert "F1/F2: clone-dir basename (up-clone) NOT used"    "! grep -q 'up-clone' '$UPF'"
@@ -37,7 +37,7 @@ assert "F1/F2: clone-dir basename (up-clone) NOT used"    "! grep -q 'up-clone' 
 BR_LOG="$STAGE/br.log"
 run_in "$STAGE/br-clone" "$BR_LOG" "$UPDATE" --template-url="$STAGE/template-trunk"; RC=$?
 assert "F5: update exits 0 against a trunk-only template" "[ $RC -eq 0 ]"
-BRF="$STAGE/br-clone/.claude/commands/wiki-experiment.md"
+BRF="$STAGE/br-clone/.claude/skills/wiki-experiment/SKILL.md"
 assert "F5: file synced from the detected (trunk) branch" "grep -q 'command for widget' '$BRF'"
 
 # --- F6: guard rejects a pre-existing 'template' remote pointing elsewhere ---
@@ -45,7 +45,7 @@ GD_LOG="$STAGE/gd.log"
 run_in "$STAGE/gd-clone" "$GD_LOG" "$UPDATE" --template-url="$STAGE/template-main"; RC=$?
 assert "F6: guard makes the run exit non-zero" "[ $RC -ne 0 ]"
 assert_contains "F6: guard explains it is refusing the wrong remote" "$GD_LOG" "refusing to fetch"
-GDF="$STAGE/gd-clone/.claude/commands/wiki-experiment.md"
+GDF="$STAGE/gd-clone/.claude/skills/wiki-experiment/SKILL.md"
 assert "F6: local file untouched when the guard fires" "grep -q 'stale local content' '$GDF'"
 
 # --- F1/F2 in the second script: check reports the wiki name (gizmo) ---

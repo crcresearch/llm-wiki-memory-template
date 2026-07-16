@@ -36,21 +36,21 @@ g() { git "$@"; }
 T="$STAGE/template-src"
 g init -q "$T"
 g -C "$T" symbolic-ref HEAD refs/heads/main
-mkdir -p "$T/scripts/lib" "$T/.claude/commands" "$T/wiki"
+mkdir -p "$T/scripts/lib" "$T/.claude/commands" "$T/.claude/skills/wiki-experiment" "$T/wiki"
 cp "$TEMPLATE_ROOT/scripts/lib/template-manifest.sh" "$T/scripts/lib/"
 printf '# Edge-Types for {{REPO_NAME}} (rendered by init-wiki)\n' > "$T/wiki/Edge-Types.md.template"
 printf 'ask command body\n'            > "$T/.claude/commands/ask.md"
 printf '#!/usr/bin/env python3\n'      > "$T/scripts/wiki-reciprocity.py"
-printf 'command for {{REPO_NAME}}\n'   > "$T/.claude/commands/wiki-experiment.md"
+printf 'skill for {{REPO_NAME}}\n'     > "$T/.claude/skills/wiki-experiment/SKILL.md"
 g -C "$T" add -A
 g -C "$T" commit -q -m "template content"
 
 # --- host: current tooling + genuinely stale manifest ---
 H="$STAGE/host"
 g init -q "$H"
-mkdir -p "$H/wiki/stalehost.wiki" "$H/.claude/commands" "$H/scripts/lib"
+mkdir -p "$H/wiki/stalehost.wiki" "$H/.claude/skills/wiki-experiment" "$H/scripts/lib"
 : > "$H/wiki/stalehost.wiki/SCHEMA_stalehost.md"
-printf 'stale local content\n' > "$H/.claude/commands/wiki-experiment.md"
+printf 'stale local content\n' > "$H/.claude/skills/wiki-experiment/SKILL.md"
 cp "$TEMPLATE_ROOT/scripts/update-from-template.sh" "$H/scripts/"
 cp "$TEMPLATE_ROOT/scripts/check-template-version.sh" "$H/scripts/"
 cp "$TEMPLATE_ROOT"/scripts/lib/*.sh "$H/scripts/lib/"

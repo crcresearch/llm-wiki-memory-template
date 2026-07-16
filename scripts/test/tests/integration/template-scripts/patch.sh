@@ -5,7 +5,7 @@
 # Inputs:  SANDBOX env var (from run.sh); git identity from sandbox_git_env.
 # Effects: creates $SANDBOX/template-scripts/ with:
 #   template-main/   a stand-in template repo, default branch 'main', holding
-#                    one substituted file (.claude/commands/wiki-experiment.md
+#                    one substituted file (.claude/skills/wiki-experiment/SKILL.md
 #                    with a literal {{REPO_NAME}})
 #   template-trunk/  same content, default branch 'trunk' (NOT main), so the
 #                    scripts must DETECT the branch rather than assume main (F5)
@@ -37,8 +37,8 @@ _mk_template() {
     local dir="$1" branch="$2"
     g init -q "$dir"
     g -C "$dir" symbolic-ref HEAD "refs/heads/$branch"
-    mkdir -p "$dir/.claude/commands"
-    printf 'command for {{REPO_NAME}}\n' > "$dir/.claude/commands/wiki-experiment.md"
+    mkdir -p "$dir/.claude/skills/wiki-experiment"
+    printf 'command for {{REPO_NAME}}\n' > "$dir/.claude/skills/wiki-experiment/SKILL.md"
     g -C "$dir" add -A
     g -C "$dir" commit -q -m "template content on $branch"
 }
@@ -51,8 +51,8 @@ _mk_project() {
     g init -q "$dir"
     mkdir -p "$dir/wiki/$wiki.wiki"
     : > "$dir/wiki/$wiki.wiki/SCHEMA_$wiki.md"
-    mkdir -p "$dir/.claude/commands"
-    printf 'stale local content\n' > "$dir/.claude/commands/wiki-experiment.md"
+    mkdir -p "$dir/.claude/skills/wiki-experiment"
+    printf 'stale local content\n' > "$dir/.claude/skills/wiki-experiment/SKILL.md"
 }
 
 _mk_template "$STAGE/template-main"  main

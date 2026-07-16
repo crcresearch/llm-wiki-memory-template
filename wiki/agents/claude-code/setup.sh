@@ -9,7 +9,7 @@
 # parallel directories under wiki/agents/.
 #
 # Usage:
-#   ./wiki/agents/claude-code/setup.sh                       # base: verify wiki, commands & skills
+#   ./wiki/agents/claude-code/setup.sh                       # base: verify wiki & skills
 #   ./wiki/agents/claude-code/setup.sh --hook                # + SessionStart hook
 #   ./wiki/agents/claude-code/setup.sh --seed-memory         # + personal memory seed
 #   ./wiki/agents/claude-code/setup.sh --posttooluse-hook    # + PostToolUse advisory hook
@@ -23,9 +23,8 @@
 # Required prerequisites:
 #   - The wiki must already exist (wiki/<repo>.wiki/SCHEMA_<repo>.md).
 #     If missing, run wiki/init-wiki.sh first.
-#   - .claude/commands/wiki-{experiment,source,lint}.md and
-#     .claude/skills/wiki-{experiment,source,lint}.md should be committed
-#     in the repo (they ship with this overlay).
+#   - .claude/skills/wiki-{experiment,source,lint}/SKILL.md should be
+#     committed in the repo (they ship with this overlay).
 #
 # What it does:
 #   Base mode:
@@ -33,10 +32,9 @@
 #        The behavioral instructions (memory boundary, wiki maintenance)
 #        ship as .claude/rules/*.md with the overlay; nothing is written
 #        to the host's CLAUDE.md.
-#     3a. Reports presence/absence of .claude/commands/wiki-*.md (slash
-#         commands invoked via /wiki-experiment, /wiki-source, /wiki-lint).
-#     3b. Reports presence/absence of .claude/skills/wiki-*.md (model-side
-#         procedures referenced by the slash commands).
+#     3. Reports presence/absence of .claude/skills/wiki-*/SKILL.md
+#        (invoked via /wiki-experiment, /wiki-source, /wiki-lint, or
+#        pulled in by the model when the intent matches).
 #
 #   --hook:
 #     4. Installs two SessionStart hooks:
@@ -98,7 +96,6 @@ SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
 
 OVERLAY_DIR="$REPO_ROOT/wiki/agents/claude-code"
 TEMPLATES_DIR="$OVERLAY_DIR/templates"
-COMMANDS_DIR="$REPO_ROOT/.claude/commands"
 SKILLS_DIR="$REPO_ROOT/.claude/skills"
 HOOKS_DIR="$REPO_ROOT/.claude/hooks"
 SETTINGS_JSON="$REPO_ROOT/.claude/settings.json"
@@ -116,24 +113,13 @@ fi
 # (memory boundary, wiki maintenance) ship as .claude/rules/*.md files with
 # this overlay; this script no longer reads or writes the host's CLAUDE.md.
 
-# --- Step 3a: verify slash commands present ---
-COMMANDS_MISSING=()
-for cmd in wiki-experiment wiki-source wiki-lint; do
-    if [[ ! -f "$COMMANDS_DIR/${cmd}.md" ]]; then
-        COMMANDS_MISSING+=("$cmd")
-    fi
-done
-
-if [[ ${#COMMANDS_MISSING[@]} -eq 0 ]]; then
-    lw_record_skip ".claude/commands/: all three present (wiki-experiment, wiki-source, wiki-lint)"
-else
-    lw_record_skip ".claude/commands/: MISSING — ${COMMANDS_MISSING[*]} (these should be committed in the repo)"
-fi
-
-# --- Step 3b: verify model-side skills present ---
+# --- Step 3: verify skills present ---
+# Directory-per-skill layout (<name>/SKILL.md); the directory name is the
+# /invocation name. The former .claude/commands/ duplicates are retired
+# (skills shadow same-named commands).
 SKILLS_MISSING=()
 for skill in wiki-experiment wiki-source wiki-lint; do
-    if [[ ! -f "$SKILLS_DIR/${skill}.md" ]]; then
+    if [[ ! -f "$SKILLS_DIR/${skill}/SKILL.md" ]]; then
         SKILLS_MISSING+=("$skill")
     fi
 done

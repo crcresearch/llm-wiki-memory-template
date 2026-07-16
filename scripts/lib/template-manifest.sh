@@ -103,13 +103,21 @@ TEMPLATE_OVERLAY_CLAUDE=(
     # of TEMPLATE_SUBSTITUTE_FILES.
     ".claude/rules/wiki-as-memory.md"
     ".claude/rules/memory-boundary.md"
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
+    # Skills use the documented directory-per-skill layout; the directory
+    # name is the /invocation name (frontmatter name: is display-only).
+    # Flat .claude/skills/*.md files are not discovered (witnessed on
+    # Claude Code 2.1.210), and .claude/commands/ duplicates are retired:
+    # skills shadow same-named commands, so shipping both meant two
+    # diverging copies of each procedure.
+    ".claude/skills/wiki-experiment/SKILL.md"
+    ".claude/skills/wiki-source/SKILL.md"
+    ".claude/skills/wiki-lint/SKILL.md"
+    # /ask ships in upstream's command layout. A command is effectively a
+    # skill with user-invocable left at its default (true), so this is a
+    # layout choice, not a capability one: keeping the file byte-identical
+    # to upstream avoids re-diverging on every pull. The duplicate
+    # retirement above doesn't apply — /ask has no skill twin.
     ".claude/commands/ask.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
     "wiki/agents/claude-code/setup.sh"
     "wiki/agents/claude-code/README.md"
     "wiki/agents/claude-code/templates/memory-seed.md"
@@ -150,12 +158,9 @@ TEMPLATE_OVERLAY_CURSOR=(
 #    memory-seed.md}: scanned and confirmed to contain no {{REPO_NAME}}
 #    marker. Listing them would lie about the contract.
 TEMPLATE_SUBSTITUTE_FILES=(
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
+    ".claude/skills/wiki-experiment/SKILL.md"
+    ".claude/skills/wiki-source/SKILL.md"
+    ".claude/skills/wiki-lint/SKILL.md"
     ".cursor/rules/wiki-as-memory.mdc"
     ".cursor/rules/wiki-experiment.mdc"
     ".cursor/rules/wiki-source.mdc"
