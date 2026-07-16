@@ -15,7 +15,7 @@ Walk `wiki/{{REPO_NAME}}.wiki/` and report on each of the following. For each is
 4. **Missing frontmatter.** Pages without a frontmatter block at the top, or with frontmatter missing required fields (`type:`, `up:`). Infer the fields from page content and add them.
 5. **`type: untyped` pages.** Review each and assign a proper type if now obvious (`concept`, `entity`, `source-summary`, `synthesis`, `index`, `comparison`).
 6. **Missing concept pages.** Concepts mentioned in multiple body texts that do not have their own page. Promote to standalone pages with proper frontmatter.
-7. **Missing cross-references.** Pages that should link to each other but don't (especially: bidirectional links — if A links to B, B should link back to A unless one is hub-and-spoke by design).
+7. **Missing cross-references (bidirectional).** If A links to B, B should link back to A unless one is hub-and-spoke by design. Enumerate these mechanically rather than by eye: run `python3 scripts/wiki-reciprocity.py wiki/{{REPO_NAME}}.wiki/` — it lists every one-way link (`A -> B` where B does not reference A back by any means), exempting special files and pages marked `hub: true` in frontmatter. Fix each by adding the missing back-reference on the target, or mark a genuine hub `hub: true`.
 8. **Index gaps.** Pages that exist in the wiki but are not listed in `index_{{REPO_NAME}}.md`.
 9. **Naming convention.** Page filenames should be `Title-Case-Hyphenated.md`. Flag deviations.
 10. **Special-file integrity.** `Home_…md`, `index_…md`, `log_…md`, `SCHEMA_…md`, `Home.md` (redirect) all present and well-formed.
