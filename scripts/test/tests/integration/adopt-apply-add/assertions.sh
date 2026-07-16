@@ -45,11 +45,15 @@ assert "ADD: copied SKILL.md is byte-equal to template" \
     "cmp -s '$TEMPLATE_ROOT_AA/.claude/skills/wiki-lint/SKILL.md' '$HOST/.claude/skills/wiki-lint/SKILL.md'"
 # The retired flat/commands layout must NOT come back: the manifest is the
 # only source of these paths, so their absence proves the old entries are
-# gone rather than merely renamed alongside.
+# gone rather than merely renamed alongside. /ask still ships as a command
+# (no skill twin; the retirement targets wiki-* duplicates only), so assert
+# the retired files individually rather than the directory's absence.
 assert "ADD: no flat .claude/skills/wiki-lint.md created" \
     "[ ! -f '$HOST/.claude/skills/wiki-lint.md' ]"
-assert "ADD: no .claude/commands/ directory created" \
-    "[ ! -d '$HOST/.claude/commands' ]"
+assert "ADD: no .claude/commands/wiki-*.md duplicates created" \
+    "[ ! -f '$HOST/.claude/commands/wiki-experiment.md' ] && [ ! -f '$HOST/.claude/commands/wiki-source.md' ] && [ ! -f '$HOST/.claude/commands/wiki-lint.md' ]"
+assert "ADD: .claude/commands/ask.md created in host" \
+    "[ -f '$HOST/.claude/commands/ask.md' ]"
 
 # Rule files: Claude Code auto-discovers .claude/rules/*.md, so landing on
 # disk is the whole installation. They are name-agnostic by contract
