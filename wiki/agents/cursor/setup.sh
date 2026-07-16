@@ -7,37 +7,31 @@
 # to wiki/agents/claude-code/setup.sh. wiki/init-wiki.sh stays agent-agnostic.
 #
 # Usage:
-#   ./wiki/agents/cursor/setup.sh                 # base: verify wiki and rules
-#   ./wiki/agents/cursor/setup.sh --legacy        # also install legacy .cursorrules
-#                                                 # (for Cursor builds that don't read .mdc rules)
+#   ./wiki/agents/cursor/setup.sh                 # verify wiki and rules
 #
 # What it does:
-#   Base mode:
-#     1. Verifies the wiki is present (else points to init-wiki.sh).
-#     2. Reports presence/absence of the .cursor/rules/*.mdc set. These ship
-#        with the repository and the script only verifies them. The overlay
-#        never touches CLAUDE.md: the behavioral instructions live in the
-#        rules files (wiki-as-memory and memory-boundary are alwaysApply).
-#
-#   --legacy:
-#     3. Copies .cursorrules.template -> .cursorrules at the repo root,
-#        substituting {{REPO_NAME}}. Skipped if .cursorrules already exists.
+#   1. Verifies the wiki is present (else points to init-wiki.sh).
+#   2. Reports presence/absence of the .cursor/rules/*.mdc set. These ship
+#      with the repository and the script only verifies them. The overlay
+#      never touches CLAUDE.md: the behavioral instructions live in the
+#      rules files (wiki-as-memory and memory-boundary are alwaysApply).
 #
 # Cursor has no SessionStart hook equivalent and no per-user memory directory
 # managed by the IDE, so the Claude Code overlay's --hook and --seed-memory
 # flags have no analog here. The always-applied rule wiki-as-memory.mdc
 # carries the same persistent intent.
 #
+# There is no single-file .cursorrules fallback: Cursor reads
+# .cursor/rules/*.mdc since 0.45 (January 2025) and marks .cursorrules
+# legacy, so the overlay ships only the .mdc form.
+#
 # Does not commit anything. Does not push.
 #
 
 set -euo pipefail
 
-WITH_LEGACY=false
-
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --legacy) WITH_LEGACY=true; shift ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -62,8 +56,6 @@ WIKI_DIR="$REPO_ROOT/wiki/${REPO_NAME}.wiki"
 SCHEMA_FILE="$WIKI_DIR/SCHEMA_${REPO_NAME}.md"
 
 RULES_DIR="$REPO_ROOT/.cursor/rules"
-CURSORRULES_DEST="$REPO_ROOT/.cursorrules"
-CURSORRULES_TEMPLATE="$REPO_ROOT/.cursorrules.template"
 
 # --- Step 1: verify wiki present ---
 if [[ ! -f "$SCHEMA_FILE" ]]; then
@@ -90,24 +82,11 @@ else
     lw_record_skip ".cursor/rules/: MISSING — ${RULES_MISSING[*]} (these should be committed in the repo)"
 fi
 
-# --- Step 3: install legacy .cursorrules (--legacy) ---
-if $WITH_LEGACY; then
-    if [[ -f "$CURSORRULES_DEST" ]]; then
-        lw_record_skip ".cursorrules: already present (skipped)"
-    elif [[ ! -f "$CURSORRULES_TEMPLATE" ]]; then
-        lw_record_skip ".cursorrules: template not found at $CURSORRULES_TEMPLATE (skipped)"
-    else
-        sed "s/{{REPO_NAME}}/$REPO_NAME/g" "$CURSORRULES_TEMPLATE" > "$CURSORRULES_DEST"
-        lw_record_change ".cursorrules: created from template (legacy single-file Cursor format)"
-    fi
-fi
-
 # --- Summary ---
 echo ""
 echo "================ Cursor overlay setup ================"
 echo "Repo:        $REPO_ROOT"
 echo "Wiki:        $WIKI_DIR"
-echo "Flags:       --legacy=$WITH_LEGACY"
 echo "------------------------------------------------------"
 lw_print_report
 echo "======================================================"
@@ -116,7 +95,7 @@ echo ""
 if lw_changed_p; then
     echo "Next steps:"
     echo "  Review the changes above, then stage and commit:"
-    echo "    git add .cursor/ ${WITH_LEGACY:+.cursorrules}"
+    echo "    git add .cursor/"
     echo "    git commit -m \"cursor: apply Cursor overlay (setup.sh)\""
     echo ""
 fi

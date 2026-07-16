@@ -21,7 +21,7 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 | File | Purpose |
 |---|---|
 | `setup.sh` | Idempotent installer. Verifies the wiki and the `.cursor/rules/*.mdc` set. Never touches `CLAUDE.md`. |
-| `templates/` | Reserved for future Cursor-specific template content. The `.cursor/rules/*.mdc` files and `.cursorrules.template` ship directly at the project root, not under `templates/`, because Cursor reads them from there. |
+| `templates/` | Reserved for future Cursor-specific template content. The `.cursor/rules/*.mdc` files ship directly at the project root, not under `templates/`, because Cursor reads them from there. |
 
 The actual Cursor configuration lives at the project root:
 
@@ -32,14 +32,14 @@ The actual Cursor configuration lives at the project root:
 | `.cursor/rules/wiki-experiment.mdc` | Agent Requested. Procedure for filing an experiment result. Invoke explicitly with `@wiki-experiment` or let Cursor pull it in when intent matches. |
 | `.cursor/rules/wiki-source.mdc` | Agent Requested. Procedure for ingesting a new source document. `@wiki-source`. |
 | `.cursor/rules/wiki-lint.mdc` | Agent Requested. Procedure for health-checking the wiki. `@wiki-lint`. |
-| `.cursorrules.template` | Legacy single-file fallback for Cursor builds that don't read `.mdc` rules. Activate with `setup.sh --legacy`. |
+
+There is no single-file `.cursorrules` fallback: Cursor has read `.cursor/rules/*.mdc` since 0.45 (January 2025) and marks `.cursorrules` legacy, so the overlay ships only the `.mdc` form.
 
 ## Flags
 
 | Flag | What it does |
 |---|---|
 | (none) | Base mode: wiki verification + rules check |
-| `--legacy` | Installs `.cursorrules` from the template, substituting `{{REPO_NAME}}` |
 | `-h`, `--help` | Prints the script's header comment |
 
 ## Note on Cursor capabilities
@@ -50,7 +50,6 @@ Cursor has no SessionStart hook equivalent and no IDE-managed per-user memory di
 
 ```bash
 ls .cursor/rules/                   # wiki-as-memory.mdc, memory-boundary.mdc, wiki-{experiment,source,lint}.mdc
-test -f .cursorrules && echo "legacy active" || echo "legacy not in use"
 ```
 
 ## First-session walkthrough
@@ -59,7 +58,7 @@ Open Cursor in the project root, start a chat session, and try the following.
 
 ### 0. Sanity — `@`-mention autocomplete
 
-In the Cursor chat, type `@wiki` and confirm the autocomplete offers `@wiki-experiment`, `@wiki-source`, `@wiki-lint`, `@wiki-as-memory`. If they don't appear, Cursor is not reading `.cursor/rules/`. Check the Cursor version (modern builds support `.mdc`); fall back to `setup.sh --legacy` if needed.
+In the Cursor chat, type `@wiki` and confirm the autocomplete offers `@wiki-experiment`, `@wiki-source`, `@wiki-lint`, `@wiki-as-memory`. If they don't appear, Cursor is not reading `.cursor/rules/`. Check the Cursor version: `.mdc` rules require 0.45 (January 2025) or later.
 
 ### 1. Read path — Query
 
@@ -96,4 +95,4 @@ The overlay never creates or edits `CLAUDE.md`. All behavioral instructions ship
 
 ## Updating after pulling template improvements
 
-When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes the template-owned `.cursor/rules/*.mdc` files (those listed in `scripts/lib/template-manifest.sh`), `wiki/agents/cursor/setup.sh`, and `wiki/agents/cursor/templates/` (when present). It does not touch `.cursorrules` or your own project-specific rules in `.cursor/rules/`.
+When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes the template-owned `.cursor/rules/*.mdc` files (those listed in `scripts/lib/template-manifest.sh`), `wiki/agents/cursor/setup.sh`, and `wiki/agents/cursor/templates/` (when present). It does not touch your own project-specific rules in `.cursor/rules/`.

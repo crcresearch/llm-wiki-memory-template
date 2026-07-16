@@ -173,6 +173,14 @@ assert "CLAUDE.md.template is gone from the template tree" \
     "[ ! -e '$REPO_ROOT_LIB/CLAUDE.md.template' ]"
 assert "CLAUDE.md.template is gone from TEMPLATE_ONE_SHOT" \
     "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_ONE_SHOT[@]}\"' | grep -qxF 'CLAUDE.md.template'"
+
+# --- .cursorrules.template is retired ---------------------------------------
+# The single-file Cursor fallback is removed: Cursor reads .cursor/rules/*.mdc
+# since 0.45 and marks .cursorrules legacy, so the overlay ships only .mdc.
+assert ".cursorrules.template is gone from the template tree" \
+    "[ ! -e '$REPO_ROOT_LIB/.cursorrules.template' ]"
+assert ".cursorrules.template is gone from TEMPLATE_ONE_SHOT" \
+    "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_ONE_SHOT[@]}\"' | grep -qxF '.cursorrules.template'"
 assert "wiki/.gitignore is in TEMPLATE_SHARED_INFRA" \
     "lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_SHARED_INFRA[@]}\"' | grep -qxF 'wiki/.gitignore'"
 assert "template's wiki/.gitignore carries the *.wiki/ rule" \

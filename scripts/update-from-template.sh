@@ -27,7 +27,7 @@
 #       template defines the operation type but the host owns the content)
 #   CLAUDE.md, .gitignore                         (plain host content; the
 #       template never creates or edits them)
-#   README.md, .cursorrules                       (project's own)
+#   README.md                                     (project's own)
 #   .claude/settings.local.json                   (per-user, gitignored)
 #   .claude/hooks/                                (per-machine, opt-in)
 #   wiki/<repo>.wiki/                             (separate git sub-repo)

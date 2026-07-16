@@ -10,7 +10,7 @@ The pattern this template implements is described in [Beyond Memory](https://doi
 
 **Every other path is shipped but unvalidated in a live session.** That includes:
 
-- The **Cursor overlay** (`.cursor/rules/*.mdc`, `wiki/agents/cursor/setup.sh`, `.cursorrules.template`). The `.mdc` rule format, `@`-mention invocation, and `alwaysApply` semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
+- The **Cursor overlay** (`.cursor/rules/*.mdc`, `wiki/agents/cursor/setup.sh`). The `.mdc` rule format, `@`-mention invocation, and `alwaysApply` semantics here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 - The **minimal mode** (`--agent=none`). The wiki bootstrap works mechanically, but the proactive behavior depends on whatever agent you bring (OpenCode, Pi, OpenInterpreter, your own) discovering the wiki tooling on its own. No specific non-Claude-Code agent has been verified yet.
 
 **If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) reporting:**
@@ -163,7 +163,6 @@ The llm-wiki pattern, the agent overlays, the slash commands and rules, and the 
 
 - `CLAUDE.md` (your project's narrative)
 - `.gitignore` (host-owned and never modified; the post-sync report prints an advisory when it diverges from the template's, so you can back-port new ignore rules manually. The wiki sub-repo ignore rule ships as `wiki/.gitignore`, a synced template file)
-- `.cursorrules` (your project's narrative for Cursor)
 - `README.md` (your project's user-facing docs)
 - `.claude/settings.json` (your project's permissions)
 - `.claude/hooks/` (per-machine hooks installed by `setup.sh --hook`)
@@ -209,7 +208,6 @@ llm-wiki-memory-template/
     settings.json.template       permissions allowlist for wiki-flow commands
   .cursor/                       Cursor overlay artefacts
     rules/                       Cursor's .mdc rules format
-  .cursorrules.template          legacy Cursor format (single file)
   wiki/
     init-wiki.sh                 agent-agnostic wiki bootstrap
     agents/

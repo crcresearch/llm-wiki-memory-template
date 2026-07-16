@@ -6,9 +6,8 @@
 #   checkout/  git repo whose basename ('checkout') deliberately differs
 #              from its wiki name ('glyph'), to prove setup.sh takes the
 #              name from the on-disk wiki, not the clone directory. Carries
-#              a .cursorrules.template (for --legacy), the shipped
-#              .cursor/rules/*.mdc set, and a host-owned CLAUDE.md that
-#              setup.sh must never touch.
+#              the shipped .cursor/rules/*.mdc set and a host-owned
+#              CLAUDE.md that setup.sh must never touch.
 #   nowiki/    git repo with no wiki/*.wiki (exercises the fail-loud path).
 
 set -uo pipefail
@@ -22,17 +21,16 @@ STAGE="$SANDBOX/cursor-setup"
 # assertions.sh runs the inner checkout's setup.sh — a mixed-root test.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 
-# Template-checkout guard: the fixtures need .cursorrules.template and
-# .cursor/rules from the checkout, which instantiate consumes/prunes in
-# derived projects (observed: 10 spurious fails in a derived project's
-# CI). Decline WITHOUT creating $STAGE so assertions.sh skips cleanly.
-# Discriminator matches clone_template's issue-#15 guard.
+# Template-checkout guard: the fixtures need .cursor/rules from the
+# checkout, which instantiate prunes in derived projects (observed: 10
+# spurious fails in a derived project's CI). Decline WITHOUT creating
+# $STAGE so assertions.sh skips cleanly. Discriminator matches
+# clone_template's issue-#15 guard.
 if [ ! -f "$REPO_ROOT/scripts/instantiate.sh" ]; then
     echo "  cursor-setup: not a template checkout (derived project); declining to stage." >&2
     exit 0
 fi
 mkdir -p "$STAGE"
-CURSORRULES_TPL="$REPO_ROOT/.cursorrules.template"
 RULES_SRC="$REPO_ROOT/.cursor/rules"
 
 # $1=project dir, $2=wiki name ('' = create no wiki)
@@ -55,8 +53,6 @@ EOF
 }
 
 _mkproj "$STAGE/checkout" "glyph"
-# --legacy reads .cursorrules.template from the repo root.
-cp "$CURSORRULES_TPL" "$STAGE/checkout/.cursorrules.template"
 # Ship the .cursor/rules/*.mdc set so the rules check reports present.
 mkdir -p "$STAGE/checkout/.cursor/rules"
 cp "$RULES_SRC"/*.mdc "$STAGE/checkout/.cursor/rules/"

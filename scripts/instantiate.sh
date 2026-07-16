@@ -501,7 +501,6 @@ if $keep_cursor; then
     "$REPO_ROOT/wiki/agents/cursor/setup.sh"
 else
     rm -rf "$REPO_ROOT/.cursor"
-    rm -f "$REPO_ROOT/.cursorrules.template"
     rm -rf "$REPO_ROOT/wiki/agents/cursor"
 fi
 
@@ -538,10 +537,6 @@ case "$AGENT" in
     claude-code|all)
         echo "  2. (Optional) Add the SessionStart hook and personal memory seed:"
         echo "       ./wiki/agents/claude-code/setup.sh --all"
-        ;;
-    cursor)
-        echo "  2. (Optional) Add the legacy .cursorrules fallback:"
-        echo "       ./wiki/agents/cursor/setup.sh --legacy"
         ;;
 esac
 echo "  3. Stage and commit the generated files:"

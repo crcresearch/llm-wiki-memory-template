@@ -188,7 +188,6 @@ TEMPLATE_ONE_SHOT=(
     "scripts/instantiate.sh"
     "README.md.template"
     ".claude/settings.json.template"
-    ".cursorrules.template"
 )
 
 # --- Accessors --------------------------------------------------------------
