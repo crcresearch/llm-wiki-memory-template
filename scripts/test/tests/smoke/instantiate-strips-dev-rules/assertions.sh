@@ -35,9 +35,13 @@ assert "instantiate kept .claude/ (claude-code overlay)" \
 assert "instantiate kept .claude/commands/ (overlay content intact)" \
     "[ -d '$T/.claude/commands' ]"
 
-# Behaviour under test: the named dev-only rule did not propagate.
+# Behaviour under test: the named dev-only rules did not propagate.
 assert "instantiate stripped the dev-only observe-the-failure rule" \
     "[ ! -f '$T/.claude/rules/observe-the-failure.md' ]"
+assert "template shipped the local-testing rule before instantiation" \
+    "[ -f '$SANDBOX/local-testing-rule-was-present' ]"
+assert "instantiate stripped the dev-only local-testing rule" \
+    "[ ! -f '$T/.claude/rules/local-testing.md' ]"
 
 # ...but only that one: a consumer-facing rule (and the directory) survive.
 # This is what makes the strip file-scoped rather than rm -rf.

@@ -41,6 +41,9 @@ fi
 if [ -f "$T/.claude/rules/observe-the-failure.md" ]; then
     : > "$SANDBOX/dev-rules-was-present"
 fi
+if [ -f "$T/.claude/rules/local-testing.md" ]; then
+    : > "$SANDBOX/local-testing-rule-was-present"
+fi
 
 # Drop a synthetic consumer-facing rule alongside the dev-only one. The strip
 # must remove only the named dev-only rule(s); this sibling must survive. It

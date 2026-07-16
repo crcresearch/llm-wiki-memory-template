@@ -403,7 +403,7 @@ fi
 # list stays easy to extend later. The manifest sync arrays consumed by
 # update-from-template.sh do not re-add these.
 CLAUDE_RULES_DIR="$REPO_ROOT/.claude/rules"
-DEV_ONLY_RULES=(observe-the-failure.md)
+DEV_ONLY_RULES=(observe-the-failure.md local-testing.md)
 for _rule in "${DEV_ONLY_RULES[@]}"; do
     if [[ -f "$CLAUDE_RULES_DIR/$_rule" ]]; then
         rm -f "$CLAUDE_RULES_DIR/$_rule"

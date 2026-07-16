@@ -37,6 +37,16 @@ Currently one category. The harness auto-discovers any new categories under
 
 Exit code = number of failed assertions. 0 = all green.
 
+### Python dependencies
+
+The `kg-frontmatter-graph` unit test asserts that `python3` can import `yaml`, `rdflib`, and `pyshacl`; missing modules are failures, not skips.
+CI installs them into a venv (see `.github/workflows/test-harness.yml`).
+Locally, either install them the same way or supply them ephemerally with uv:
+
+```bash
+uv run --no-project --with pyyaml --with rdflib --with pyshacl -- ./scripts/test/run.sh
+```
+
 ## Template source
 
 Smoke tests need a real template clone. Resolution order:
@@ -65,6 +75,25 @@ gracefully.
 
 Note the network fallback tests the *published* template, not your local
 changes — fine for a derived project's CI, wrong for template development.
+
+Do not point `MVP_TEMPLATE_LOCAL` at a working tree that contains gitignored artifacts (a dogfooded `wiki/<template>.wiki/`, kg build caches, a dev-self CLAUDE.md).
+That path copies the directory verbatim with `cp -R`, so those artifacts land in the sandbox and break the bootstrap assertions, most visibly as an `init-wiki.sh` "multiple wikis ... name is ambiguous" error.
+For template development, prefer the no-env-var default, which exports git-visible files only.
+`MVP_TEMPLATE_LOCAL` is intended for clean checkouts, which is how CI uses it.
+
+## Running the CI workflow locally with act
+
+[act](https://github.com/nektos/act) can run the `test` job from `.github/workflows/test-harness.yml` in a container:
+
+```bash
+act -j test --matrix os:ubuntu-latest --rm
+```
+
+- Keep act's default copy mode; never pass `-b`/`--bind`.
+  Bind mode mounts your real working tree, which breaks twice over: workflow writes land on your host (root-owned `scripts/kg/build/` and `scripts/kg/.cache/` under rootful Docker, since the kg pipeline writes into the repo rather than the sandbox), and the workflow's `MVP_TEMPLATE_LOCAL=$GITHUB_WORKSPACE` picks up your gitignored artifacts (see the warning above).
+  Copy mode respects `.gitignore` (`--use-gitignore` defaults to true), so the container sees the equivalent of a clean checkout and all writes stay inside it.
+- `--matrix os:ubuntu-latest` skips the `macos-latest` leg, which act cannot run.
+- `--rm` removes the container even when the job fails, so failed runs do not accumulate containers.
 
 ## Structure
 
