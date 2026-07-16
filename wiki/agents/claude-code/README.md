@@ -135,7 +135,7 @@ exits without committing anything.
 
 | Flag | What it does |
 |---|---|
-| (none) | Base mode: wiki verification + commands and skills check |
+| (none) | Base mode: wiki verification + skills check |
 | `--hook` | Adds SessionStart hook installation and `settings.json` registration |
 | `--seed-memory` | Adds personal memory seeding |
 | `--all` | Both `--hook` and `--seed-memory` |

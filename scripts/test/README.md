@@ -15,8 +15,8 @@ Currently one category. The harness auto-discovers any new categories under
 
 | Test | Assertions | What it checks |
 |---|---|---|
-| `template-bootstrap` | 14 | Clones the real template, runs `instantiate.sh`, asserts: bash syntax of all shipping scripts, CLAUDE.md generated with substituted placeholders, wiki sub-repo created, namespaced nav files present, `init-wiki.sh` is idempotent |
-| `instantiate-agent-none` | 8 | Regression for issue #9: runs `instantiate.sh --agent=none`, asserts bootstrap completes, CLAUDE.md is written, `init-wiki.sh` runs, and no `.claude/` or `.cursor/` overlay is copied |
+| `template-bootstrap` | 14 | Clones the real template, runs `instantiate.sh`, asserts: bash syntax of all shipping scripts, no CLAUDE.md is created (host-owned), wiki sub-repo created, namespaced nav files present, `init-wiki.sh` is idempotent |
+| `instantiate-agent-none` | 8 | Regression for issue #9: runs `instantiate.sh --agent=none`, asserts bootstrap completes, no CLAUDE.md is created, `init-wiki.sh` runs, and no `.claude/` or `.cursor/` overlay is copied |
 
 ## Usage
 
@@ -55,7 +55,7 @@ Smoke tests need a real template clone. Resolution order:
 # Default: no env vars needed. run.sh exports THIS working tree's
 # git-visible files (tracked + untracked-unignored) into the sandbox and
 # tests those — your edits, not the published template. Gitignored
-# artifacts (dev-self CLAUDE.md, wiki/<template>.wiki/, kg caches) are
+# artifacts (dev-self settings.json and hooks, wiki/<template>.wiki/, kg caches) are
 # excluded from the export.
 ./scripts/test/run.sh
 
