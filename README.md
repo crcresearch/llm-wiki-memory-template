@@ -267,7 +267,7 @@ Enable or remove later:
 ./scripts/disable-feature.sh <name>      # symmetric removal
 ```
 
-Each feature is self-contained under `features/<name>/`: a `feature.json` plus optional code, tests, CI workflow, and a CLAUDE.md section. Installing copies these into the derived project; uninstalling removes them. The state lives in `.features-enabled` (plain text, one feature per line) at the project root.
+Each feature is self-contained under `features/<name>/`: a `feature.json` plus optional code, tests, CI workflow, and an agent rule file (installed at `.claude/rules/feature-<name>.md`). Installing copies these into the derived project; uninstalling removes them. The state lives in `.features-enabled` (plain text, one feature per line) at the project root.
 
 Authoring a new feature is documented in [docs/adding-a-feature.md](docs/adding-a-feature.md). The architecture is RFC #13; Etapa 1 (this infrastructure) shipped in PR #17.
 

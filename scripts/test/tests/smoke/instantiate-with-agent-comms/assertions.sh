@@ -55,12 +55,13 @@ assert ".features-enabled created" \
 assert ".features-enabled lists agent-comms" \
     "grep -qFx 'agent-comms' '$T/.features-enabled'"
 
-# --- CLAUDE.md section patch skipped LOUDLY (no CLAUDE.md to patch) ---
-# install-feature still patches a host CLAUDE.md when one exists (covered
-# by the agent-comms-feature-install unit test); with none, it must say so
-# instead of silently dropping the feature's usage notes.
-assert "install log reports the CLAUDE.md section patch was skipped" \
-    "grep -qF 'CLAUDE.md not present; skipped' /tmp/instantiate-with-agent-comms.log"
+# --- Rule install skipped LOUDLY (no .claude/ under --agent=none) ---
+# install-feature installs .claude/rules/feature-agent-comms.md when the
+# project has a .claude/ directory (covered by the agent-comms-feature-install
+# unit test); with none, it must say so instead of silently dropping the
+# feature's usage notes.
+assert "install log reports the rule install was skipped" \
+    "grep -qF 'skipped installing the rule file' /tmp/instantiate-with-agent-comms.log"
 
 # --- CI workflow installed ---
 assert ".github/workflows/agent-comms.yml created" \

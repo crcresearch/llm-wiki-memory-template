@@ -14,7 +14,7 @@
 # Effects:
 #   - Reads features/<name>/feature.json
 #   - Copies feature files into the project
-#   - Inserts a section into CLAUDE.md between paired markers
+#   - Installs the feature's rule file at .claude/rules/feature-<name>.md
 #   - Copies the feature's CI workflow into .github/workflows/
 #   - Records the feature name in .features-enabled
 #   - Prints system dependency install instructions

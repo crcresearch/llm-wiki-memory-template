@@ -22,7 +22,7 @@ A feature is the right shape when:
 
 - the capability is **optional**: not every derived project wants it
 - the capability is **substantial**: ships code, may have its own CI,
-  patches `CLAUDE.md` to teach the agent how to use it
+  installs a rule file to teach the agent how to use it
 - the capability is **removable**: a project may turn it off later
   without leaving wreckage behind
 
@@ -34,7 +34,7 @@ the base template, not in `features/`.
 ```
 features/<name>/
 ├── feature.json          required: metadata
-├── CLAUDE.section.md     optional: prose inserted into CLAUDE.md
+├── rule.md               optional: agent context, installed as a .claude/rules/ file
 ├── code/                 optional: copied into scripts/<name>/
 ├── tests/                optional: copied into scripts/test/tests/...
 ├── fixtures/             optional: test data your tests reference
@@ -57,7 +57,7 @@ if (and only if) declared in `feature.json`.
   "files":     { "source": "code/",      "destination": "scripts/your-feature/" },
   "tests":     { "source": "tests/",     "destination": "scripts/test/tests/unit/your-feature/" },
   "ci":        { "workflow_file": "ci/test-your-feature.yml" },
-  "claude_md": { "marker": "feature:your-feature", "section_file": "CLAUDE.section.md" },
+  "rule":      { "source": "rule.md" },
 
   "system_deps": [
     {
@@ -85,8 +85,7 @@ Field reference:
 | `files.source` / `files.destination` | optional | Copy a directory of code from the feature into the derived project. Refuses to overwrite an existing destination. |
 | `tests.source` / `tests.destination` | optional | Same shape as `files`, for harness tests. Skipped silently if the source directory does not exist. |
 | `ci.workflow_file` | optional | Path to a YAML file under the feature directory. Copied into `.github/workflows/` at install time. Use one workflow per feature, do not patch the template's main workflow. |
-| `claude_md.marker` | optional | Name used in the paired HTML-comment markers in `CLAUDE.md`. Convention: `feature:<name>`. |
-| `claude_md.section_file` | optional | Prose file inserted between the markers. Conventionally `CLAUDE.section.md`. |
+| `rule.source` | optional | Prose file copied to `.claude/rules/feature-<name>.md` at install time. Conventionally `rule.md`. Skipped loudly when the project has no `.claude/` directory. |
 | `system_deps[]` | optional | Each entry has `name`, `version`, and an `install` object with `ubuntu`, `macos`, or `manual` keys. Printed at install time, never executed. |
 | `depends_on[]` | optional | Declared but **not enforced** in Etapa 1. Add it for documentation; future versions may validate. |
 
@@ -128,13 +127,11 @@ optional field, install runs six steps in order:
 2. **Copy tests.** Same pattern, scoped to the harness layout.
 3. **Copy CI workflow.** `cp features/<name>/<ci.workflow_file>` to
    `.github/workflows/`.
-4. **Patch CLAUDE.md.** Appends the section content between paired
-   HTML-comment markers:
-   ```markdown
-   <!-- feature:<name> -->
-   (content of features/<name>/CLAUDE.section.md)
-   <!-- /feature:<name> -->
-   ```
+4. **Install the rule file.** Copies `features/<name>/<rule.source>` to
+   `.claude/rules/feature-<name>.md`. The host's `CLAUDE.md` is never
+   touched. If the project has no `.claude/` directory (e.g.
+   `--agent=none`), the step skips loudly and points at the source file
+   instead of creating `.claude/` behind the user's back.
 5. **Record.** Append `<name>` to `.features-enabled` at the project
    root.
 6. **Print `system_deps`.** Lists each dependency with the matching
@@ -142,8 +139,8 @@ optional field, install runs six steps in order:
    installs system deps themselves.
 
 Idempotency: install is a no-op if `<name>` is already in
-`.features-enabled` (skips with a message). The CLAUDE.md patch also
-skips if the opening marker is already present.
+`.features-enabled` (skips with a message). The rule install also
+skips if the destination file is already present.
 
 ## What `uninstall_feature` does
 
@@ -152,8 +149,8 @@ Symmetric removal:
 1. Remove `<files.destination>`.
 2. Remove `<tests.destination>`.
 3. Remove `.github/workflows/<ci.workflow_file basename>`.
-4. Remove the section between the paired markers in CLAUDE.md (Python
-   regex pass; bash 3.2 cannot do multi-line in-place edits safely).
+4. Remove `.claude/rules/feature-<name>.md`, and the `.claude/rules/`
+   directory too if the feature's rule was the only thing in it.
 5. Remove `<name>` from `.features-enabled`. If the file becomes empty,
    it is deleted.
 
@@ -162,25 +159,25 @@ a no-op with a friendly message.
 
 If `feature.json` has been deleted from `features/<name>/` since
 install (rare, but possible if the template was updated mid-stream),
-uninstall does minimal cleanup: removes the entry from
-`.features-enabled`, warns that file-level cleanup may be needed.
+uninstall does minimal cleanup: removes the rule file and the
+`.features-enabled` entry (both derivable from the name alone), and
+warns that the remaining installed files need manual cleanup.
 
-## The CLAUDE.section.md conventions
+## The rule.md conventions
 
-The section file is plain Markdown. It is inserted verbatim between
-the paired markers. Two practical guidelines:
+The rule file is plain Markdown, copied verbatim to
+`.claude/rules/feature-<name>.md`. Two practical guidelines:
 
-- **Start at heading level `###`.** The base CLAUDE.md uses `##` for
-  top-level sections; your feature's content lives under its own `###`
-  heading.
+- **It is a standalone document.** Start with a `#` title; it does not
+  nest inside anything else.
 - **Tell the agent how to use the feature, not how the feature was
   built.** Implementation details belong in the feature's own README
   or in `code/`. This file shapes session behavior.
 
-Example minimal section (`features/kg/CLAUDE.section.md`):
+Example minimal rule (`features/kg/rule.md`):
 
 ```markdown
-### Knowledge Graph
+# Knowledge Graph
 
 The wiki's frontmatter feeds a knowledge graph at
 `scripts/kg/`. Rebuild after edits with `./scripts/kg/build-graph.sh`.
@@ -251,7 +248,7 @@ include your in-progress changes.
 
 This walkthrough builds a feature called `hello-world` that prints a
 greeting from a shell script. It exercises every machine path
-(`feature.json`, files, CLAUDE.md patch, CI, system_deps).
+(`feature.json`, files, rule file, CI, system_deps).
 
 **1. Create the directory.**
 
@@ -269,11 +266,11 @@ EOF
 chmod +x features/hello-world/code/greet.sh
 ```
 
-**3. Write the CLAUDE.md section.**
+**3. Write the rule file.**
 
 ```bash
-cat > features/hello-world/CLAUDE.section.md <<'EOF'
-### Hello World
+cat > features/hello-world/rule.md <<'EOF'
+# Hello World
 
 This project has the hello-world feature enabled. Run
 `./scripts/hello-world/greet.sh` to see the greeting.
@@ -318,7 +315,7 @@ cat > features/hello-world/feature.json <<'EOF'
 
   "files":     { "source": "code/", "destination": "scripts/hello-world/" },
   "ci":        { "workflow_file": "ci/test-hello-world.yml" },
-  "claude_md": { "marker": "feature:hello-world", "section_file": "CLAUDE.section.md" },
+  "rule":      { "source": "rule.md" },
 
   "system_deps": [],
   "depends_on": []
@@ -333,34 +330,32 @@ EOF
 ```bash
 ./scripts/enable-feature.sh hello-world
 ./scripts/hello-world/greet.sh
-grep -A2 'feature:hello-world' CLAUDE.md
+cat .claude/rules/feature-hello-world.md
 ```
 
-Expected: the greeting prints, and CLAUDE.md shows the section.
+Expected: the greeting prints, and the rule file shows the content.
 
 **7. Remove it cleanly.**
 
 ```bash
 ./scripts/disable-feature.sh hello-world
-ls scripts/hello-world 2>&1                # not found
-grep -c 'feature:hello-world' CLAUDE.md    # 0
-cat .features-enabled 2>&1                 # absent or empty
+ls scripts/hello-world 2>&1                        # not found
+ls .claude/rules/feature-hello-world.md 2>&1       # not found
+cat .features-enabled 2>&1                         # absent or empty
 ```
 
 ## Pitfalls
 
-- **Paired markers, not single markers.** Some pre-feature code in the
-  template uses single HTML-comment markers for idempotent install
-  (notably `wiki/agents/claude-code/setup.sh`). Single markers do not
-  support uninstall. Always use the `<!-- feature:<name> -->` ...
-  `<!-- /feature:<name> -->` pair.
+- **The rule step needs a `.claude/` directory.** A project
+  instantiated with `--agent=none` has none, so the rule install skips
+  with a message pointing at the source file. The rest of the install
+  proceeds normally.
 - **`FEATURES_DIR` env var is test-only.** It exists so the unit test
   can point at a fixture outside `features/`. Derived projects must
   not set it; production reads `./features/` relative to cwd.
-- **`jq` and `python3` are required on the host.** They are not
-  per-feature system_deps; they are template-wide requirements because
-  `install-feature.sh` itself parses JSON and runs the CLAUDE.md regex
-  pass in Python.
+- **`jq` is required on the host.** It is not a per-feature
+  system_dep; it is a template-wide requirement because
+  `install-feature.sh` itself parses JSON.
 - **Refuses to overwrite.** If the destination of `files` or `tests`
   already exists, install errors out. This is deliberate: silently
   clobbering a derived project's local edits is worse than failing
@@ -393,12 +388,11 @@ by hand if necessary (though prefer the scripts).
 ## What is NOT in scope of a feature
 
 - **Base-template files.** Do not ship modified versions of
-  `scripts/instantiate.sh`, `scripts/update-from-template.sh`, the
-  `wiki/` core, or the `CLAUDE.md.template`. A feature extends; it
-  does not fork.
+  `scripts/instantiate.sh`, `scripts/update-from-template.sh`, or the
+  `wiki/` core. A feature extends; it does not fork.
 - **The wiki sub-repo.** `wiki/<repo>.wiki/` is the derived project's
   content. Features do not write into it. Features can prompt the
-  agent to update the wiki via `CLAUDE.section.md`, but they do not
+  agent to update the wiki via `rule.md`, but they do not
   ship wiki pages.
 - **Project-specific configuration.** A feature is for code and
   conventions that any derived project might want. Anything specific

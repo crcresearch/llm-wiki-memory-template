@@ -45,4 +45,8 @@ EOF
 # Snapshot the baseline so the byte-equivalence assertion can compare.
 cp "$PROJ/CLAUDE.md" "$PROJ/CLAUDE.md.baseline"
 
+# .claude/ exists but .claude/rules/ does not: install must create the
+# rules directory, uninstall must remove it again once empty.
+mkdir -p "$PROJ/.claude"
+
 echo "  agent-comms-feature-install patch applied: project root at $PROJ"

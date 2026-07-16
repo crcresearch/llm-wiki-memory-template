@@ -15,25 +15,25 @@
 #   uninstall_feature <name>   symmetric removal (idempotent)
 #
 # Both functions expect the current working directory to be a derived
-# project root (containing CLAUDE.md, scripts/, and either an existing
-# features/ directory or a path provided via the FEATURES_DIR env var).
+# project root (containing scripts/ and either an existing features/
+# directory or a path provided via the FEATURES_DIR env var).
 #
 # The FEATURES_DIR override exists for tests, where the fixture lives
 # outside the conventional features/ tree. In production install_feature
 # defaults to ./features/ relative to the caller's cwd.
 #
-# The marker convention for CLAUDE.md sections is PAIRED HTML comments:
+# A feature's agent context ships as a rule FILE, not a CLAUDE.md patch:
+# rule.source (conventionally rule.md) is copied to
+# .claude/rules/feature-<name>.md, and uninstall deletes that file. The
+# host's CLAUDE.md is never touched -- it is host-owned, like everywhere
+# else in the template. The feature- filename prefix marks provenance and
+# keeps feature rules from colliding with the template's own rules.
+# The rule step is gated on a .claude/ directory existing: a project
+# instantiated with --agent=none (or one whose agent does not read
+# .claude/rules/) opted out of Claude Code config, so the step skips
+# loudly instead of creating .claude/ behind the user's back.
 #
-#   <!-- feature:<name> -->
-#   ... section content from features/<name>/CLAUDE.section.md ...
-#   <!-- /feature:<name> -->
-#
-# Paired markers are deliberate: they support both idempotent install
-# (skip if opening marker present) AND clean uninstall (delete between
-# the pair). A single-marker pattern like the existing
-# wiki/agents/claude-code/setup.sh would not support uninstall.
-#
-# Requires: bash 3.2+, jq, python3 (for safe CLAUDE.md section removal).
+# Requires: bash 3.2+, jq.
 # Bash 3.2 compatibility means no mapfile and no associative arrays;
 # arrays are explicitly initialised before any expansion under `set -u`.
 
@@ -163,32 +163,29 @@ install_feature() {
         fi
     fi
 
-    # Step 4: patch CLAUDE.md with the feature's section between paired markers
-    local marker section_file
-    marker=$(jq -r '.claude_md.marker // empty' "$feature_json")
-    section_file=$(jq -r '.claude_md.section_file // empty' "$feature_json")
-    if [[ -n "$marker" && -n "$section_file" ]]; then
-        local section_path="$feature_dir/$section_file"
-        if [[ -f "$section_path" && -f "CLAUDE.md" ]]; then
-            local open_marker="<!-- $marker -->"
-            local close_marker="<!-- /$marker -->"
-            if grep -qF "$open_marker" CLAUDE.md 2>/dev/null; then
-                echo "  = CLAUDE.md already contains '$open_marker'; skipping patch."
-            else
-                {
-                    printf '\n%s\n' "$open_marker"
-                    cat "$section_path"
-                    printf '%s\n' "$close_marker"
-                } >> CLAUDE.md
-                echo "  + patched CLAUDE.md with marker '$marker'"
-            fi
-        elif [[ -f "$section_path" ]]; then
-            # The template no longer creates CLAUDE.md (it is host-owned),
-            # so a fresh project may not have one. Skip loudly instead of
-            # silently: the feature's usage notes are otherwise lost.
-            echo "  = CLAUDE.md not present; skipped the '$marker' section patch."
-            echo "    (Usage notes live at $section_path; add them to your own"
-            echo "     CLAUDE.md or a .claude/rules/ file if you want them in context.)"
+    # Step 4: install the feature's rule file at .claude/rules/feature-<name>.md
+    local rule_src
+    rule_src=$(jq -r '.rule.source // empty' "$feature_json")
+    if [[ -n "$rule_src" ]]; then
+        local rule_src_path="$feature_dir/$rule_src"
+        local rule_dst=".claude/rules/feature-$name.md"
+        if [[ ! -f "$rule_src_path" ]]; then
+            echo "Error: rule.source '$rule_src' does not exist in $feature_dir." >&2
+            return 1
+        fi
+        if [[ ! -d ".claude" ]]; then
+            # No .claude/ means the project opted out of Claude Code config
+            # (e.g. --agent=none). Skip loudly instead of silently: the
+            # feature's usage notes are otherwise lost.
+            echo "  = no .claude/ directory; skipped installing the rule file."
+            echo "    (Usage notes live at $rule_src_path; add them to your own"
+            echo "     agent configuration if you want them in context.)"
+        elif [[ -e "$rule_dst" ]]; then
+            echo "  = $rule_dst already present; leaving it in place."
+        else
+            mkdir -p .claude/rules
+            cp "$rule_src_path" "$rule_dst"
+            echo "  + installed $rule_dst"
         fi
     fi
 
@@ -247,13 +244,14 @@ uninstall_feature() {
 
     echo "Uninstalling feature '$name' ..."
 
-    # If feature.json is missing, do minimal cleanup (just .features-enabled).
-    # The user's deployment may have lost the feature definition; we still
-    # honour the request to remove the bookkeeping entry.
+    # If feature.json is missing, do minimal cleanup: the rule file and the
+    # .features-enabled entry are both derivable from the name alone. The
+    # user's deployment may have lost the feature definition; we still
+    # honour the request to remove what we can identify.
     if [[ ! -f "$feature_json" ]]; then
         echo "Warning: feature.json missing at $feature_json." >&2
-        echo "         Removing '$name' from .features-enabled only;" >&2
-        echo "         manual cleanup of installed files may be needed." >&2
+        echo "         Removing the rule file and the .features-enabled entry only;" >&2
+        echo "         manual cleanup of other installed files may be needed." >&2
     else
         _feature_require_cmd jq || return 1
 
@@ -284,32 +282,18 @@ uninstall_feature() {
             fi
         fi
 
-        # Step 4: remove CLAUDE.md section between paired markers
-        local marker
-        marker=$(jq -r '.claude_md.marker // empty' "$feature_json")
-        if [[ -n "$marker" && -f "CLAUDE.md" ]]; then
-            local open_marker="<!-- $marker -->"
-            if grep -qF "$open_marker" CLAUDE.md 2>/dev/null; then
-                # Use Python for safe re-based deletion; sed across newlines
-                # is fragile and bash 3.2 lacks reliable in-place multiline
-                # handling. The pattern eats blank lines surrounding the
-                # markers so the file does not accumulate empty lines.
-                _feature_require_cmd python3 || return 1
-                MARKER_NAME="$marker" python3 <<'PY_EOF'
-import os, re, sys
-marker = os.environ["MARKER_NAME"]
-with open("CLAUDE.md", "r") as f:
-    text = f.read()
-open_re  = re.escape(f"<!-- {marker} -->")
-close_re = re.escape(f"<!-- /{marker} -->")
-pat = re.compile(r"\n*" + open_re + r".*?" + close_re + r"\n*", re.DOTALL)
-new_text = pat.sub("\n", text)
-with open("CLAUDE.md", "w") as f:
-    f.write(new_text)
-PY_EOF
-                echo "  - removed CLAUDE.md '$marker' section"
-            fi
-        fi
+    fi
+
+    # Step 4: remove the feature's rule file. Runs even when feature.json is
+    # missing: the destination derives from the name alone.
+    local rule_dst=".claude/rules/feature-$name.md"
+    if [[ -f "$rule_dst" ]]; then
+        rm -f "$rule_dst"
+        echo "  - removed $rule_dst"
+        # Drop the rules directory again if this feature's rule was the
+        # only thing in it (rmdir refuses non-empty; .claude/ itself
+        # predates the install, so it stays).
+        rmdir .claude/rules 2>/dev/null || true
     fi
 
     # Step 5: remove from .features-enabled

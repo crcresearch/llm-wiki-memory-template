@@ -11,7 +11,7 @@
 #   - Removes the files copied by install (files.destination)
 #   - Removes the tests copied by install (tests.destination)
 #   - Removes the CI workflow file
-#   - Removes the CLAUDE.md section between the feature's paired markers
+#   - Removes the feature's rule file at .claude/rules/feature-<name>.md
 #   - Removes the feature name from .features-enabled
 #
 # Idempotent: removing a feature that is not enabled is a no-op success.

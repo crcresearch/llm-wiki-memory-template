@@ -12,7 +12,7 @@ install/uninstall infrastructure and this `features/` directory.
 
 **First real feature**: `agent-comms` (cross-agent `ask` primitive +
 federation enrollment). v0.1.0 scope is intentionally narrow — see
-[`features/agent-comms/CLAUDE.section.md`](agent-comms/CLAUDE.section.md)
+[`features/agent-comms/rule.md`](agent-comms/rule.md)
 for the user-facing contract and [`features/agent-comms/feature.json`](agent-comms/feature.json)
 for the system-deps manifest.
 
@@ -20,8 +20,8 @@ for the system-deps manifest.
 
 ```
 features/<name>/
-├── feature.json          # metadata (name, files, tests, ci, claude_md, system_deps, depends_on)
-├── CLAUDE.section.md     # prose inserted into the derived project's CLAUDE.md
+├── feature.json          # metadata (name, files, tests, ci, rule, system_deps, depends_on)
+├── rule.md               # agent context, installed as .claude/rules/feature-<name>.md
 ├── code/                 # files copied into scripts/<name>/ at install time
 ├── tests/                # files copied into scripts/test/tests/<category>/<name>/
 ├── fixtures/             # test data referenced by the feature's own tests

@@ -6,7 +6,7 @@
 
   "files":   { "source": "code/",  "destination": "scripts/test-feature/" },
   "ci":      { "workflow_file": "ci/test-feature.yml" },
-  "claude_md": { "marker": "feature:test-feature", "section_file": "CLAUDE.section.md" },
+  "rule":    { "source": "rule.md" },
 
   "system_deps": [
     {
