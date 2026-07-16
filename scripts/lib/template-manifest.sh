@@ -35,6 +35,7 @@ TEMPLATE_SHARED_INFRA=(
     "wiki/agents/wiki-write-protocol.md"
     "scripts/update-from-template.sh"
     "scripts/check-template-version.sh"
+    "scripts/wiki-reciprocity.py"
     "scripts/enable-feature.sh"
     "scripts/disable-feature.sh"
     "scripts/lib/install-feature.sh"

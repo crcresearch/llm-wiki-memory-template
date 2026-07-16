@@ -15,7 +15,7 @@ Full procedure: see `.claude/skills/wiki-lint.md`. Summary:
    - **Missing frontmatter** (no block at top, or missing `type:` / `up:`)
    - **`type: untyped`** pages whose proper type is now obvious
    - **Missing concept pages** (concepts mentioned in multiple bodies without their own page)
-   - **Missing cross-references** in either direction (if A → B, B should → A)
+   - **Missing cross-references** in either direction (if A → B, B should → A) — enumerate mechanically with `python3 scripts/wiki-reciprocity.py wiki/{{REPO_NAME}}.wiki/` (lists one-way links; exempts special files and `hub: true` pages)
    - **Index gaps** (pages in wiki but not listed in `index_…md`)
    - **Naming convention** deviations (should be `Title-Case-Hyphenated.md`)
    - **Special-file integrity** (`Home_…`, `index_…`, `log_…`, `SCHEMA_…`, `Home.md` redirect)
