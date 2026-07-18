@@ -169,3 +169,32 @@ assert_eq "known_grant_sentinel(CLAUDE.md) is empty (managed-block delegates to 
     "$(lw_mcall "lw_manifest_known_grant_sentinel 'CLAUDE.md'")"
 assert_eq "known_grant_sentinel(unknown path) is empty" "" \
     "$(lw_mcall "lw_manifest_known_grant_sentinel 'random/path.txt'")"
+
+# --- Sync trees (TEMPLATE_SYNC_TREES + lw_manifest_tree_files, #90) --------
+# Membership is resolved at run time, so the invariants here are about the
+# declarations and the accessor, not a file list.
+assert_eq "TEMPLATE_SYNC_TREES is non-empty" "1" \
+    "$(lw_mcall "[ \${#TEMPLATE_SYNC_TREES[@]} -gt 0 ] && echo 1 || echo 0")"
+
+# Every declared tree exists as a directory in the template checkout.
+_missing_trees="$(lw_mcall "
+    for t in \"\${TEMPLATE_SYNC_TREES[@]}\"; do
+        [[ -d '$REPO_ROOT_LIB'/\$t ]] || echo \"\$t\"
+    done")"
+assert "every sync tree exists in the template checkout" "[ -z \"$_missing_trees\" ]"
+
+# No static entry may live under a declared tree: that would be double
+# ownership (the tree resolver and the static list would both sync it).
+_tree_overlap="$(lw_mcall "
+    for t in \"\${TEMPLATE_SYNC_TREES[@]}\"; do
+        for f in \"\${TEMPLATE_SHARED_INFRA[@]}\" \"\${TEMPLATE_OVERLAY_CLAUDE[@]}\" \"\${TEMPLATE_OVERLAY_CURSOR[@]}\"; do
+            case \"\$f\" in \"\$t\"/*) echo \"\$f\";; esac
+        done
+    done")"
+assert "no static manifest entry lives under a sync tree" "[ -z \"$_tree_overlap\" ]"
+
+# The dir-mode accessor enumerates real members from a checkout.
+assert "tree_files dir-mode lists the harness runner" \
+    "lw_mcall \"lw_manifest_tree_files dir '$REPO_ROOT_LIB'\" | grep -qx 'scripts/test/run.sh'"
+assert "tree_files dir-mode returns a substantial member set" \
+    "[ \"$(lw_mcall "lw_manifest_tree_files dir '$REPO_ROOT_LIB'" | wc -l | tr -d ' ')\" -gt 50 ]"

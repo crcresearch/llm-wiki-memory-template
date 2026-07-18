@@ -289,6 +289,12 @@ ADD_PATHS=()
 while IFS= read -r _path; do
     ADD_PATHS+=("$_path")
 done < <(lw_manifest_assemble_active_files "" "$AGENT")
+# Sync-tree members (TEMPLATE_SYNC_TREES, e.g. the test harness) resolved
+# from the template checkout on disk — dir mode, since adopt copies from
+# $TEMPLATE_ROOT rather than a git ref (#90).
+while IFS= read -r _path; do
+    ADD_PATHS+=("$_path")
+done < <(lw_manifest_tree_files dir "$TEMPLATE_ROOT")
 for path in "${ADD_PATHS[@]}"; do
     src="$TEMPLATE_ROOT/$path"
     dst="$TARGET/$path"
