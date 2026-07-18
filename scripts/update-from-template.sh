@@ -89,23 +89,45 @@ TEMPLATE_REF="template/$TEMPLATE_BRANCH"
 TEMPLATE_SHA=$(git rev-parse --short "$TEMPLATE_REF")
 echo "Template HEAD: $TEMPLATE_SHA"
 
-# --- Load the template manifest (bootstrap when the host lacks it, #74) ---
-# Hosts adopted before the manifest shipped itself have an updater whose
-# file list lives in a file they never received; sourcing it directly would
-# die before the fetch that could deliver the fix. Materialize the manifest
-# from the just-fetched template ref into a TEMP file and source that — the
-# sync loop below then installs scripts/lib/template-manifest.sh on disk
-# like any other missing manifest-listed file (or reports it, on --dry-run).
+# --- Load the template manifest (self-heal when the host's copy can't) ---
+# Two vintages need healing. Hosts adopted before the manifest shipped
+# itself (#74) have an updater whose file list lives in a file they never
+# received; sourcing it directly would die before the fetch that could
+# deliver the fix. Hosts instantiated between #60 and #76 have a manifest
+# that is PRESENT but does not list itself, so a sync assembled from it can
+# never deliver its own replacement. In both cases, materialize the
+# manifest from the just-fetched template ref into a TEMP file and source
+# that — the sync loop below then installs/updates the on-disk copy like
+# any other manifest-listed file (or reports it, on --dry-run).
 MANIFEST_PATH="$HERE/lib/template-manifest.sh"
+_manifest_heal_reason=""
 if [[ ! -f "$MANIFEST_PATH" ]]; then
+    _manifest_heal_reason="missing (host adopted before #74)"
+elif ! grep -qF '"scripts/lib/template-manifest.sh"' "$MANIFEST_PATH"; then
+    # Present but stale: a pre-#76 manifest does not list itself, so a sync
+    # assembled from it can never deliver its own replacement — the host
+    # stays on the old file list forever (hosts instantiated between #60
+    # and #76; first field case: naval-sensor-fusion, 2026-06-30 vintage).
+    # Every post-#76 manifest carries its own path as an array entry, so
+    # the quoted-string probe is an unambiguous vintage signature.
+    _manifest_heal_reason="present but stale (predates #76: does not list itself)"
+fi
+if [[ -n "$_manifest_heal_reason" ]]; then
     MANIFEST_PATH=$(mktemp)
     if ! git show "$TEMPLATE_REF:scripts/lib/template-manifest.sh" > "$MANIFEST_PATH" 2>/dev/null; then
         rm -f "$MANIFEST_PATH"
-        echo "error: scripts/lib/template-manifest.sh is missing locally AND absent from $TEMPLATE_REF; cannot assemble the sync file list" >&2
+        echo "error: scripts/lib/template-manifest.sh is unusable locally AND absent from $TEMPLATE_REF; cannot assemble the sync file list" >&2
         exit 1
     fi
-    echo "note: local scripts/lib/template-manifest.sh missing (host adopted before #74);"
-    echo "      bootstrapped this run's copy from $TEMPLATE_REF. The sync below installs it."
+    if [[ "$_manifest_heal_reason" == missing* ]]; then
+        # Wording kept verbatim from the #74 fix (the adopted-host-sync
+        # fixture pins it as the legacy host's observable signal).
+        echo "note: local scripts/lib/template-manifest.sh missing (host adopted before #74);"
+        echo "      bootstrapped this run's copy from $TEMPLATE_REF. The sync below installs it."
+    else
+        echo "note: local scripts/lib/template-manifest.sh $_manifest_heal_reason;"
+        echo "      using $TEMPLATE_REF's copy for this run. The sync below updates it on disk."
+    fi
 fi
 # shellcheck source=lib/template-manifest.sh
 source "$MANIFEST_PATH"
