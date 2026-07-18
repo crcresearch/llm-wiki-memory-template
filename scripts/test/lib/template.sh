@@ -55,6 +55,13 @@ clone_template() {
         # env (sandbox_git_env), so no per-repo config is set here.
         cp -R "$local_clone" "$target"
         rm -rf "$target/.git"
+        # Dev-self checkouts (README Path C) carry the template's own wiki
+        # clone at wiki/llm-wiki-memory-template.wiki/ — gitignored, but on
+        # disk, so cp -R ships it. wiki/*.wiki is never template content (a
+        # separate git sub-repo by design); left in the copy, it makes
+        # lw_discover_wiki_name ambiguous the moment the smoke's instantiate
+        # creates the fixture project's wiki (issue #88).
+        rm -rf "$target"/wiki/*.wiki
         (
             cd "$target"
             git init --quiet
