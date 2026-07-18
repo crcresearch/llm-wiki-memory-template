@@ -8,7 +8,7 @@
 
 STAGE="$SANDBOX/ensure-wiki"
 REPO_ROOT_EW="$(cd "$HERE/../.." && pwd)"
-HOOK="$REPO_ROOT_EW/wiki/agents/claude-code/templates/ensure-wiki.py"
+HOOK="$REPO_ROOT_EW/wiki/agents/templates/ensure-wiki.py"
 
 if ! command -v python3 >/dev/null 2>&1; then
     skip "ensure-wiki.py unit assertions" "python3 not available"

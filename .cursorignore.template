@@ -1,0 +1,27 @@
+# Cursor ignore patterns for an llm-wiki project.
+#
+# Stamped to `.cursorignore` at the project root by scripts/instantiate.sh
+# when --agent=cursor or --agent=all (then this .template file is removed).
+# Consumed once at instantiation time; not refreshed by
+# scripts/update-from-template.sh. Edit `.cursorignore` in your project
+# freely after it is generated.
+#
+# What .cursorignore controls: paths excluded from Cursor's indexing, @-file
+# context, and agent file search. It does NOT affect git tracking (that is
+# .gitignore). See wiki/agents/cursor/README.md "Controlling what Cursor
+# sees" for the full mechanism table.
+
+# Claude Code overlay artifacts. A Cursor target project has native
+# .cursor/ rules and skills, so the parallel Claude instructions are
+# duplicate context Cursor should not index or surface.
+CLAUDE.md
+.claude/
+.claude/**
+wiki/agents/claude-code/
+
+# NOTE: the shared, agent-agnostic wiki discipline files are deliberately
+# NOT ignored — Cursor skills and the postToolUse hook reference them:
+#   wiki/agents/discipline-gates.md
+#   wiki/agents/verification-gate.md
+#   wiki/agents/wiki-write-protocol.md
+#   wiki/agents/templates/ensure-wiki.py

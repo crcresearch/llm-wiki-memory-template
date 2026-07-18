@@ -10,7 +10,7 @@ The pattern this template implements is described in [Beyond Memory](https://doi
 
 **Every other path is shipped but unvalidated in a live session.** That includes:
 
-- The **Cursor overlay** (`.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md`, `wiki/agents/cursor/setup.sh`, optional `sessionStart` hook via `setup.sh --hook`, `.cursorrules.template`). The always-applied rule, project-skills layout, and hooks schema here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
+- The **Cursor overlay** (`.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md`, `wiki/agents/cursor/setup.sh`, optional `sessionStart` hooks via `setup.sh --hook` — an ensure-wiki clone/fast-forward adapter plus an index-surfacing hook — an optional `postToolUse` advisory gate nudge via `setup.sh --posttooluse-hook`, a generated `.cursorignore`, and `.cursorrules.template`). The always-applied rule, project-skills layout, and hooks schema here are derived from Cursor's published documentation, not from observed behavior in a running Cursor IDE.
 - The **minimal mode** (`--agent=none`). The wiki bootstrap and CLAUDE.md generation work mechanically, but the proactive behavior depends on whatever agent you bring (OpenCode, Pi, OpenInterpreter, your own) honoring the CLAUDE.md instructions. No specific non-Claude-Code agent has been verified yet.
 
 **If you are the first to try any of these paths, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) reporting:**
@@ -213,6 +213,7 @@ llm-wiki-memory-template/
     rules/                       always-applied .mdc rules (wiki-as-memory)
     skills/                      project skills -- wiki-experiment, wiki-source, wiki-lint
   .cursorrules.template          legacy Cursor format (single file)
+  .cursorignore.template         stamped to .cursorignore for cursor/all target projects
   wiki/
     init-wiki.sh                 agent-agnostic wiki bootstrap
     agents/

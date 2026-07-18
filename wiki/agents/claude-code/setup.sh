@@ -210,7 +210,11 @@ fi
 # absent, dirty, or already current, so a host that runs the two concurrently
 # only risks surfacing a one-session-stale index, never a broken session.
 if $WITH_HOOK; then
-    ENSURE_TEMPLATE="$TEMPLATES_DIR/ensure-wiki.py"
+    # ensure-wiki.py is agent-agnostic and lives in the shared overlay
+    # templates dir (wiki/agents/templates/), not under claude-code/: a
+    # cursor-only project prunes wiki/agents/claude-code/ but still needs the
+    # script for its own sessionStart ensure-wiki adapter.
+    ENSURE_TEMPLATE="$REPO_ROOT/wiki/agents/templates/ensure-wiki.py"
     ENSURE_DEST="$HOOKS_DIR/ensure-wiki.py"
     HOOK_TEMPLATE="$TEMPLATES_DIR/session-start-hook.sh"
     HOOK_DEST="$HOOKS_DIR/session-start.sh"

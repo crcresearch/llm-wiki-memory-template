@@ -121,10 +121,10 @@ May also patch / seed root `CLAUDE.md` sections when running create/update modes
 
 | `--agent` | Keep | Delete | Substitutions | Base `setup.sh` |
 |-----------|------|--------|---------------|-----------------|
-| `claude-code` | `.claude/`, `wiki/agents/claude-code/` | `.cursor/`, `.cursorrules.template`, `wiki/agents/cursor/` | `{{REPO_NAME}}` in `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md`; `settings.json.template` → `settings.json` | `wiki/agents/claude-code/setup.sh` |
-| `cursor` | `.cursor/`, `wiki/agents/cursor/` | `.claude/`, `wiki/agents/claude-code/` | `{{REPO_NAME}}` in `.cursor/rules/wiki-*.mdc`, `.cursor/skills/wiki-*/SKILL.md` | `wiki/agents/cursor/setup.sh` |
-| `all` | both overlays | neither overlay tree | both substitution passes | both `setup.sh` base |
-| `none` | neither overlay | `.claude/`, `.cursor/`, both `wiki/agents/{claude-code,cursor}/`, `.cursorrules.template` | none | none |
+| `claude-code` | `.claude/`, `wiki/agents/claude-code/` | `.cursor/`, `.cursorrules.template`, `.cursorignore.template`, `wiki/agents/cursor/` | `{{REPO_NAME}}` in `.claude/commands/wiki-*.md`, `.claude/skills/wiki-*.md`; `settings.json.template` → `settings.json` | `wiki/agents/claude-code/setup.sh` |
+| `cursor` | `.cursor/`, `wiki/agents/cursor/` | `.claude/`, `wiki/agents/claude-code/`, `.cursorignore.template` (after stamping) | `{{REPO_NAME}}` in `.cursor/rules/wiki-*.mdc`, `.cursor/skills/wiki-*/SKILL.md`; stamp `.cursorignore.template` → `.cursorignore` (verbatim; not overwritten if present) | `wiki/agents/cursor/setup.sh` |
+| `all` | both overlays | neither overlay tree; `.cursorignore.template` (after stamping) | both substitution passes; stamp `.cursorignore.template` → `.cursorignore` | both `setup.sh` base |
+| `none` | neither overlay | `.claude/`, `.cursor/`, both `wiki/agents/{claude-code,cursor}/`, `.cursorrules.template`, `.cursorignore.template` | none | none |
 
 **Hooks are not installed** on the normal instantiate path. Base `setup.sh` verifies artefacts / injects CLAUDE.md sentinels (Claude). Optional later: Claude `--hook` / `--posttooluse-hook` / `--seed-memory` / `--all`; Cursor `--hook` / `--legacy` / `--all`.
 
@@ -194,11 +194,11 @@ Adopt does **not** commit. User reviews `git status` / `git diff` and commits on
 
 ### ADD file sets (from manifest)
 
-**Always (shared infra)** — see `TEMPLATE_SHARED_INFRA` in the manifest (includes `llm-wiki.md`, `wiki/init-wiki.sh`, `wiki/Edge-Types.md.template`, agent-agnostic `wiki/agents/*.md`, update/check/enable/disable scripts, `scripts/lib/*`, wiki-write-protocol tree, `features/README.md`).
+**Always (shared infra)** — see `TEMPLATE_SHARED_INFRA` in the manifest (includes `llm-wiki.md`, `wiki/init-wiki.sh`, `wiki/Edge-Types.md.template`, agent-agnostic `wiki/agents/*.md`, the shared `wiki/agents/templates/ensure-wiki.py`, update/check/enable/disable scripts, `scripts/lib/*`, wiki-write-protocol tree, `features/README.md`).
 
 **If `--agent=claude-code`** — full `TEMPLATE_OVERLAY_CLAUDE` (`.claude/commands|skills`, `wiki/agents/claude-code/**`).
 
-**Not copied:** `TEMPLATE_ONE_SHOT` (`instantiate.sh`, `CLAUDE.md.template`, `README.md.template`, `.claude/settings.json.template`, `.cursorrules.template`).
+**Not copied:** `TEMPLATE_ONE_SHOT` (`instantiate.sh`, `CLAUDE.md.template`, `README.md.template`, `.claude/settings.json.template`, `.cursorrules.template`, `.cursorignore.template`).
 
 ### Not implemented (adopt)
 
@@ -261,13 +261,17 @@ Without steps 3–5, copy+PR alone will not make adopt/update/check sync the new
 
 | Overlay | Flags | Installs (approx.) |
 |---------|-------|--------------------|
-| Claude | `--hook` | `.claude/hooks/{ensure-wiki.py,session-start.sh}`, SessionStart in `.claude/settings.json` |
+| Claude | `--hook` | `.claude/hooks/{ensure-wiki.py,session-start.sh}` (ensure-wiki copied verbatim from shared `wiki/agents/templates/ensure-wiki.py`), SessionStart in `.claude/settings.json` |
 | Claude | `--posttooluse-hook` | posttooluse hook + settings registration |
 | Claude | `--seed-memory` | personal memory under `~/.claude/projects/...` |
-| Cursor | `--hook` | `.cursor/hooks/session-start.sh` + `.cursor/hooks.json` (`${REPO_NAME}` at install) |
+| Cursor | `--hook` | `.cursor/hooks/{ensure-wiki.sh,session-start.sh}` + `.cursor/hooks.json` (two `sessionStart` entries, ensure-wiki first; ensure-wiki.sh copied verbatim, session-start.sh `${REPO_NAME}` at install) |
+| Cursor | `--posttooluse-hook` | `.cursor/hooks/posttooluse-hook.sh` + `postToolUse` in `.cursor/hooks.json` (matcher `Write\|Edit`; `${REPO_NAME}` at install) |
 | Cursor | `--legacy` | `.cursorrules` from `.cursorrules.template` if absent |
+| Cursor | `--all` | `--hook` + `--posttooluse-hook` + `--legacy` |
 
-`setup.sh` **refuses to overwrite** existing live hook scripts. After a template hook change: delete live hooks, re-run `setup.sh --hook` (…); settings merge remains idempotent via jq (Claude). Live `.claude/hooks/` and `.cursor/hooks/` are **not** in the update sync list (§4).
+The shared `wiki/agents/templates/ensure-wiki.py` is agent-agnostic (in `TEMPLATE_SHARED_INFRA`), so both overlays install it: Claude copies it verbatim, Cursor drives it via the `ensure-wiki-cursor.sh` adapter (which translates the Claude-form JSON into Cursor `additional_context`).
+
+`setup.sh` **refuses to overwrite** existing live hook scripts. After a template hook change: delete live hooks, re-run `setup.sh --hook` (…); settings/hooks merge into an existing file is jq-only (Claude `settings.json`, Cursor `hooks.json`), but a fresh file is written directly (no jq needed). Live `.claude/hooks/` and `.cursor/hooks/` are **not** in the update sync list (§4).
 
 ---
 
@@ -304,9 +308,9 @@ Default template remote URL: `git@github.com:crcresearch/llm-wiki-memory-templat
 | Category | Examples |
 |----------|----------|
 | Host-owned (`TEMPLATE_HOST_OWNED`) | `CLAUDE.md`, `.gitignore`, `.claude/settings.json` |
-| Project narrative / opt-in | `README.md`, `.cursorrules`, `.claude/hooks/`, `.cursor/hooks/`, `.cursor/hooks.json` |
+| Project narrative / opt-in | `README.md`, `.cursorrules`, `.cursorignore`, `.claude/hooks/`, `.cursor/hooks/`, `.cursor/hooks.json` |
 | Separate git | entire `wiki/<repo>.wiki/` |
-| One-shot (`TEMPLATE_ONE_SHOT`) | `scripts/instantiate.sh`, `*.template` roots listed in the array |
+| One-shot (`TEMPLATE_ONE_SHOT`) | `scripts/instantiate.sh`, `*.template` roots listed in the array (incl. `.cursorignore.template`) |
 
 ### Pre-#74 migration
 

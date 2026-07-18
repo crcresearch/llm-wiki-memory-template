@@ -20,7 +20,7 @@ When context about this project would help an answer, read the wiki first.
 When significant work produces something a future session would benefit from knowing, write it to the wiki. Triggers:
 
 - New external source (paper, design doc, article) enters the project -> use the `wiki-source` skill.
-- An experiment finishes a run -> use the `wiki-experiment` skill. Capture configuration, headline metrics (per hop count where applicable), what changed, what was surprising. Honest reporting: bad results filed truthfully. Never report accuracy from projections, only from real script outputs. The canonical "Universal Rationalizations (Always Wrong)" table lives at `wiki/agents/discipline-gates.md`; before committing any wiki write, run the Verification Gate at `wiki/agents/verification-gate.md`.
+- An experiment finishes a run -> use the `wiki-experiment` skill. Capture configuration, headline metrics (per hop count where applicable), what changed, what was surprising. Honest reporting: bad results filed truthfully. Never report accuracy from projections, only from real script outputs.
 - An architecture / parameter / methodology decision is made -> record it with the reason.
 - A reusable synthesis emerges from a question -> file it.
 - A finding contradicts or supersedes a wiki claim -> update the affected pages.
@@ -40,4 +40,4 @@ Execute these without asking. Local commits in the wiki repo are trivially rever
 
 ## Cursor-specific note
 
-Optional `sessionStart` hook (install with `wiki/agents/cursor/setup.sh --hook`) injects the wiki index and recent log into each new agent session via `additional_context`. This rule remains `alwaysApply: true` as the durable fallback. The three operation-specific skills (`wiki-experiment`, `wiki-source`, `wiki-lint`) live under `.cursor/skills/`; the agent reads them when intent matches their descriptions, or when the user asks for them by name.
+Optional `sessionStart` hooks (install with `wiki/agents/cursor/setup.sh --hook`) clone/fast-forward the wiki and inject its index and recent log into each new agent session via `additional_context`. An optional `postToolUse` hook (`--posttooluse-hook`) is the only path that points at `wiki/agents/discipline-gates.md` and `wiki/agents/verification-gate.md`: after a wiki-page write it injects an advisory nudge to apply those gates before committing. Do not load those gate files from this always-applied rule. This rule remains `alwaysApply: true` as the durable fallback. The three operation-specific skills (`wiki-experiment`, `wiki-source`, `wiki-lint`) live under `.cursor/skills/`; the agent reads them when intent matches their descriptions, or when the user asks for them by name.

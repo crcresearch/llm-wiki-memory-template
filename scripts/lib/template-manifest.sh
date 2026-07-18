@@ -33,6 +33,14 @@ TEMPLATE_SHARED_INFRA=(
     "wiki/agents/discipline-gates.md"
     "wiki/agents/verification-gate.md"
     "wiki/agents/wiki-write-protocol.md"
+    # Agent-agnostic SessionStart ensure-wiki script. Both the Claude Code
+    # overlay (--hook) and the Cursor overlay (ensure-wiki-cursor.sh adapter)
+    # copy it into their live hooks dir, so it ships as shared infra rather
+    # than under either overlay array: a cursor-only project prunes
+    # wiki/agents/claude-code/ but must still receive this script. Copied
+    # VERBATIM (deliberately not in TEMPLATE_SUBSTITUTE_FILES): it is
+    # runtime-detecting and carries no literal {{REPO_NAME}} marker.
+    "wiki/agents/templates/ensure-wiki.py"
     "scripts/update-from-template.sh"
     "scripts/check-template-version.sh"
     "scripts/wiki-reciprocity.py"
@@ -103,7 +111,6 @@ TEMPLATE_OVERLAY_CLAUDE=(
     "wiki/agents/claude-code/templates/memory-seed.md"
     "wiki/agents/claude-code/templates/session-start-hook.sh"
     "wiki/agents/claude-code/templates/posttooluse-hook.sh"
-    "wiki/agents/claude-code/templates/ensure-wiki.py"
 )
 
 # Cursor overlay files. Active when adopt is invoked with --agent=cursor
@@ -117,6 +124,8 @@ TEMPLATE_OVERLAY_CURSOR=(
     "wiki/agents/cursor/setup.sh"
     "wiki/agents/cursor/README.md"
     "wiki/agents/cursor/templates/session-start-hook.sh"
+    "wiki/agents/cursor/templates/ensure-wiki-cursor.sh"
+    "wiki/agents/cursor/templates/posttooluse-hook.sh"
 )
 
 # Files where {{REPO_NAME}} must be substituted by $REPO_NAME at copy
@@ -124,9 +133,9 @@ TEMPLATE_OVERLAY_CURSOR=(
 # future consumer share the same list.
 #
 # Deliberate exclusions:
-#  - wiki/agents/claude-code/templates/ensure-wiki.py: runtime-detecting;
-#    every $REPO_NAME reference is inside a Python docstring or comment,
-#    not literal {{REPO_NAME}}.
+#  - wiki/agents/templates/ensure-wiki.py: runtime-detecting; every
+#    $REPO_NAME reference is inside a Python docstring or comment, not
+#    literal {{REPO_NAME}}. Shared infra (see TEMPLATE_SHARED_INFRA).
 #  - wiki/agents/claude-code/templates/posttooluse-hook.sh: the
 #    ${REPO_NAME} expression lives inside a single-quoted heredoc that
 #    setup.sh ships verbatim. Substituting it here would not reach the
@@ -136,9 +145,13 @@ TEMPLATE_OVERLAY_CURSOR=(
 #    session-start-hook.sh, memory-seed.md}: scanned and confirmed to
 #    contain no {{REPO_NAME}} marker. Listing them would lie about the
 #    contract.
-#  - wiki/agents/cursor/templates/session-start-hook.sh: uses ${REPO_NAME}
-#    (shell form), substituted by setup.sh --hook at install time — same
-#    contract as the Claude Code session-start template.
+#  - wiki/agents/cursor/templates/session-start-hook.sh and
+#    posttooluse-hook.sh: use ${REPO_NAME} (shell form), substituted by
+#    setup.sh --hook / --posttooluse-hook at install time — same contract as
+#    the Claude Code session-start template.
+#  - wiki/agents/cursor/templates/ensure-wiki-cursor.sh: copied VERBATIM by
+#    setup.sh --hook; uses paths relative to the repo root and carries no
+#    {{REPO_NAME}} marker (delegates to the runtime-detecting ensure-wiki.py).
 TEMPLATE_SUBSTITUTE_FILES=(
     ".claude/commands/wiki-experiment.md"
     ".claude/commands/wiki-source.md"
@@ -174,6 +187,10 @@ TEMPLATE_ONE_SHOT=(
     "README.md.template"
     ".claude/settings.json.template"
     ".cursorrules.template"
+    # Stamped to .cursorignore for --agent=cursor|all target projects, then
+    # removed; pruned outright for claude-code/none. Consumed at instantiate
+    # time, not refreshed by update-from-template.sh.
+    ".cursorignore.template"
 )
 
 # --- Accessors --------------------------------------------------------------

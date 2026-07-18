@@ -8,7 +8,7 @@ assistant to treat the project's wiki as durable memory.
 Today the template ships:
 
 - `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs slash commands at `.claude/commands/`, model-side skills at `.claude/skills/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
-- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Ships an always-applied rule at `.cursor/rules/wiki-as-memory.mdc`, project skills at `.cursor/skills/wiki-*/SKILL.md`, optional legacy `.cursorrules`, plus an optional `sessionStart` hook (`setup.sh --hook`) that injects the wiki index via `additional_context`. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
+- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Ships an always-applied rule at `.cursor/rules/wiki-as-memory.mdc`, project skills at `.cursor/skills/wiki-*/SKILL.md`, optional legacy `.cursorrules`, optional `sessionStart` hooks (`setup.sh --hook`: an ensure-wiki adapter that clones/fast-forwards the wiki, then a surfacing hook that injects the index via `additional_context`), and an optional `postToolUse` advisory gate nudge (`setup.sh --posttooluse-hook`). Cursor target projects also get a generated `.cursorignore` (from `.cursorignore.template`) hiding duplicate Claude artifacts. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
 
 The minimal mode (`--agent=none` in `scripts/instantiate.sh`) ships
 only the llm-wiki core: a project that uses OpenCode, Pi, or any other
@@ -26,6 +26,10 @@ Two files in this directory are agent-agnostic and consumed by *every* overlay v
 - [verification-gate.md](verification-gate.md) — Canonical pre-commit criteria list referenced by every ingest skill. Catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries before a wiki commit lands.
 
 When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., CLAUDE.md for Claude Code, `.cursor/rules/wiki-as-memory.mdc` and `.cursor/skills/` for Cursor); do not copy their content. DRY from day one.
+
+A third shared artefact is executable rather than referential:
+
+- [templates/ensure-wiki.py](templates/ensure-wiki.py) — agent-agnostic SessionStart script that clones the wiki sub-repo if absent (using the same VCS as the main repo) or fast-forwards it when the checkout is clean. It emits at most one Claude-form `SessionStart` JSON object. Both overlays install it into their live hooks dir: Claude Code copies it verbatim (`setup.sh --hook`); Cursor drives it through the `ensure-wiki-cursor.sh` adapter, which re-wraps its output as Cursor `additional_context`. It lives under the shared `wiki/agents/templates/` (not under either overlay) so a cursor-only project — which prunes `wiki/agents/claude-code/` — still ships it.
 
 ## The contract every overlay should honor
 

@@ -67,3 +67,44 @@ if [ -f "$NOWIKI_DIR/hook.sh" ]; then
 
     rm -f "$NOWIKI_OUT_FILE" "$NOWIKI_CTX"
 fi
+
+# --- ensure-wiki-cursor.sh adapter: Claude JSON -> additional_context ---
+# The adapter translates the shared ensure-wiki.py's Claude SessionStart
+# envelope into Cursor's {"additional_context": ...}. Fixtures ship a fake
+# ensure-wiki.py so the translation is exercised without a real wiki/network.
+NUDGE_DIR="$STAGE_DIR/adapter-nudge"
+if [ -f "$NUDGE_DIR/ensure-wiki.sh" ] && command -v python3 >/dev/null 2>&1; then
+    NUDGE_OUT=$(cd "$NUDGE_DIR" && printf '%s' "$HOOK_IN" | bash ensure-wiki.sh 2>&1)
+    NUDGE_OUT_FILE=$(mktemp)
+    printf '%s\n' "$NUDGE_OUT" > "$NUDGE_OUT_FILE"
+
+    assert "adapter: nudge output is valid JSON" \
+        "python3 -c \"import json; json.load(open('$NUDGE_OUT_FILE'))\""
+
+    NUDGE_CTX=$(mktemp)
+    python3 -c "import json; print(json.load(open('$NUDGE_OUT_FILE'))['additional_context'])" > "$NUDGE_CTX"
+    assert_contains "adapter: Claude additionalContext is re-emitted as additional_context" \
+        "$NUDGE_CTX" "CLONE THE WIKI at wiki/canonical.wiki/"
+    assert "adapter: no Claude hookSpecificOutput wrapper leaks into Cursor output" \
+        "! grep -qF 'hookSpecificOutput' '$NUDGE_OUT_FILE'"
+    NUDGE_RC=$(cd "$NUDGE_DIR" && printf '%s' "$HOOK_IN" | bash ensure-wiki.sh >/dev/null 2>&1; echo $?)
+    assert_eq "adapter: exits 0 on the nudge path" "0" "$NUDGE_RC"
+
+    rm -f "$NUDGE_OUT_FILE" "$NUDGE_CTX"
+fi
+
+SILENT_DIR="$STAGE_DIR/adapter-silent"
+if [ -f "$SILENT_DIR/ensure-wiki.sh" ] && command -v python3 >/dev/null 2>&1; then
+    SILENT_OUT=$(cd "$SILENT_DIR" && printf '%s' "$HOOK_IN" | bash ensure-wiki.sh 2>&1)
+    SILENT_OUT_FILE=$(mktemp)
+    printf '%s\n' "$SILENT_OUT" > "$SILENT_OUT_FILE"
+
+    assert "adapter: silent-success output is valid JSON" \
+        "python3 -c \"import json; json.load(open('$SILENT_OUT_FILE'))\""
+    assert "adapter: silent success emits empty additional_context" \
+        "[ -z \"\$(python3 -c \"import json; print(json.load(open('$SILENT_OUT_FILE'))['additional_context'])\")\" ]"
+    SILENT_RC=$(cd "$SILENT_DIR" && printf '%s' "$HOOK_IN" | bash ensure-wiki.sh >/dev/null 2>&1; echo $?)
+    assert_eq "adapter: exits 0 on the silent-success path" "0" "$SILENT_RC"
+
+    rm -f "$SILENT_OUT_FILE"
+fi

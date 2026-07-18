@@ -594,11 +594,26 @@ if $keep_cursor; then
         sed -i.bak "s|{{REPO_NAME}}|$REPO_NAME|g" "$f"
         rm -f "${f}.bak"
     done
+    # Stamp .cursorignore.template -> .cursorignore so Cursor target projects
+    # skip indexing the duplicate Claude/Open-standard artifacts. Consumed
+    # here and removed; update-from-template.sh never refreshes it. Copied
+    # verbatim (no {{REPO_NAME}} markers). Not overwritten if the project
+    # already has a .cursorignore.
+    if [[ -f "$REPO_ROOT/.cursorignore.template" ]]; then
+        if [[ -f "$REPO_ROOT/.cursorignore" ]]; then
+            echo "Kept existing .cursorignore (not overwritten by template)"
+        else
+            cp "$REPO_ROOT/.cursorignore.template" "$REPO_ROOT/.cursorignore"
+            echo "Wrote .cursorignore (Cursor skips duplicate Claude/Open-standard artifacts)"
+        fi
+        rm -f "$REPO_ROOT/.cursorignore.template"
+    fi
     # Run the overlay's setup.sh
     "$REPO_ROOT/wiki/agents/cursor/setup.sh"
 else
     rm -rf "$REPO_ROOT/.cursor"
     rm -f "$REPO_ROOT/.cursorrules.template"
+    rm -f "$REPO_ROOT/.cursorignore.template"
     rm -rf "$REPO_ROOT/wiki/agents/cursor"
 fi
 

@@ -91,4 +91,36 @@ mkdir -p "$NOWIKI_DIR"
 sed 's/\${REPO_NAME}/fakerepo-nowiki/g' "$HOOK_TEMPLATE" > "$NOWIKI_DIR/hook.sh"
 chmod +x "$NOWIKI_DIR/hook.sh"
 
-echo "  Cursor session-start-hook patch staged: fakerepo (with wiki) + fakerepo-nowiki (without)."
+# --- ensure-wiki-cursor.sh adapter fixtures ---
+# The adapter runs `python3 wiki/agents/templates/ensure-wiki.py` from cwd and
+# translates the shared script's Claude-format stdout into Cursor's
+# {"additional_context": ...} envelope. To test the translation in isolation
+# (no real wiki, no network), each fixture ships a FAKE ensure-wiki.py at the
+# path the adapter invokes:
+#   adapter-nudge/   fake emits Claude SessionStart JSON -> adapter must
+#                    re-wrap the message as additional_context.
+#   adapter-silent/  fake emits nothing (success path) -> adapter must emit
+#                    {"additional_context":""}.
+ADAPTER_TEMPLATE="$REPO_ROOT/wiki/agents/cursor/templates/ensure-wiki-cursor.sh"
+if [ -f "$ADAPTER_TEMPLATE" ]; then
+    NUDGE_DIR="$STAGE_DIR/adapter-nudge"
+    mkdir -p "$NUDGE_DIR/wiki/agents/templates"
+    cp "$ADAPTER_TEMPLATE" "$NUDGE_DIR/ensure-wiki.sh"
+    chmod +x "$NUDGE_DIR/ensure-wiki.sh"
+    cat > "$NUDGE_DIR/wiki/agents/templates/ensure-wiki.py" <<'PYEOF'
+import json, sys
+json.dump({"hookSpecificOutput": {"hookEventName": "SessionStart",
+          "additionalContext": "CLONE THE WIKI at wiki/canonical.wiki/"}}, sys.stdout)
+PYEOF
+
+    SILENT_DIR="$STAGE_DIR/adapter-silent"
+    mkdir -p "$SILENT_DIR/wiki/agents/templates"
+    cp "$ADAPTER_TEMPLATE" "$SILENT_DIR/ensure-wiki.sh"
+    chmod +x "$SILENT_DIR/ensure-wiki.sh"
+    cat > "$SILENT_DIR/wiki/agents/templates/ensure-wiki.py" <<'PYEOF'
+import sys
+sys.exit(0)
+PYEOF
+fi
+
+echo "  Cursor session-start-hook patch staged: fakerepo (with wiki) + fakerepo-nowiki (without) + ensure-wiki adapter fixtures."

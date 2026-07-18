@@ -83,17 +83,32 @@ OUT_LEGACY="$( cd "$STAGE/checkout" && bash "$SETUP" --legacy 2>&1 )"
 LEGACY_SKIP=0; case "$OUT_LEGACY" in *".cursorrules: already present"*) LEGACY_SKIP=1 ;; esac
 assert "legacy: re-run skips the existing .cursorrules" "[ $LEGACY_SKIP -eq 1 ]"
 
-# --- --hook: sessionStart script + hooks.json, idempotent ---
+# --- --hook: sessionStart scripts + hooks.json, idempotent ---
 ( cd "$STAGE/checkout" && bash "$SETUP" --hook ) >/dev/null 2>&1
 assert "hook: session-start.sh installed and executable" \
     "[ -x '$STAGE/checkout/.cursor/hooks/session-start.sh' ]"
 assert "hook: rendered with the wiki name (no \${REPO_NAME} leak)" \
     "! grep -qF '\${REPO_NAME}' '$STAGE/checkout/.cursor/hooks/session-start.sh'"
+# ensure-wiki.sh: the second sessionStart hook, copied verbatim (an adapter
+# over the shared ensure-wiki.py). Must be installed, executable, and drive
+# the shared script path — not carry a ${REPO_NAME} substitution.
+assert "hook: ensure-wiki.sh installed and executable" \
+    "[ -x '$STAGE/checkout/.cursor/hooks/ensure-wiki.sh' ]"
+assert "hook: ensure-wiki.sh points at the shared ensure-wiki.py" \
+    "grep -qF 'wiki/agents/templates/ensure-wiki.py' '$STAGE/checkout/.cursor/hooks/ensure-wiki.sh'"
 assert "hook: hooks.json registers sessionStart command" \
     "grep -qF 'sessionStart' '$STAGE/checkout/.cursor/hooks.json' && grep -qF '.cursor/hooks/session-start.sh' '$STAGE/checkout/.cursor/hooks.json'"
+assert "hook: hooks.json registers the ensure-wiki sessionStart command" \
+    "grep -qF '.cursor/hooks/ensure-wiki.sh' '$STAGE/checkout/.cursor/hooks.json'"
+# Order matters: ensure-wiki (clone/ff the wiki) must be registered BEFORE
+# session-start (which reads the index/log). Compare first-match line numbers.
+assert "hook: ensure-wiki is registered before session-start in hooks.json" \
+    "[ \"\$(grep -nF 'ensure-wiki.sh' '$STAGE/checkout/.cursor/hooks.json' | head -1 | cut -d: -f1)\" -lt \"\$(grep -nF 'session-start.sh' '$STAGE/checkout/.cursor/hooks.json' | head -1 | cut -d: -f1)\" ]"
 OUT_HOOK="$( cd "$STAGE/checkout" && bash "$SETUP" --hook 2>&1 )"
 HOOK_SKIP=0; case "$OUT_HOOK" in *".cursor/hooks/session-start.sh: already present"*) HOOK_SKIP=1 ;; esac
 assert "hook: re-run skips existing session-start.sh" "[ $HOOK_SKIP -eq 1 ]"
+ENSURE_SKIP=0; case "$OUT_HOOK" in *".cursor/hooks/ensure-wiki.sh: already present"*) ENSURE_SKIP=1 ;; esac
+assert "hook: re-run skips existing ensure-wiki.sh" "[ $ENSURE_SKIP -eq 1 ]"
 HOOK_JSON_SKIP=0; case "$OUT_HOOK" in *"sessionStart hook already registered"*) HOOK_JSON_SKIP=1 ;; esac
 assert "hook: re-run skips existing hooks.json registration" "[ $HOOK_JSON_SKIP -eq 1 ]"
 
