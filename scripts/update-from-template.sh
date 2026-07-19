@@ -62,6 +62,29 @@ done
 # The template manifest is sourced AFTER the fetch below, so a host that
 # lacks the file can bootstrap it from the template ref (#74).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Shared-lib guard (#92): on inline-era hosts, run 1 of the standard flow
+# delivers this newer updater off the old inline list — which predates
+# scripts/lib/ — and a raw `source` death here bricked the flow with no
+# guidance. Healing is deliberately NOT automatic (the fetch helpers live
+# in the very lib that is missing; the affected population is enumerable);
+# the recovery is adopt. Twin guard in check-template-version.sh — the two
+# cannot share the function precisely because the shared lib is the thing
+# that is absent.
+if [[ ! -f "$HERE/lib/common.sh" ]]; then
+    {
+        echo "error: scripts/lib/common.sh is missing — this checkout predates the shared library."
+        echo ""
+        echo "A previous update upgraded this script but not its dependencies (the old"
+        echo "updater's file list predates scripts/lib/). Recover with adopt:"
+        echo ""
+        echo "  git clone https://github.com/crcresearch/llm-wiki-memory-template /tmp/llm-wiki-template"
+        echo "  bash /tmp/llm-wiki-template/scripts/adopt.sh --target=. --apply --force"
+        echo "  ./scripts/update-from-template.sh    # then re-run"
+        echo ""
+        echo "Background: https://github.com/crcresearch/llm-wiki-memory-template/issues/92"
+    } >&2
+    exit 1
+fi
 # shellcheck source=lib/common.sh
 source "$HERE/lib/common.sh"
 
