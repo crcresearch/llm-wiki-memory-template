@@ -110,10 +110,13 @@ fi
     source "$TEMPLATE_ROOT/scripts/lib/template-manifest.sh"
     # adopt mode: empty repo_root, AGENT drives overlay inclusion.
     lw_manifest_assemble_active_files "" "claude-code"
+    # Sync-tree members (dir mode, same source adopt itself uses, #90).
+    lw_manifest_tree_files dir "$TEMPLATE_ROOT"
 } > "$STAGE/expected-claude.txt" 2>/dev/null
 {
     source "$TEMPLATE_ROOT/scripts/lib/template-manifest.sh"
     lw_manifest_assemble_active_files "" "none"
+    lw_manifest_tree_files dir "$TEMPLATE_ROOT"
 } > "$STAGE/expected-none.txt" 2>/dev/null
 
 echo "  manifest-convergence patch applied: A=$A B=$B"

@@ -65,6 +65,24 @@ TEMPLATE_SHARED_INFRA=(
     "scripts/wiki-write-protocol/scenarios/07-livelock-retry/run.sh"
     "scripts/wiki-write-protocol/scenarios/08-session-start-auto-pull/run.sh"
     "scripts/wiki-write-protocol/scenarios/09-session-start-divergent/run.sh"
+    # CI workflow for the test harness below. Ships at instantiation; synced
+    # here so derived repos' CI follows the harness instead of freezing (#90).
+    ".github/workflows/test-harness.yml"
+)
+
+# Trees the template owns end-to-end, synced as WHOLE TREES. Membership is
+# resolved from the sync source at run time via lw_manifest_tree_files —
+# the template ref for update/check, the template checkout for adopt —
+# never enumerated here: a static list of the harness's ~110 files would
+# rot on every added fixture (#90; three field cases of frozen inherited
+# harnesses, one with red CI for ten days).
+#
+# Contract: copy-no-delete. Files the template removed linger on hosts
+# until cleaned manually; files the HOST added under a tree are never
+# touched — deliberate, because features install their tests INTO this
+# tree (feature.json tests.destination = scripts/test/tests/unit/<name>/).
+TEMPLATE_SYNC_TREES=(
+    "scripts/test"
 )
 
 # Claude Code overlay files. Active when adopt is invoked with
@@ -189,6 +207,24 @@ lw_manifest_assemble_active_files() {
             printf '%s\n' "$f"
         done
     fi
+}
+
+# Echo the current member files of every declared sync tree, one per line.
+# Two modes, matching the two authoritative sources:
+#   ref: $2 is a git ref readable from CWD (e.g. template/main); membership
+#        from git ls-tree — what update/check sync against.
+#   dir: $2 is a directory root (the template checkout, for adopt);
+#        membership from find, paths relative to that root, sorted.
+# Silent-empty when the tree is absent from the source: the consumer's
+# normal missing-file reporting handles it (no special case here).
+lw_manifest_tree_files() {
+    local mode="$1" src="$2" tree
+    for tree in ${TEMPLATE_SYNC_TREES[@]+"${TEMPLATE_SYNC_TREES[@]}"}; do
+        case "$mode" in
+            ref) git ls-tree -r --name-only "$src" -- "$tree" 2>/dev/null ;;
+            dir) ( cd "$src" 2>/dev/null && find "$tree" -type f 2>/dev/null | sort ) ;;
+        esac
+    done
 }
 
 # Echo the HOST_OWNED operation type for $1, or empty string if not host-

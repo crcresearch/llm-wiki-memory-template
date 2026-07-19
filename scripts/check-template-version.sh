@@ -90,6 +90,10 @@ FILES=()
 while IFS= read -r _path; do
     FILES+=("$_path")
 done < <(lw_manifest_assemble_active_files "$REPO_ROOT" "")
+# Sync-tree members (TEMPLATE_SYNC_TREES) resolved from the template ref (#90).
+while IFS= read -r _path; do
+    FILES+=("$_path")
+done < <(lw_manifest_tree_files ref "$TEMPLATE_REF")
 
 IN_SYNC=()
 OUT_OF_DATE=()

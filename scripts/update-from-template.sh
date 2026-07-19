@@ -144,6 +144,11 @@ FILES=()
 while IFS= read -r _path; do
     FILES+=("$_path")
 done < <(lw_manifest_assemble_active_files "$REPO_ROOT" "")
+# Sync-tree members (TEMPLATE_SYNC_TREES, e.g. the test harness) resolved
+# from the template ref — membership is never a static list (#90).
+while IFS= read -r _path; do
+    FILES+=("$_path")
+done < <(lw_manifest_tree_files ref "$TEMPLATE_REF")
 
 # --- Diff and apply ---
 CHANGED=()
