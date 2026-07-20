@@ -22,7 +22,8 @@
 #       fetches, merges, resolves conflicts (mechanical for index/log;
 #       via resolve_fn for everything else), and retries up to
 #       AGENT_MAX_RETRIES+1 total attempts. Returns 0 on success, 2 on
-#       retry cap, 3 on internal bug.
+#       retry cap, 3 on internal bug, 4 when a semantic resolve was
+#       deferred/failed (merge left conflicted for the agent; #94).
 #
 # The "semantic resolution" step is parameterized: callers pass a function
 # name that takes (wiki_dir, file_path) and produces a resolved file with
@@ -135,7 +136,8 @@ agent_session_start() {
 #    file with no conflict markers. The caller is responsible for the
 #    function's policy (LLM-based in production; deterministic in tests).
 #
-# Returns: 0 on success, 2 on retry cap, 3 on internal bug.
+# Returns: 0 on success, 2 on retry cap, 3 on internal bug, 4 when a
+# semantic resolve was deferred/failed (merge left conflicted; see #94).
 wiki_push() {
     local wiki_dir="$1"
     local handle="$2"
@@ -189,6 +191,7 @@ wiki_push() {
             return 3
         fi
 
+        local unresolved=""
         while IFS= read -r file; do
             [ -z "$file" ] && continue
             local class
@@ -200,7 +203,23 @@ wiki_push() {
                     echo "  [$handle]   union-merged $file"
                     ;;
                 semantic)
-                    "$resolve_fn" "$wiki_dir" "$file"
+                    # A resolver that returns non-zero is DEFERRING (the
+                    # documented production llm_resolve does exactly this);
+                    # and a resolver that returns 0 but leaves markers has
+                    # failed whether it knows it or not. Either way this
+                    # file must never be staged — publishing conflict
+                    # markers to the shared wiki is the #94 field bug.
+                    if ! "$resolve_fn" "$wiki_dir" "$file"; then
+                        echo "  [$handle]   semantic resolve deferred/failed: $file" >&2
+                        unresolved="${unresolved}${file}"$'\n'
+                        continue
+                    fi
+                    if [ -f "$wiki_dir/$file" ] \
+                       && grep -qE '^(<<<<<<< |=======$|>>>>>>> )' "$wiki_dir/$file"; then
+                        echo "  [$handle]   resolver left conflict markers in $file; treating as failed" >&2
+                        unresolved="${unresolved}${file}"$'\n'
+                        continue
+                    fi
                     if [ ! -f "$wiki_dir/$file" ]; then
                         git -C "$wiki_dir" rm -f "$file" --quiet
                     else
@@ -210,6 +229,20 @@ wiki_push() {
                     ;;
             esac
         done <<< "$conflicted"
+
+        if [ -n "$unresolved" ]; then
+            # Honor the documented contract (wiki-write-protocol.md): the
+            # merge stays in its conflicted state, the listed files keep
+            # their markers on disk, and the agent's next turn resolves
+            # them in context, commits, and re-runs wiki_push. Do NOT
+            # commit, do NOT push.
+            echo "  [$handle] semantic resolution incomplete; leaving the merge conflicted for the agent:" >&2
+            printf '%s' "$unresolved" | while IFS= read -r _f; do
+                [ -n "$_f" ] && echo "  [$handle]     $_f" >&2
+            done
+            echo "  [$handle] resolve the file(s) in place, 'git add' them, 'git commit', then re-run wiki_push." >&2
+            return 4
+        fi
 
         git -C "$wiki_dir" commit -m "Resolve merge with origin/$branch" --quiet
         echo "  [$handle] resolved merge on attempt $attempt; retrying push" >&2
