@@ -29,6 +29,16 @@ Cursor-specific layer on top of the agent-agnostic llm-wiki core. Parallel to `w
 
 The shared, agent-agnostic `wiki/agents/templates/ensure-wiki.py` (used by both this overlay and Claude Code) does the real clone/fast-forward work; the Cursor adapter above only translates its output.
 
+## Landing this overlay on a host
+
+| Path | Command |
+|---|---|
+| New project | `instantiate.sh --agent=cursor` (or `--agent=all`) |
+| Existing repo (first-time adopt) | `scripts/adopt.sh --target=. --apply --agent=cursor` |
+| Add Cursor onto an already-adopted Claude host | `scripts/adopt.sh --target=. --apply --force --agent=cursor` |
+
+Adopt ADDs the Cursor overlay files (substituting `{{REPO_NAME}}`), runs base `setup.sh`, applies default TOUCH grants (including `setup.sh --hook` for `.cursor/hooks.json`), and stamps `.cursorignore` when absent. Optional hooks beyond SessionStart (`--posttooluse-hook`, `--legacy`) remain manual: `./wiki/agents/cursor/setup.sh --posttooluse-hook`.
+
 The actual Cursor configuration lives at the project root:
 
 | Location | Purpose |
@@ -39,7 +49,7 @@ The actual Cursor configuration lives at the project root:
 | `.cursor/skills/wiki-lint/SKILL.md` | Project skill. Procedure for health-checking the wiki. |
 | `.cursor/hooks.json` + `.cursor/hooks/ensure-wiki.sh` + `.cursor/hooks/session-start.sh` | Installed by `setup.sh --hook`. Two `sessionStart` hooks in order: `ensure-wiki.sh` clones/fast-forwards the wiki sub-repo, then `session-start.sh` injects the index + recent log. |
 | `.cursor/hooks/posttooluse-hook.sh` | Installed by `setup.sh --posttooluse-hook`. `postToolUse` advisory nudge after wiki-page writes (matcher `Write\|Edit`). |
-| `.cursorignore` | Generated from `.cursorignore.template` by `instantiate.sh` for `--agent=cursor\|all` target projects. Excludes duplicate Claude/Open-standard artifacts (`CLAUDE.md`, `.claude/`, `wiki/agents/claude-code/`) from Cursor indexing. Not present in this template-development repo (see "Controlling what Cursor sees"). |
+| `.cursorignore` | Generated from `.cursorignore.template` by `instantiate.sh` (for `--agent=cursor\|all`) or by `scripts/adopt.sh --agent=cursor` when absent. Excludes duplicate Claude/Open-standard artifacts (`CLAUDE.md`, `.claude/`, `wiki/agents/claude-code/`) from Cursor indexing. Not present in this template-development repo (see "Controlling what Cursor sees"). |
 | `.cursorrules.template` | Legacy single-file fallback for Cursor builds that don't read `.mdc` rules. Activate with `setup.sh --legacy`. |
 
 ## Flags
@@ -160,17 +170,17 @@ A Cursor target project has several complementary mechanisms for scoping what th
 
 | Mechanism | What it controls | When to use |
 |---|---|---|
-| **`.cursorignore`** (project root, generated from `.cursorignore.template` during instantiate) | Excludes paths from Cursor indexing / `@` context / agent file search | Avoid duplicate Claude/Open-standard artifacts in Cursor target projects; large artifacts, secrets, build outputs |
+| **`.cursorignore`** (project root, generated from `.cursorignore.template` during instantiate or adopt `--agent=cursor`) | Excludes paths from Cursor indexing / `@` context / agent file search | Avoid duplicate Claude/Open-standard artifacts in Cursor target projects; large artifacts, secrets, build outputs |
 | **`.gitignore`** | Git tracking; adopt appends `wiki/*.wiki/` via grant | Keeps the wiki sub-repo out of main-repo git status; partial overlap with Cursor ignore |
 | **Rule frontmatter** (`alwaysApply: false`, `globs:`) | Scope rules to matching files instead of every turn | Domain-specific guidance that should not bloat every session |
 | **Project skills** (`.cursor/skills/*/SKILL.md`) | On-demand procedures vs always-injected rules | Heavy ingest/lint procedures — already used for `wiki-experiment`/`source`/`lint` |
-| **Host-owned paths** (`TEMPLATE_HOST_OWNED`) | `update-from-template.sh` never overwrites | `CLAUDE.md`, `.gitignore`, user hooks under `.cursor/hooks/` |
+| **Host-owned paths** (`TEMPLATE_HOST_OWNED`) | `update-from-template.sh` never overwrites | `CLAUDE.md`, `.gitignore`, `.cursor/hooks.json`, user hooks under `.cursor/hooks/` |
 | **`beforeReadFile` hook** (optional, future) | Gate or deny reads of specific paths | Stricter than ignore — only if you need a hard block, not just de-prioritization |
 | **User / team Cursor settings** | Global ignores, privacy mode | Secrets, dotfiles outside the repo; not checked into the template |
 
 ### `.cursorignore` in target projects
 
-`instantiate.sh` stamps `.cursorignore.template` → `.cursorignore` when `--agent=cursor` or `--agent=all`, then removes the `.template` file. For `--agent=claude-code` or `--agent=none` the template is pruned outright. The generated file hides `CLAUDE.md`, `.claude/`, and `wiki/agents/claude-code/` — Cursor has its own native `.cursor/` rules and skills, so those parallel Claude instructions would be duplicate context.
+`instantiate.sh` stamps `.cursorignore.template` → `.cursorignore` when `--agent=cursor` or `--agent=all`, then removes the `.template` file. For `--agent=claude-code` or `--agent=none` the template is pruned outright. `scripts/adopt.sh --agent=cursor` stamps the same file when `.cursorignore` is absent (never overwrites). The generated file hides `CLAUDE.md`, `.claude/`, and `wiki/agents/claude-code/` — Cursor has its own native `.cursor/` rules and skills, so those parallel Claude instructions would be duplicate context.
 
 This template-development repo intentionally does **not** carry a root `.cursorignore`: it is the workspace where both overlays are developed and must stay fully visible to any agent working on them.
 
@@ -183,7 +193,7 @@ Practical defaults for llm-wiki projects:
 
 ## Updating after pulling template improvements
 
-When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes `.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md`, `wiki/agents/cursor/setup.sh`, `wiki/agents/cursor/templates/`, and the shared `wiki/agents/templates/ensure-wiki.py`. It does not touch `.cursorrules`, `.cursorignore`, `.cursor/hooks.json`, or `.cursor/hooks/` (those are install-time / one-shot artefacts from `setup.sh` and `instantiate.sh`). To refresh live hooks after a template update:
+When `scripts/update-from-template.sh` syncs improvements from the template repo, it refreshes `.cursor/rules/wiki-as-memory.mdc`, `.cursor/skills/wiki-*/SKILL.md`, `wiki/agents/cursor/setup.sh`, `wiki/agents/cursor/templates/`, and the shared `wiki/agents/templates/ensure-wiki.py`. It does not touch `.cursorrules`, `.cursorignore`, `.cursor/hooks.json`, or `.cursor/hooks/` (those are install-time / one-shot artefacts from `setup.sh`, `instantiate.sh`, and `adopt.sh`). To refresh live hooks after a template update:
 
 ```bash
 rm -f .cursor/hooks/ensure-wiki.sh .cursor/hooks/session-start.sh .cursor/hooks/posttooluse-hook.sh

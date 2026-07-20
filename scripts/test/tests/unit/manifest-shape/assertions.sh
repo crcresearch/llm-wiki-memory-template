@@ -198,3 +198,27 @@ assert "tree_files dir-mode lists the harness runner" \
     "lw_mcall \"lw_manifest_tree_files dir '$REPO_ROOT_LIB'\" | grep -qx 'scripts/test/run.sh'"
 assert "tree_files dir-mode returns a substantial member set" \
     "[ \"$(lw_mcall "lw_manifest_tree_files dir '$REPO_ROOT_LIB'" | wc -l | tr -d ' ')\" -gt 50 ]"
+
+# --- Accessor: lw_manifest_default_grants ----------------------------------
+# Agent-gated defaults: shared always; merge target depends on agent.
+_defaults_claude="$(lw_mcall "lw_manifest_default_grants 'claude-code'")"
+_defaults_cursor="$(lw_mcall "lw_manifest_default_grants 'cursor'")"
+_defaults_none="$(lw_mcall "lw_manifest_default_grants 'none'")"
+assert "default_grants(claude-code) includes CLAUDE.md" \
+    "printf '%s\n' \"\$_defaults_claude\" | grep -qF 'CLAUDE.md|managed-block'"
+assert "default_grants(claude-code) includes .gitignore" \
+    "printf '%s\n' \"\$_defaults_claude\" | grep -qF '.gitignore|append-only'"
+assert "default_grants(claude-code) includes settings.json merge" \
+    "printf '%s\n' \"\$_defaults_claude\" | grep -qF '.claude/settings.json|merge'"
+assert "default_grants(claude-code) excludes hooks.json" \
+    "! printf '%s\n' \"\$_defaults_claude\" | grep -qF '.cursor/hooks.json'"
+assert "default_grants(cursor) includes hooks.json merge" \
+    "printf '%s\n' \"\$_defaults_cursor\" | grep -qF '.cursor/hooks.json|merge'"
+assert "default_grants(cursor) excludes settings.json" \
+    "! printf '%s\n' \"\$_defaults_cursor\" | grep -qF '.claude/settings.json'"
+assert "default_grants(none) has exactly two shared grants" \
+    "[ \"\$(printf '%s\n' \"\$_defaults_none\" | grep -c .)\" -eq 2 ]"
+assert "default_grants(none) excludes both merge targets" \
+    "! printf '%s\n' \"\$_defaults_none\" | grep -qE 'settings\\.json|hooks\\.json'"
+assert_eq "known_grant_type(.cursor/hooks.json) = merge" "merge" \
+    "$(lw_mcall "lw_manifest_known_grant_type '.cursor/hooks.json'")"

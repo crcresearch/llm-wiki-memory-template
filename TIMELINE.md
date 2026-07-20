@@ -161,33 +161,34 @@ Default: dry-run (classify only). `--apply` mutates.
 ### Safety / detection
 
 1. Target must be a git repo ≠ `TEMPLATE_ROOT`.
-2. Agent validation: `claude-code` | `none` accepted; **`cursor` → die** (“not yet supported”, issue #6).
+2. Agent validation: `claude-code` | `none` | `cursor`.
 3. Composite “already adopted” (≥2 of 3): `llm-wiki.md` byte-identical; `wiki/agents/discipline-gates.md` byte-identical; `wiki/init-wiki.sh` present. Detected overlays (`.claude/` / `.cursor/` / overlay `setup.sh`) are **metadata only**.
 4. On `--apply`: dirty working tree → die. Already-adopted → die unless `--force` (then route advice is to prefer `update-from-template.sh`).
 
 ### Classification (always)
 
-Working set: `lw_manifest_assemble_active_files "" "$AGENT"` → `TEMPLATE_SHARED_INFRA` plus `TEMPLATE_OVERLAY_CLAUDE` when `--agent=claude-code` (nothing from `TEMPLATE_OVERLAY_CURSOR` while cursor is refused).
+Working set: `lw_manifest_assemble_active_files "" "$AGENT"` → `TEMPLATE_SHARED_INFRA` plus `TEMPLATE_OVERLAY_CLAUDE` when `--agent=claude-code`, or `TEMPLATE_OVERLAY_CURSOR` when `--agent=cursor`.
 
 Per path:
 
 | Class | Meaning |
 |-------|---------|
-| ADD | Absent in host → will `cp -p` |
+| ADD | Absent in host → will copy (with `{{REPO_NAME}}` sub when listed in `TEMPLATE_SUBSTITUTE_FILES`) |
 | SKIP | Present and byte-identical |
 | REFUSE | Present and different (or missing in template) — never overwrite |
-| TOUCH | Host-owned grant paths (`TEMPLATE_HOST_OWNED` defaults, or `.llm-wiki-adopt-grants.yml`) |
+| TOUCH | Host-owned grant paths (`lw_manifest_default_grants "$AGENT"`, or `.llm-wiki-adopt-grants.yml`) |
 
-Default TOUCH grants: `CLAUDE.md|managed-block`, `.gitignore|append-only`, `.claude/settings.json|merge`. Empty `grants:` in a committed grants file opts out of all touches.
+Default TOUCH grants (agent-gated via `lw_manifest_default_grants`): always `CLAUDE.md|managed-block` and `.gitignore|append-only`; plus `.claude/settings.json|merge` for `claude-code`, or `.cursor/hooks.json|merge` for `cursor`. Empty `grants:` in a committed grants file opts out of all touches.
 
 ### `--apply` phases
 
 | Phase | Action |
 |-------|--------|
-| 1 ADD | `mkdir -p` + `cp -p` each ADD path from `TEMPLATE_ROOT` → `TARGET` (verbatim; no `{{REPO_NAME}}` substitution) |
+| 1 ADD | `mkdir -p` + copy each ADD path from `TEMPLATE_ROOT` → `TARGET`; substitute `{{REPO_NAME}}` on `TEMPLATE_SUBSTITUTE_FILES` |
 | 2B wiki | If `wiki/<name>.wiki/.git` exists: `init-wiki.sh --stamp-missing-templates` only. Else: optional GitHub seed-push (`--github-wiki`; on 404 **fall back to local** init, log `github-wiki: failed`); then `wiki/init-wiki.sh --repo-name …` [`--github`]. |
 | Overlay | Base `wiki/agents/<agent>/setup.sh` unless `--agent=none` |
-| TOUCH | `append-only` → `lw_inject_block` (e.g. `wiki/*.wiki/` into `.gitignore`); `managed-block` → credited to overlay setup; `merge` → `setup.sh --hook` (Claude SessionStart + settings) |
+| TOUCH | `append-only` → `lw_inject_block` (e.g. `wiki/*.wiki/` into `.gitignore`); `managed-block` → credited to overlay setup; `merge` → `setup.sh --hook` (Claude `settings.json` or Cursor `hooks.json`) |
+| cursorignore | `--agent=cursor` only: stamp `.cursorignore.template` → `.cursorignore` when absent (never overwrite) |
 | Log | Append `.llm-wiki-adopt-log.md` |
 
 Adopt does **not** commit. User reviews `git status` / `git diff` and commits on the **host** main repo. Wiki auto-commits remain inside the wiki sub-repo when init runs.
@@ -198,13 +199,14 @@ Adopt does **not** commit. User reviews `git status` / `git diff` and commits on
 
 **If `--agent=claude-code`** — full `TEMPLATE_OVERLAY_CLAUDE` (`.claude/commands|skills`, `wiki/agents/claude-code/**`).
 
-**Not copied:** `TEMPLATE_ONE_SHOT` (`instantiate.sh`, `CLAUDE.md.template`, `README.md.template`, `.claude/settings.json.template`, `.cursorrules.template`, `.cursorignore.template`).
+**If `--agent=cursor`** — full `TEMPLATE_OVERLAY_CURSOR` (`.cursor/rules|skills`, `wiki/agents/cursor/**`).
+
+**Not copied as ADD:** `TEMPLATE_ONE_SHOT` (`instantiate.sh`, `CLAUDE.md.template`, `README.md.template`, `.claude/settings.json.template`, `.cursorrules.template`, `.cursorignore.template`). `.cursorignore` is stamped separately for `--agent=cursor` (see apply phases).
 
 ### Not implemented (adopt)
 
-- **`--agent=cursor`** — refused at parse time (issue #6). Cannot use adopt today to land Cursor on top of an existing Claude host.
 - **`--features=`** — parsed and printed; feature install via `install_feature` is **not wired**.
-- **No `{{REPO_NAME}}` substitution on ADD** — instantiate and update substitute `TEMPLATE_SUBSTITUTE_FILES`; adopt copies bytes as-is. Literal `{{REPO_NAME}}` can remain in slash commands / skills until a later `update-from-template.sh` run.
+- **`--agent=all`** — not an adopt option (use instantiate, or adopt twice with `--force` for a second overlay).
 
 ### GitHub Wiki: instantiate vs adopt
 
@@ -217,7 +219,7 @@ Adopt does **not** commit. User reviews `git status` / `git diff` and commits on
 
 ## 3. Add / land a coding-agent overlay
 
-There is **no single CLI** for “add Cursor.” The same overlay can enter a host several ways. Refresh of an overlay that is already present is mostly §4.
+The same overlay can enter a host several ways (instantiate, adopt, or update once dirs exist). Refresh of an overlay that is already present is mostly §4.
 
 ### 3a. At instantiate time
 
@@ -225,9 +227,16 @@ Choose `--agent=cursor`, `claude-code`, or `all` (§1). Template tree already co
 
 ### 3b. At adopt time
 
-`--agent=claude-code` ADDs Claude overlay files and runs setup. Intent for “Claude already on host, add Cursor” is `--agent=cursor` — **Not implemented** (dies).
+`--agent=claude-code` or `--agent=cursor` ADDs that overlay’s files (with `{{REPO_NAME}}` substitution where listed), runs base `setup.sh`, and applies agent-gated TOUCH defaults (including `setup.sh --hook` for the merge grant).
 
-Workaround today for a second overlay: manually copy the overlay paths from the template (or obtain `.cursor/` / `wiki/agents/cursor/` some other way), then use §3c / §4. Or instantiate a new project with `--agent=all`.
+To land Cursor on a host that already adopted Claude (or vice versa):
+
+```bash
+bash /path/to/llm-wiki-memory-template/scripts/adopt.sh \
+  --target=. --apply --force --agent=cursor
+```
+
+`--force` bypasses the already-adopted advisory. ADD never overwrites existing Claude (or host-modified) files; only missing Cursor paths are created. Then use §3c / §4 for ongoing sync of both overlays.
 
 ### 3c. Via `update-from-template.sh` (detection mode)
 
@@ -240,8 +249,7 @@ lw_manifest_assemble_active_files "$REPO_ROOT" ""
 - Includes `TEMPLATE_OVERLAY_CLAUDE` if `.claude/` **or** `wiki/agents/claude-code/` exists.
 - Includes `TEMPLATE_OVERLAY_CURSOR` if `.cursor/` **or** `wiki/agents/cursor/` exists.
 
-So: once Cursor (or Claude) dirs exist on the host, subsequent updates sync that overlay’s manifest files with `{{REPO_NAME}}` substitution where listed. Landing a **brand-new** overlay into an already-adopted host still requires those directories to appear first (instantiate/all, future adopt cursor, or manual copy / forced adopt of missing files where ADD applies).
-
+So: once Cursor (or Claude) dirs exist on the host, subsequent updates sync that overlay’s manifest files with `{{REPO_NAME}}` substitution where listed. Landing a **brand-new** overlay into an already-adopted host: use adopt with `--force --agent=<overlay>` (§3b), or instantiate/all / manual copy.
 When the **template** gains a new agent (or new files under an overlay array), derived hosts with that overlay already present pick up the new files on update. Hosts without the overlay directories still skip that array.
 
 ### 3d. Author a new agent in this template repo
@@ -252,9 +260,8 @@ Contributor timeline (template main repo, not a derived host):
 2. Honor the contract in [wiki/agents/README.md](wiki/agents/README.md): `setup.sh` (idempotent; recommended `--hook` / `--seed-memory` / `--all`), `README.md`, `templates/` using `${REPO_NAME}` where install-time shell substitution is needed. Install **active** agent files at the agent’s native root (e.g. `.AGENT/`), not only under `wiki/agents/`. Reference shared `discipline-gates.md` / `verification-gate.md` / `wiki-write-protocol.md` (do not copy).
 3. Wire [scripts/lib/template-manifest.sh](scripts/lib/template-manifest.sh): new `TEMPLATE_OVERLAY_*` array; extend `lw_manifest_assemble_active_files`; add any `{{REPO_NAME}}` paths to `TEMPLATE_SUBSTITUTE_FILES`; add one-shot paths to `TEMPLATE_ONE_SHOT` if needed.
 4. Wire [scripts/instantiate.sh](scripts/instantiate.sh): `--agent=` case, `AGENT_NOTE`, keep/prune flags, substitution loops, `setup.sh` invocation, `INIT_AGENT_ARGS`.
-5. Wire [scripts/adopt.sh](scripts/adopt.sh): agent validation (today only `claude-code` / `none` succeed; add the new name and any grants/merge flag mapping).
-6. Open PR on the template. Derived projects obtain the overlay source via update **after** the overlay is present on disk (or via instantiate / future adopt).
-
+5. Wire [scripts/adopt.sh](scripts/adopt.sh): agent validation, `lw_manifest_default_grants` / merge-flag mapping for the new agent.
+6. Open PR on the template. Derived projects obtain the overlay source via update **after** the overlay is present on disk (or via instantiate / adopt `--agent=<name>`).
 Without steps 3–5, copy+PR alone will not make adopt/update/check sync the new overlay.
 
 ### Optional post-land hook install
@@ -307,7 +314,7 @@ Default template remote URL: `git@github.com:crcresearch/llm-wiki-memory-templat
 
 | Category | Examples |
 |----------|----------|
-| Host-owned (`TEMPLATE_HOST_OWNED`) | `CLAUDE.md`, `.gitignore`, `.claude/settings.json` |
+| Host-owned (`TEMPLATE_HOST_OWNED`) | `CLAUDE.md`, `.gitignore`, `.claude/settings.json`, `.cursor/hooks.json` |
 | Project narrative / opt-in | `README.md`, `.cursorrules`, `.cursorignore`, `.claude/hooks/`, `.cursor/hooks/`, `.cursor/hooks.json` |
 | Separate git | entire `wiki/<repo>.wiki/` |
 | One-shot (`TEMPLATE_ONE_SHOT`) | `scripts/instantiate.sh`, `*.template` roots listed in the array (incl. `.cursorignore.template`) |
@@ -337,7 +344,7 @@ Then run `./scripts/update-from-template.sh` again (even a pre-#74 updater can p
 |-------|------|------------------|
 | `{{PROJECT_NAME}}`, `{{REPO_NAME}}`, `{{DESCRIPTION}}`, `{{AGENT_NOTE}}` | Mustache | Instantiate → `CLAUDE.md` |
 | `{{PROJECT_NAME}}`, `{{REPO_NAME}}`, `{{OWNER}}`, `{{DESCRIPTION}}` | Mustache | Instantiate → `README.md` |
-| `{{REPO_NAME}}` | Mustache | Instantiate + update on `TEMPLATE_SUBSTITUTE_FILES`; **not** on adopt ADD |
+| `{{REPO_NAME}}` | Mustache | Instantiate + update + **adopt ADD** on `TEMPLATE_SUBSTITUTE_FILES` |
 | `{{REPO_NAME}}`, `{{PROJECT_NAME}}` | Mustache | `init-wiki.sh` `stamp_wiki_templates` for `wiki/*.md.template` |
 | `${REPO_NAME}` | Shell | Overlay hook / snippet install inside `setup.sh --hook` (etc.) |
 

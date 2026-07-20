@@ -113,9 +113,9 @@ TEMPLATE_OVERLAY_CLAUDE=(
     "wiki/agents/claude-code/templates/posttooluse-hook.sh"
 )
 
-# Cursor overlay files. Active when adopt is invoked with --agent=cursor
-# (currently refused at parse-time but enumerated here so detection-mode
-# in update/check can sync them when the host has a .cursor/ overlay).
+# Cursor overlay files. Active when adopt is invoked with --agent=cursor,
+# or when update/check detects an existing cursor overlay on the host
+# (presence of .cursor/ or wiki/agents/cursor/).
 TEMPLATE_OVERLAY_CURSOR=(
     ".cursor/rules/wiki-as-memory.mdc"
     ".cursor/skills/wiki-experiment/SKILL.md"
@@ -167,13 +167,16 @@ TEMPLATE_SUBSTITUTE_FILES=(
 
 # Host-owned: the template defines an operation type for the path but the
 # host owns the content. update-from-template ignores these entirely; adopt
-# uses them to seed DEFAULT_GRANTS when no .llm-wiki-adopt-grants.yml is
-# present. Format: "path|operation-type" where operation-type matches the
-# known_grant_type vocabulary (managed-block, append-only, merge).
+# uses them (via lw_manifest_default_grants) to seed DEFAULT_GRANTS when no
+# .llm-wiki-adopt-grants.yml is present. Format: "path|operation-type" where
+# operation-type matches the known_grant_type vocabulary (managed-block,
+# append-only, merge). Agent-specific merge targets are filtered by
+# lw_manifest_default_grants; this array is the full known-grant vocabulary.
 TEMPLATE_HOST_OWNED=(
     "CLAUDE.md|managed-block"
     ".gitignore|append-only"
     ".claude/settings.json|merge"
+    ".cursor/hooks.json|merge"
 )
 
 # Documentation only. These never reach a derived project: instantiate.sh
@@ -257,6 +260,20 @@ lw_manifest_known_grant_type() {
         [[ "${entry%%|*}" == "$p" ]] && { echo "${entry##*|}"; return 0; }
     done
     echo ""
+}
+
+# Echo agent-gated default TOUCH grants as "path|type" lines (one per line).
+# Shared grants always apply; merge targets are agent-specific so Cursor
+# defaults do not claim Claude settings.json and vice versa. Used by adopt
+# when no .llm-wiki-adopt-grants.yml is present.
+lw_manifest_default_grants() {
+    local agent="$1"
+    printf '%s\n' "CLAUDE.md|managed-block"
+    printf '%s\n' ".gitignore|append-only"
+    case "$agent" in
+        claude-code) printf '%s\n' ".claude/settings.json|merge" ;;
+        cursor)      printf '%s\n' ".cursor/hooks.json|merge" ;;
+    esac
 }
 
 # Echo the sentinel label for $1's append-only payload, or empty if none.

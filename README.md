@@ -122,7 +122,7 @@ If you pick `--agent=none`, only steps 1–3 (and the self-delete) run. The mini
 
 ## 3. Adopt the pattern into an existing project
 
-For repos that **already exist** and were **not** instantiated from this template (e.g. an established research project that now wants the wiki-as-memory discipline), use `scripts/adopt.sh` instead of `instantiate.sh`. Adopt is additive: it copies the template's shared infrastructure into your repo, never overwrites your own files, and uses a host-owned grants file to authorize the three integration touchpoints (`CLAUDE.md` sentinel blocks, the `wiki/*.wiki/` `.gitignore` rule, the SessionStart hook entry in `.claude/settings.json`). The three standard grants are applied by default; commit a `.llm-wiki-adopt-grants.yml` to customize.
+For repos that **already exist** and were **not** instantiated from this template (e.g. an established research project that now wants the wiki-as-memory discipline), use `scripts/adopt.sh` instead of `instantiate.sh`. Adopt is additive: it copies the template's shared infrastructure into your repo, never overwrites your own files, and uses host-owned grants to authorize the integration touchpoints (`CLAUDE.md` sentinel blocks, the `wiki/*.wiki/` `.gitignore` rule, and — depending on `--agent` — the SessionStart hook in `.claude/settings.json` or `.cursor/hooks.json`). Agent-gated defaults apply when no grants file is present; commit a `.llm-wiki-adopt-grants.yml` to customize.
 
 The common flow, mirroring Path A of section 2 but for an existing repo:
 
@@ -130,6 +130,8 @@ The common flow, mirroring Path A of section 2 but for an existing repo:
 gh repo clone <owner>/<project> && cd <project>
 git clone https://github.com/crcresearch/llm-wiki-memory-template.git ~/src/llm-wiki-memory-template   # one-time per machine
 bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=. --apply --agent=claude-code --github-wiki
+# Or for Cursor:
+# bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=. --apply --agent=cursor --github-wiki
 ```
 
 `--github-wiki` automates the same four manual github.com steps that Path A of section 2 covers (enable Wikis, seed the first page, wire the wiki remote, push). When the GitHub Wiki architecture quirk forces a 404 on the seed push, adopt logs `github-wiki: failed (seed-push 404; ...)` to `.llm-wiki-adopt-log.md`, prints the workaround on stderr, and falls back to a local-only wiki. Re-run with `--github-wiki` after the manual UI step to complete the migration.
@@ -141,7 +143,7 @@ alias adopt='bash ~/src/llm-wiki-memory-template/scripts/adopt.sh --target=.'
 # Then: cd <project> && adopt --apply --github-wiki
 ```
 
-Adopt is designed for first-time adoption only. Re-running it on a host that already shows the pattern (2 of 3 composite signals matched) advisory-aborts and routes you to `scripts/update-from-template.sh` (section 4) for ongoing sync.
+Adopt is designed for first-time adoption only. Re-running it on a host that already shows the pattern (2 of 3 composite signals matched) advisory-aborts and routes you to `scripts/update-from-template.sh` (section 4) for ongoing sync. To land a **second** overlay (e.g. Cursor on a Claude host), pass `--force --agent=cursor`.
 
 ## 4. Pull updates from this template into an existing project
 

@@ -4,12 +4,15 @@
 #
 # Default mode is dry-run: classify the ADD allowlist against the target
 # repo (ADD / SKIP / REFUSE) and print a report. With --apply it mutates
-# the target: copies every ADD entry (never overwrites), applies the
-# host-owned TOUCH grants (CLAUDE.md managed-block, .gitignore append-only,
-# .claude/settings.json merge) from .llm-wiki-adopt-grants.yml or the built-in
-# defaults, runs wiki/init-wiki.sh to bootstrap the wiki sub-repo, runs the
-# chosen overlay's wiki/agents/<agent>/setup.sh, optionally wires the GitHub
-# Wiki backend (--github-wiki), and appends a manifest of what changed to
+# the target: copies every ADD entry (never overwrites; substitutes
+# {{REPO_NAME}} on TEMPLATE_SUBSTITUTE_FILES), applies the agent-gated
+# TOUCH grants (CLAUDE.md managed-block, .gitignore append-only, plus
+# .claude/settings.json or .cursor/hooks.json merge) from
+# .llm-wiki-adopt-grants.yml or lw_manifest_default_grants, runs
+# wiki/init-wiki.sh to bootstrap the wiki sub-repo, runs the chosen
+# overlay's wiki/agents/<agent>/setup.sh, optionally stamps .cursorignore
+# (--agent=cursor), optionally wires the GitHub Wiki backend
+# (--github-wiki), and appends a manifest of what changed to
 # .llm-wiki-adopt-log.md. Guards against re-adoption, routing an already-
 # adopted host to update-from-template.sh instead.
 #
@@ -134,12 +137,13 @@ copies every ADD entry into the target (never overwrites; REFUSE entries
 are left alone) and writes .llm-wiki-adopt-log.md with the manifest of
 what was created. Default is dry-run.
 
-TOUCH grants: by default adopt applies the three standard grants
-(CLAUDE.md managed-block, .gitignore append-only, .claude/settings.json
-merge) -- the integration touchpoints the wiki-memory pattern needs to
-function as designed. To customise, commit a .llm-wiki-adopt-grants.yml
-at the host repo root before --apply; it overrides the defaults entirely
-(an empty 'grants:' map opts out of all touches).
+TOUCH grants: by default adopt applies agent-gated grants from
+lw_manifest_default_grants (CLAUDE.md managed-block and .gitignore
+append-only for every agent; plus .claude/settings.json merge for
+claude-code, or .cursor/hooks.json merge for cursor). To customise,
+commit a .llm-wiki-adopt-grants.yml at the host repo root before
+--apply; it overrides the defaults entirely (an empty 'grants:' map
+opts out of all touches).
 
 Options:
   --target=PATH      Repo to adopt into (default: current directory)
@@ -150,7 +154,7 @@ Options:
   --force            Bypass the 'already adopted' advisory abort. Useful
                      only for the rare case where you really do want adopt
                      mode against a host that already has the pattern.
-  --agent=NAME       claude-code | none | cursor (cursor: not yet supported)
+  --agent=NAME       claude-code | none | cursor
   --features=LIST    Comma-separated feature names (parsed but not installed)
   --github-wiki      Bootstrap the host's GitHub Wiki backend before init-wiki
                      runs: enable Wikis on the project repo via gh api (best
@@ -208,10 +212,7 @@ fi
 
 # --- Validate agent ---------------------------------------------------------
 case "$AGENT" in
-    claude-code|none) ;;
-    cursor)
-        lw_die "agent 'cursor' is not yet supported (see issue #6, deferred)"
-        ;;
+    claude-code|none|cursor) ;;
     *)
         lw_die "unknown agent '$AGENT' (expected: claude-code, none, cursor)"
         ;;
@@ -328,13 +329,11 @@ done
 # as design inconsistency by Chris Sweet on PR #51 (items 3, 4, 5).
 #
 # When the host did not author a .llm-wiki-adopt-grants.yml, adopt uses
-# the manifest's TEMPLATE_HOST_OWNED list as the default grant set: the
-# three standard grants that every wiki-memory adopter has historically
-# wanted (CLAUDE.md managed-block, .gitignore append-only,
-# .claude/settings.json merge). Without this default the adoption is
-# partial: wiki sub-repo shows untracked forever, and the SessionStart
-# hook is never registered, so claude-code does not auto-pull the wiki
-# at session start. The host can override by committing an explicit
+# lw_manifest_default_grants for the agent: shared CLAUDE.md + .gitignore,
+# plus the agent-specific merge target (settings.json for claude-code,
+# hooks.json for cursor). Without this default the adoption is partial:
+# wiki sub-repo shows untracked forever, and the SessionStart hook is
+# never registered. The host can override by committing an explicit
 # .llm-wiki-adopt-grants.yml -- including an empty 'grants:' map to opt
 # out of all touches.
 GRANTS_FILE="$TARGET/.llm-wiki-adopt-grants.yml"
@@ -366,12 +365,11 @@ if [[ -f "$GRANTS_FILE" ]]; then
         ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
     done < <(parse_grants_file "$GRANTS_FILE")
 else
-    # No grants file: classify TEMPLATE_HOST_OWNED entries as TOUCH. Same
+    # No grants file: classify agent-gated defaults as TOUCH. Same
     # classification path as the file branch; the manifest is the single
     # source of truth for the vocabulary.
-    for entry in "${TEMPLATE_HOST_OWNED[@]}"; do
-        g_path="${entry%%|*}"
-        g_type="${entry#*|}"
+    while IFS='|' read -r g_path g_type; do
+        [[ -z "$g_path" ]] && continue
         N_GRANTS=$((N_GRANTS + 1))
         sentinel="$(lw_manifest_known_grant_sentinel "$g_path")"
         if [[ -e "$TARGET/$g_path" ]]; then
@@ -380,14 +378,14 @@ else
             was_absent=1
         fi
         ACT_TOUCH+=("$g_path|$g_type|$sentinel|$was_absent")
-    done
+    done < <(lw_manifest_default_grants "$AGENT")
 fi
 
 # --- Print report -----------------------------------------------------------
 if [[ "$GRANTS_SOURCE" == "file" ]]; then
     grants_status="$(basename "$GRANTS_FILE") ($N_GRANTS grant(s) found)"
 else
-    grants_status="defaults ($N_GRANTS standard grants; no .llm-wiki-adopt-grants.yml found; commit one to override)"
+    grants_status="defaults ($N_GRANTS agent-gated grant(s) for --agent=$AGENT; no .llm-wiki-adopt-grants.yml found; commit one to override)"
 fi
 
 if [[ "$APPLY" -eq 1 ]]; then
@@ -574,6 +572,10 @@ fi
 # byte-equal already (no-op); REFUSE entries are left alone (host
 # divergence is sacred). Tracking what was actually applied so the
 # manifest reflects on-disk truth, not the dry-run intent.
+#
+# Paths in TEMPLATE_SUBSTITUTE_FILES get {{REPO_NAME}} replaced with
+# PROJECT_NAME at copy time (same contract as instantiate/update); other
+# paths are copied verbatim with cp -p.
 APPLIED_ADDS=()
 FAILED_ADDS=()
 # Guard the for-loop expansion: bash 3.2 (macOS default) treats
@@ -585,13 +587,28 @@ if [[ ${#ACT_ADD[@]} -gt 0 ]]; then
         src="$TEMPLATE_ROOT/$path"
         dst="$TARGET/$path"
         # Capture RC instead of trusting the command unconditionally:
-        # cp -p can fail (permissions, disk full, read-only mount,
+        # cp -p / sed can fail (permissions, disk full, read-only mount,
         # destination path blocked by a non-directory) and without
         # set -e the script kept going and recorded the path in
         # APPLIED_ADDS regardless. The manifest would then lie about
         # disk state. mkdir -p can fail for the same reasons.
-        if mkdir -p "$(dirname "$dst")" 2>/dev/null && cp -p "$src" "$dst" 2>/dev/null; then
-            APPLIED_ADDS+=("$path")
+        if mkdir -p "$(dirname "$dst")" 2>/dev/null; then
+            if lw_manifest_needs_substitution "$path"; then
+                if sed "s|{{REPO_NAME}}|$PROJECT_NAME|g" "$src" > "$dst" 2>/dev/null; then
+                    # Preserve executable bit when the template source has it
+                    # (skills/rules are not; keep parity with cp -p for mode).
+                    if [[ -x "$src" ]]; then
+                        chmod +x "$dst" 2>/dev/null || true
+                    fi
+                    APPLIED_ADDS+=("$path")
+                else
+                    FAILED_ADDS+=("$path")
+                fi
+            elif cp -p "$src" "$dst" 2>/dev/null; then
+                APPLIED_ADDS+=("$path")
+            else
+                FAILED_ADDS+=("$path")
+            fi
         else
             FAILED_ADDS+=("$path")
         fi
@@ -863,6 +880,30 @@ if [[ ${#ACT_TOUCH[@]} -gt 0 ]]; then
     done
 fi
 
+# --- .cursorignore stamp (--agent=cursor only) ------------------------------
+# Mirror instantiate.sh: stamp .cursorignore.template -> .cursorignore when
+# absent. Never overwrite a host-authored .cursorignore. Not an ADD path
+# (TEMPLATE_ONE_SHOT); recorded separately in the adopt log.
+CURSORIGNORE_STATUS="skipped"
+CURSORIGNORE_DETAIL="not requested (--agent=$AGENT)"
+if [[ "$AGENT" == "cursor" ]]; then
+    _ci_src="$TEMPLATE_ROOT/.cursorignore.template"
+    _ci_dst="$TARGET/.cursorignore"
+    if [[ -f "$_ci_dst" ]]; then
+        CURSORIGNORE_STATUS="already-present"
+        CURSORIGNORE_DETAIL="host .cursorignore left untouched"
+    elif [[ ! -f "$_ci_src" ]]; then
+        CURSORIGNORE_STATUS="skipped"
+        CURSORIGNORE_DETAIL=".cursorignore.template missing in template"
+    elif cp "$_ci_src" "$_ci_dst" 2>/dev/null; then
+        CURSORIGNORE_STATUS="applied"
+        CURSORIGNORE_DETAIL="stamped from .cursorignore.template"
+    else
+        CURSORIGNORE_STATUS="failed"
+        CURSORIGNORE_DETAIL="cp .cursorignore.template failed"
+    fi
+fi
+
 # --- Write the adoption manifest --------------------------------------------
 # Records what happened on disk: signals matched, overlay detected, ADD
 # paths actually created, classification counts. Append-only across
@@ -901,6 +942,7 @@ FIRST_ENTRY=0
     printf -- '- init-wiki: %s (%s)\n' "$INIT_WIKI_STATUS" "$INIT_WIKI_DETAIL"
     printf -- '- github-wiki: %s (%s)\n' "$GITHUB_WIKI_STATUS" "$GITHUB_WIKI_DETAIL"
     printf -- '- overlay setup: %s (%s)\n' "$OVERLAY_SETUP_STATUS" "$OVERLAY_SETUP_DETAIL"
+    printf -- '- cursorignore: %s (%s)\n' "$CURSORIGNORE_STATUS" "$CURSORIGNORE_DETAIL"
     printf -- '- TOUCH applied (%s):\n' "${#APPLIED_TOUCHES[@]}"
     if [[ ${#APPLIED_TOUCHES[@]} -gt 0 ]]; then
         for t in "${APPLIED_TOUCHES[@]}"; do printf '  - %s\n' "$t"; done
