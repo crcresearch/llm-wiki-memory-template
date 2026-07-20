@@ -65,6 +65,7 @@ TEMPLATE_SHARED_INFRA=(
     "scripts/wiki-write-protocol/scenarios/07-livelock-retry/run.sh"
     "scripts/wiki-write-protocol/scenarios/08-session-start-auto-pull/run.sh"
     "scripts/wiki-write-protocol/scenarios/09-session-start-divergent/run.sh"
+    "scripts/wiki-write-protocol/scenarios/10-semantic-resolver-defers/run.sh"
     # CI workflow for the test harness below. Ships at instantiation; synced
     # here so derived repos' CI follows the harness instead of freezing (#90).
     ".github/workflows/test-harness.yml"

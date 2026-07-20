@@ -15,7 +15,7 @@ Whenever about to push the wiki sub-repo to its remote (typically because the us
    - `llm_resolve` is the no-op resolver defined below
 3. Exit 0: push succeeded; done.
 4. Exit 2 (retry cap reached): escalate to the user with the conflict summary from stderr.
-5. Any other non-zero exit on a content conflict: a conflicted file remains on disk with conflict markers. **The agent's next turn resolves the conflict in Claude context** (read the file, decide the merged content, write it back, `git add` + `git commit`, re-run `wiki_push`).
+5. Exit 4 (or any other non-zero on a content conflict): a conflicted file remains on disk with conflict markers; nothing was committed or pushed. **The agent's next turn resolves the conflict in Claude context** (read the file, decide the merged content, write it back, `git add` + `git commit`, re-run `wiki_push`).
 
 ## The llm_resolve function
 
