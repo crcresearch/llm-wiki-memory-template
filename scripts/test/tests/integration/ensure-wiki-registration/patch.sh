@@ -13,7 +13,11 @@ set -uo pipefail
 STAGE="$SANDBOX/ensure-wiki-registration"
 mkdir -p "$STAGE/cfg"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && git rev-parse --show-toplevel)"
+# Resolved from this file's own path (tests/integration/<name> -> five
+# levels up), NOT git rev-parse: in a nested worktree/workspace without its
+# own .git, rev-parse walks up to the OUTER checkout and stages stale
+# fixtures from there.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 TPL_SRC="$REPO_ROOT/wiki/agents/claude-code/templates"
 
 # A project whose wiki name is 'm'; templates copied in so setup.sh reads the

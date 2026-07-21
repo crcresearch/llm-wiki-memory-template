@@ -31,25 +31,39 @@ assert "ADD: scripts/update-from-template.sh created in host" \
 assert "ADD: scripts/lib/ directory created (mkdir -p worked)" \
     "[ -d '$HOST/scripts/lib' ]"
 
-# Slash commands and skills referenced by the CLAUDE.md template the
-# overlay installs. Without these on disk, /wiki-experiment etc. fail
-# at runtime. PR #51 item #2.
-assert "ADD: .claude/commands/wiki-experiment.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-experiment.md' ]"
-assert "ADD: .claude/commands/wiki-source.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-source.md' ]"
-assert "ADD: .claude/commands/wiki-lint.md created in host" \
-    "[ -f '$HOST/.claude/commands/wiki-lint.md' ]"
-assert "ADD: .claude/skills/wiki-experiment.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-experiment.md' ]"
-assert "ADD: .claude/skills/wiki-source.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-source.md' ]"
-assert "ADD: .claude/skills/wiki-lint.md created in host" \
-    "[ -f '$HOST/.claude/skills/wiki-lint.md' ]"
-assert "ADD: .claude/commands/ directory created (mkdir -p worked)" \
-    "[ -d '$HOST/.claude/commands' ]"
-assert "ADD: .claude/skills/ directory created (mkdir -p worked)" \
-    "[ -d '$HOST/.claude/skills' ]"
+# Skills (directory-per-skill layout). Without these on disk,
+# /wiki-experiment etc. fail at runtime. PR #51 item #2. Each SKILL.md
+# lives one directory deeper than the old flat files, so these also
+# exercise adopt's mkdir -p on a two-level path.
+assert "ADD: .claude/skills/wiki-experiment/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-experiment/SKILL.md' ]"
+assert "ADD: .claude/skills/wiki-source/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-source/SKILL.md' ]"
+assert "ADD: .claude/skills/wiki-lint/SKILL.md created in host" \
+    "[ -f '$HOST/.claude/skills/wiki-lint/SKILL.md' ]"
+assert "ADD: copied SKILL.md is byte-equal to template" \
+    "cmp -s '$TEMPLATE_ROOT_AA/.claude/skills/wiki-lint/SKILL.md' '$HOST/.claude/skills/wiki-lint/SKILL.md'"
+# The retired flat/commands layout must NOT come back: the manifest is the
+# only source of these paths, so their absence proves the old entries are
+# gone rather than merely renamed alongside. /ask still ships as a command
+# (no skill twin; the retirement targets wiki-* duplicates only), so assert
+# the retired files individually rather than the directory's absence.
+assert "ADD: no flat .claude/skills/wiki-lint.md created" \
+    "[ ! -f '$HOST/.claude/skills/wiki-lint.md' ]"
+assert "ADD: no .claude/commands/wiki-*.md duplicates created" \
+    "[ ! -f '$HOST/.claude/commands/wiki-experiment.md' ] && [ ! -f '$HOST/.claude/commands/wiki-source.md' ] && [ ! -f '$HOST/.claude/commands/wiki-lint.md' ]"
+assert "ADD: .claude/commands/ask.md created in host" \
+    "[ -f '$HOST/.claude/commands/ask.md' ]"
+
+# Rule files: Claude Code auto-discovers .claude/rules/*.md, so landing on
+# disk is the whole installation. They are name-agnostic by contract
+# (manifest-shape enforces it), so the verbatim cp -p copy is also correct.
+assert "ADD: .claude/rules/wiki-as-memory.md created in host" \
+    "[ -f '$HOST/.claude/rules/wiki-as-memory.md' ]"
+assert "ADD: .claude/rules/memory-boundary.md created in host" \
+    "[ -f '$HOST/.claude/rules/memory-boundary.md' ]"
+assert "ADD: copied wiki-as-memory rule is byte-equal to template" \
+    "cmp -s '$TEMPLATE_ROOT_AA/.claude/rules/wiki-as-memory.md' '$HOST/.claude/rules/wiki-as-memory.md'"
 
 # Byte-equal to template (cp -p preserves content/perms).
 assert "ADD: copied wiki/init-wiki.sh is byte-equal to template" \
@@ -66,8 +80,8 @@ assert "manifest .llm-wiki-adopt-log.md exists" \
     "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
 assert "manifest has the top-level heading" \
     "grep -qF '# llm-wiki adopt log' '$HOST/.llm-wiki-adopt-log.md'"
-assert "manifest names this run as 'adopt --apply (phases 1, 2A, 2B, 3)'" \
-    "grep -qF 'adopt --apply (phases 1, 2A, 2B, 3)' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest names this run as 'adopt --apply (phases 1, 2B, 3)'" \
+    "grep -qF 'adopt --apply (phases 1, 2B, 3)' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records project name" \
     "grep -qF -- '- project: apply-host' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest records the signal count" \

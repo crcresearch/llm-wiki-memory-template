@@ -167,8 +167,9 @@ trap cleanup EXIT
 #
 # CI is unaffected: test-harness.yml sets MVP_TEMPLATE_LOCAL explicitly.
 # In a DERIVED project (this harness ships via "Use this template"), the
-# export carries CLAUDE.md and no CLAUDE.md.template, so clone_template's
-# derived-project guard (issue #15) still declines and smoke tests skip.
+# export lacks scripts/instantiate.sh (self-deleted at instantiation), so
+# clone_template's derived-project guard (issue #15) still declines and
+# smoke tests skip.
 if [ -z "${MVP_TEMPLATE_LOCAL:-}" ] && [ -z "${MVP_TEMPLATE_REPO:-}" ]; then
     REPO_ROOT_DEFAULT="$(cd "$HERE/../.." && pwd)"
     if git -C "$REPO_ROOT_DEFAULT" rev-parse --show-toplevel >/dev/null 2>&1; then

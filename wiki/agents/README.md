@@ -1,19 +1,19 @@
 # wiki/agents/ -- agent overlays
 
 This directory holds the agent-specific layers that sit on top of the
-agent-agnostic llm-wiki core (`llm-wiki.md` + `wiki/init-wiki.sh` +
-`CLAUDE.md`). Each subdirectory teaches one specific AI coding
-assistant to treat the project's wiki as durable memory.
+agent-agnostic llm-wiki core (`llm-wiki.md` + `wiki/init-wiki.sh`).
+Each subdirectory teaches one specific AI coding assistant to treat
+the project's wiki as durable memory.
 
 Today the template ships:
 
-- `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs slash commands at `.claude/commands/`, model-side skills at `.claude/skills/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
-- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Installs rules at `.cursor/rules/*.mdc` (preferred) or a legacy `.cursorrules` file. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
+- `wiki/agents/claude-code/` -- overlay for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Installs skills at `.claude/skills/<name>/SKILL.md`, behavioral rules at `.claude/rules/`, a permissions allowlist at `.claude/settings.json`, an optional SessionStart hook, and an optional per-user memory seed. **Validated end-to-end** against a real Claude Code session.
+- `wiki/agents/cursor/` -- overlay for [Cursor](https://docs.cursor.com/). Installs rules at `.cursor/rules/*.mdc`. **Shipped but not yet validated in a live Cursor session;** see the overlay's own README for what to report.
 
 The minimal mode (`--agent=none` in `scripts/instantiate.sh`) ships
 only the llm-wiki core: a project that uses OpenCode, Pi, or any other
-agent can still benefit from the pattern by reading `CLAUDE.md` and
-following the procedure manually. **Likewise unvalidated against any
+agent can still benefit from the pattern by reading `llm-wiki.md` and
+the wiki's `SCHEMA_<repo>.md` and following the procedure manually. **Likewise unvalidated against any
 specific non-Claude-Code agent.**
 
 If you try any path other than Claude Code, please [open an issue](https://github.com/crcresearch/llm-wiki-memory-template/issues/new) with what worked, what did not, and the agent + version you used. The non-Claude-Code paths are hypotheses until someone runs them.
@@ -25,7 +25,7 @@ Two files in this directory are agent-agnostic and consumed by *every* overlay v
 - [discipline-gates.md](discipline-gates.md) — "Universal Rationalizations (Always Wrong)" table, the three gate types (Design / Verification / Sequential), and the Skill Dependency Chain. Codifies cross-skill enforcement.
 - [verification-gate.md](verification-gate.md) — Canonical pre-commit criteria list referenced by every ingest skill. Catches projection-as-fact, missing corpus tags on numerical claims, missing back-references, and missing log/index entries before a wiki commit lands.
 
-When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., CLAUDE.md for Claude Code, `.cursor/rules/*.mdc` for Cursor); do not copy their content. DRY from day one.
+When adding a new agent overlay, reference these files from the overlay's native injection mechanism (e.g., `.claude/rules/*.md` for Claude Code, `.cursor/rules/*.mdc` for Cursor); do not copy their content. DRY from day one.
 
 ## The contract every overlay should honor
 
@@ -42,10 +42,9 @@ An agent overlay under `wiki/agents/<agent>/` is expected to provide:
    walkthrough* covering at least one Query, one Ingest, and one Lint
    exercise. The walkthrough doubles as a smoke test.
 3. **`templates/`** -- single-source-of-truth content used by
-   `setup.sh`. The agent-specific snippet that goes into `CLAUDE.md`,
-   the per-user memory seed (if applicable), and any hook script live
-   here. Use `${REPO_NAME}` as a substitution token so the overlay is
-   portable across projects.
+   `setup.sh`. The per-user memory seed (if applicable) and any hook
+   scripts live here. Use `${REPO_NAME}` as a substitution token so
+   the overlay is portable across projects.
 
 The contract does not specify implementation details. The Claude Code
 overlay uses `jq` to merge into an existing `.claude/settings.json`;
@@ -60,8 +59,8 @@ into the appropriate location, not into `wiki/agents/<agent>/`:
 
 - Claude Code reads `.claude/` at the repo root. The overlay installs
   there.
-- Cursor reads `.cursor/rules/*.mdc` or `.cursorrules` at the repo
-  root. The overlay installs there.
+- Cursor reads `.cursor/rules/*.mdc` at the repo root. The overlay
+  installs there.
 - A future overlay for an agent that uses `.AGENT_NAME/` would install
   there.
 
@@ -78,7 +77,7 @@ template repo. The installed artefacts at the repo root are the
    ```
 2. **Adjust `setup.sh`** to install the agent's project-level config
    files in the right location. Read the agent's documentation to find
-   the conventional path (e.g. `.cursorrules`, `.continue/config.json`,
+   the conventional path (e.g. `.cursor/rules/`, `.continue/config.json`,
    etc.).
 3. **Rewrite the templates** for the agent's expected format. The
    procedural content (the three operations: Query / Ingest / Lint;

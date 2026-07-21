@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Assertions: adopt.sh --apply Phase 2A applies append-only TOUCH to
-# .gitignore via lw_inject_block; classifies managed-block and merge
-# grants but defers them; manifest records each TOUCH apply.
+# Assertions: adopt.sh --apply applies the merge TOUCH grant via the
+# overlay setup.sh --hook; the host's .gitignore and CLAUDE.md are never
+# modified (the wiki ignore rule arrives as the ADDed wiki/.gitignore,
+# the behavioral instructions as the ADDed .claude/rules/*.md); manifest
+# records the TOUCH apply.
 
 STAGE="$SANDBOX/adopt-apply-touch"
 HOST="$STAGE/host"
@@ -11,32 +13,22 @@ OUT2="$STAGE/apply-run2.txt"
 # --- First run produced output ---
 assert "first --apply produced output" "[ -f '$OUT1' ]"
 
-# --- .gitignore was append-only touched (sentinel-paired block at end) ---
-assert "host .gitignore now contains the opening lw:wiki-rules sentinel" \
-    "grep -qF '<!-- lw:wiki-rules -->' '$HOST/.gitignore'"
-assert "host .gitignore contains the closing lw:wiki-rules sentinel" \
-    "grep -qF '<!-- /lw:wiki-rules -->' '$HOST/.gitignore'"
-assert "host .gitignore now contains the canonical wiki/*.wiki/ rule" \
-    "grep -qFx 'wiki/*.wiki/' '$HOST/.gitignore'"
-
-# --- Host's prior .gitignore content survived above the new block ---
-assert "host's '*.pyc' rule preserved" \
-    "grep -qFx '*.pyc' '$HOST/.gitignore'"
-assert "host's '__pycache__/' rule preserved" \
-    "grep -qFx '__pycache__/' '$HOST/.gitignore'"
-assert "host's '.env' rule preserved" \
-    "grep -qFx '.env' '$HOST/.gitignore'"
+# --- Host .gitignore untouched; wiki ignore rule arrived via ADD ---
+assert "host .gitignore is byte-identical to its pre-adopt snapshot" \
+    "cmp -s '$STAGE/gitignore.before' '$HOST/.gitignore'"
+assert "wiki/.gitignore was ADDed to the host" \
+    "[ -f '$HOST/wiki/.gitignore' ]"
+assert "wiki/.gitignore carries the *.wiki/ rule" \
+    "grep -qFx '*.wiki/' '$HOST/wiki/.gitignore'"
+assert "git ignores the wiki sub-repo via wiki/.gitignore" \
+    "git -C '$HOST' check-ignore -q wiki/touch-host.wiki/"
 
 # --- Manifest records the apply outcomes ---
 assert "manifest exists" "[ -f '$HOST/.llm-wiki-adopt-log.md' ]"
-assert "manifest lists .gitignore TOUCH as applied (first run)" \
-    "grep -qF '.gitignore (append-only): applied' '$HOST/.llm-wiki-adopt-log.md'"
-# Phase 2B: managed-block now delegates to overlay setup.sh. With the
-# claude-code overlay copied via ADD and init-wiki creating the wiki
-# sub-repo, the overlay setup runs successfully and the manifest records
-# the managed-block TOUCH as applied via the overlay rather than deferred.
-assert "manifest reports CLAUDE.md managed-block as applied via overlay setup.sh" \
-    "grep -qF 'CLAUDE.md (managed-block): applied via wiki/agents/claude-code/setup.sh' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest does NOT list a .gitignore TOUCH (no such grant anymore)" \
+    "! grep -qF -- '- .gitignore (' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest does NOT list a CLAUDE.md TOUCH (managed-block grant retired)" \
+    "! grep -qF -- '- CLAUDE.md (' '$HOST/.llm-wiki-adopt-log.md'"
 assert "manifest reports settings.json merge as applied via setup.sh --hook" \
     "grep -qF '.claude/settings.json (merge): applied via wiki/agents/claude-code/setup.sh --hook' '$HOST/.llm-wiki-adopt-log.md'"
 # Guard against the false-positive that the previous version of this test
@@ -65,22 +57,21 @@ assert "manifest records overlay setup status as applied" \
 assert "wiki sub-repo created at wiki/touch-host.wiki/" \
     "[ -d '$HOST/wiki/touch-host.wiki/.git' ]"
 
-# --- Phase 2B: CLAUDE.md now has overlay-injected sentinels ---
-assert "host CLAUDE.md now has lw:memory-boundary sentinel (injected by overlay setup)" \
-    "grep -qF '<!-- lw:memory-boundary -->' '$HOST/CLAUDE.md'"
-assert "host CLAUDE.md now has lw:wiki-maintenance sentinel" \
-    "grep -qF '<!-- lw:wiki-maintenance -->' '$HOST/CLAUDE.md'"
-
-# --- Host's prose (CLAUDE.md, README.md) untouched in this phase ---
-assert "host CLAUDE.md prose preserved above injected blocks" \
-    "grep -qF 'Host-authored project guidance' '$HOST/CLAUDE.md'"
+# --- CLAUDE.md untouched; the instructions arrived as ADDed rule files ---
+assert "host CLAUDE.md is byte-identical to its pre-adopt snapshot" \
+    "cmp -s '$STAGE/claude-md.before' '$HOST/CLAUDE.md'"
+assert "host CLAUDE.md gained NO lw sentinels" \
+    "! grep -qF '<!-- lw:' '$HOST/CLAUDE.md'"
+assert ".claude/rules/wiki-as-memory.md was ADDed to the host" \
+    "[ -f '$HOST/.claude/rules/wiki-as-memory.md' ]"
+assert ".claude/rules/memory-boundary.md was ADDed to the host" \
+    "[ -f '$HOST/.claude/rules/memory-boundary.md' ]"
 assert "host README preserved" \
     "grep -qF 'Host-authored README' '$HOST/README.md'"
 
-# --- Second run: idempotency check on lw_inject_block ---
+# --- Second run: idempotency ---
 assert "second --apply produced output" "[ -f '$OUT2' ]"
-sentinel_count=$(grep -cF '<!-- lw:wiki-rules -->' "$HOST/.gitignore" || true)
-assert "opening sentinel appears exactly once after two --apply runs" \
-    "[ '$sentinel_count' -eq 1 ]"
-assert "manifest lists .gitignore TOUCH as already-present (second run)" \
-    "grep -qF '.gitignore (append-only): already-present' '$HOST/.llm-wiki-adopt-log.md'"
+assert "host .gitignore still byte-identical after the second --apply" \
+    "cmp -s '$STAGE/gitignore.before' '$HOST/.gitignore'"
+assert "host CLAUDE.md still byte-identical after the second --apply" \
+    "cmp -s '$STAGE/claude-md.before' '$HOST/CLAUDE.md'"

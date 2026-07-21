@@ -6,7 +6,7 @@
 
   "files":   { "source": "code/",  "destination": "scripts/agent-comms/" },
   "ci":      { "workflow_file": "ci/agent-comms.yml" },
-  "claude_md": { "marker": "feature:agent-comms", "section_file": "CLAUDE.section.md" },
+  "rule":    { "source": "rule.md" },
 
   "system_deps": [
     {

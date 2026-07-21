@@ -22,8 +22,11 @@
 set -euo pipefail
 
 # Find the repo root regardless of harness CWD: the hook template lives
-# there, not inside $SANDBOX.
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && git rev-parse --show-toplevel)"
+# there, not inside $SANDBOX. Resolved from this file's own path
+# (tests/integration/<name> -> five levels up), NOT git rev-parse: in a
+# nested worktree/workspace without its own .git, rev-parse walks up to
+# the OUTER checkout and stages a stale template from there.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 HOOK_TEMPLATE="$REPO_ROOT/wiki/agents/claude-code/templates/session-start-hook.sh"
 
 if [ ! -f "$HOOK_TEMPLATE" ]; then

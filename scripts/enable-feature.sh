@@ -14,14 +14,14 @@
 # Effects:
 #   - Reads features/<name>/feature.json
 #   - Copies feature files into the project
-#   - Inserts a section into CLAUDE.md between paired markers
+#   - Installs the feature's rule file at .claude/rules/feature-<name>.md
 #   - Copies the feature's CI workflow into .github/workflows/
 #   - Records the feature name in .features-enabled
 #   - Prints system dependency install instructions
 #
 # Idempotent: re-running with the same feature is a no-op success.
 #
-# Run from the project root (the directory containing CLAUDE.md).
+# Run from the project root (the directory containing llm-wiki.md).
 
 set -uo pipefail
 
@@ -54,8 +54,11 @@ done
 
 # --- Sanity check: this looks like a template-derived project ---
 cd "$PROJECT_ROOT"
-if [[ ! -f "CLAUDE.md" ]]; then
-    echo "Error: no CLAUDE.md at $PROJECT_ROOT." >&2
+# llm-wiki.md is the template's always-present marker (SHARED_INFRA,
+# delivered by both instantiate and adopt). CLAUDE.md is NOT used here:
+# it is host-owned and a derived project may legitimately not have one.
+if [[ ! -f "llm-wiki.md" ]]; then
+    echo "Error: no llm-wiki.md at $PROJECT_ROOT." >&2
     echo "       enable-feature.sh expects to run from a project that was" >&2
     echo "       instantiated from crcresearch/llm-wiki-memory-template." >&2
     exit 1

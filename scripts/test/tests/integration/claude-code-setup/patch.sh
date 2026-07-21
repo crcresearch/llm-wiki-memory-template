@@ -19,8 +19,12 @@ STAGE="$SANDBOX/claude-code-setup"
 mkdir -p "$STAGE/cfg"
 
 # setup.sh reads its overlay templates from $REPO_ROOT; copy the real ones
-# into each fixture. patch.sh is executed, so locate the repo from this file.
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && git rev-parse --show-toplevel)"
+# into each fixture. patch.sh is executed, so locate the checkout from this
+# file's own path (tests/integration/<name> -> five levels up). NOT git
+# rev-parse: in a nested worktree/workspace without its own .git, rev-parse
+# walks up to the OUTER checkout and stages stale fixtures from there,
+# while assertions.sh runs the inner checkout's scripts — a mixed-root test.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 TPL_SRC="$REPO_ROOT/wiki/agents/claude-code/templates"
 
 # $1=project dir, $2=wiki name ('' = create no wiki)
@@ -35,16 +39,12 @@ _mkproj() {
         mkdir -p "$dir/wiki/$wn.wiki"
         : > "$dir/wiki/$wn.wiki/SCHEMA_$wn.md"
     fi
-    # CLAUDE.md with a Knowledge Graph anchor (snippet injects before it)
-    # and no wiki-maintenance markers (so the injection actually runs).
+    # Host-authored CLAUDE.md. setup.sh must not modify it; the assertions
+    # prove base mode leaves it alone.
     cat > "$dir/CLAUDE.md" <<'EOF'
 # Project
 
 Baseline content that must be preserved.
-
-### Knowledge Graph
-
-KG section.
 EOF
 }
 

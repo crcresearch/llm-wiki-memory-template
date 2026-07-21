@@ -23,9 +23,11 @@
 #   manifest and nothing else.
 #
 # What does NOT get touched (project-specific):
-#   CLAUDE.md, .gitignore, .claude/settings.json  (TEMPLATE_HOST_OWNED: the
+#   .claude/settings.json                         (TEMPLATE_HOST_OWNED: the
 #       template defines the operation type but the host owns the content)
-#   README.md, .cursorrules                       (project's own)
+#   CLAUDE.md, .gitignore                         (plain host content; the
+#       template never creates or edits them)
+#   README.md                                     (project's own)
 #   .claude/settings.local.json                   (per-user, gitignored)
 #   .claude/hooks/                                (per-machine, opt-in)
 #   wiki/<repo>.wiki/                             (separate git sub-repo)
@@ -259,8 +261,8 @@ if git cat-file -e "$TEMPLATE_REF:.gitignore" 2>/dev/null && [[ -f "$REPO_ROOT/.
         echo "          The template's .gitignore differs from yours. This script"
         echo "          will not overwrite it. Review with:"
         echo "            git diff $TEMPLATE_REF -- .gitignore"
-        echo "          Adopt installs an append-only wiki sub-repo rule via the"
-        echo "          .gitignore grant; see scripts/adopt.sh."
+        echo "          (The wiki sub-repo ignore rule ships as wiki/.gitignore,"
+        echo "          a synced template file, so it needs no back-porting.)"
     fi
     rm -f "$TEMPLATE_GI"
 fi

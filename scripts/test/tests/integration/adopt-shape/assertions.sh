@@ -25,7 +25,7 @@ assert "prints dry-run banner" \
 assert "resolves identity from origin (example-host, not host basename)" \
     "grep -qF 'Resolved:         example-host' '$OUT'"
 assert "header reports the grants file was detected" \
-    "grep -qE 'Grants file:.*\\.llm-wiki-adopt-grants\\.yml \\(3 grant\\(s\\) found\\)' '$OUT'"
+    "grep -qE 'Grants file:.*\\.llm-wiki-adopt-grants\\.yml \\(4 grant\\(s\\) found\\)' '$OUT'"
 
 # --- ADD: forced-absent paths from the allowlist appear ---
 # awk slices the ADD block ("ADD ..." line up to the next blank) so the
@@ -36,6 +36,8 @@ assert "ADD block lists scripts/lib/common.sh" \
     "awk '/^ADD/,/^\$/' '$OUT' | grep -qF '+ scripts/lib/common.sh'"
 assert "ADD block lists scripts/update-from-template.sh" \
     "awk '/^ADD/,/^\$/' '$OUT' | grep -qF '+ scripts/update-from-template.sh'"
+assert "ADD block lists wiki/.gitignore (the wiki ignore rule ships as a file)" \
+    "awk '/^ADD/,/^\$/' '$OUT' | grep -qF '+ wiki/.gitignore'"
 assert "ADD block does NOT list llm-wiki.md (it was a SKIP target)" \
     "! awk '/^ADD/,/^\$/' '$OUT' | grep -qF '+ llm-wiki.md'"
 assert "ADD block does NOT list wiki/agents/discipline-gates.md (REFUSE target)" \
@@ -54,12 +56,19 @@ assert "REFUSE block does NOT list llm-wiki.md" \
     "! awk '/^REFUSE/,/^\$/' '$OUT' | grep -qF 'llm-wiki.md'"
 
 # --- TOUCH classification ---
-# .gitignore is the only valid+present grant -> TOUCH block lists it with
-# its append-only operation and the lw:wiki-rules sentinel label.
-assert "TOUCH block lists .gitignore with append-only mechanism" \
-    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qE '~ +\\.gitignore +append-only'"
-assert "TOUCH block shows the lw:wiki-rules sentinel for .gitignore" \
-    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'sentinel lw:wiki-rules'"
+# .claude/settings.json is the only valid+present grant -> TOUCH block
+# lists it with its merge operation and no absent marker.
+assert "TOUCH block lists .claude/settings.json with merge mechanism" \
+    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qE '~ +\\.claude/settings\\.json +merge'"
+assert "TOUCH row for .claude/settings.json does NOT show absent marker" \
+    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -q '\\.claude/settings\\.json.*\\[absent'"
+
+# .gitignore is no longer a grant target -> INVALID, not TOUCH.
+assert "TOUCH block does NOT list .gitignore (grant type retired)" \
+    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF '.gitignore'"
+assert "GRANT WARNINGS section lists .gitignore as unknown" \
+    "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF '.gitignore' && \\
+     awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'unknown grant target'"
 
 # Makefile is unknown to the template -> INVALID, not TOUCH.
 assert "TOUCH block does NOT list Makefile (unknown to template)" \
@@ -68,16 +77,14 @@ assert "GRANT WARNINGS section lists Makefile as unknown" \
     "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'Makefile' && \\
      awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'unknown grant target'"
 
-# CLAUDE.md grant is valid in type and host does not have one ->
-# regular TOUCH marked '[absent; will create from canonical]'. The
-# old MISSING-as-moot behaviour was replaced after Chris Sweet's
-# end-to-end review (PR #51 items 3, 4, 5).
-assert "TOUCH block LISTS CLAUDE.md (regular TOUCH, no longer moot when absent)" \
-    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
-assert "TOUCH row for CLAUDE.md marks '[absent; will create from canonical]'" \
-    "awk '/^TOUCH/,/^\$/' '$OUT' | grep -q 'CLAUDE.md.*\\[absent; will create from canonical\\]'"
-assert "GRANT WARNINGS section does NOT list CLAUDE.md (absence is not a warning)" \
-    "! awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
+# CLAUDE.md's managed-block grant is retired -> INVALID, not TOUCH.
+# Regression case: hosts that still declare the pre-rules-files grant
+# must be refused, not silently patched.
+assert "TOUCH block does NOT list CLAUDE.md (managed-block grant retired)" \
+    "! awk '/^TOUCH/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md'"
+assert "GRANT WARNINGS section lists CLAUDE.md as unknown" \
+    "awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'CLAUDE.md' && \\
+     awk '/^GRANT WARNINGS/,/^\$/' '$OUT' | grep -qF 'unknown grant target'"
 
 # --- Host-authored content untouched (no apply) ---
 assert "host README.md preserved (still says 'Example Host')" \

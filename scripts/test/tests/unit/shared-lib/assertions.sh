@@ -138,47 +138,6 @@ assert "changed_p false when nothing recorded" "[ $RC -ne 0 ]"
 lw_call "lw_record_change one >/dev/null 2>&1; lw_changed_p"; RC=$?
 assert "changed_p true after a change is recorded" "[ $RC -eq 0 ]"
 
-# --- text.sh: lw_inject_block (paired sentinels, idempotent) ---
-INJ="$ROOT/inject.md"
-printf 'top\nKGMARKER\nbottom\n' > "$INJ"
-lw_call "lw_inject_block '$INJ' demo 'BODY-CONTENT' KGMARKER" >/dev/null 2>&1
-assert_contains "inject: open sentinel present"  "$INJ" '<!-- lw:demo -->'
-assert_contains "inject: close sentinel present" "$INJ" '<!-- /lw:demo -->'
-assert_contains "inject: body present"           "$INJ" 'BODY-CONTENT'
-assert "inject: block precedes the marker line" \
-    "awk '/lw:demo/{s=NR} /KGMARKER/{m=NR} END{exit !(s<m)}' '$INJ'"
-# Second call must be a no-op: still exactly one opening sentinel.
-lw_call "lw_inject_block '$INJ' demo 'BODY-CONTENT' KGMARKER" >/dev/null 2>&1
-assert_eq "inject: idempotent (one open sentinel after two calls)" "1" \
-    "$(grep -cF '<!-- lw:demo -->' "$INJ")"
-
-# --- text.sh: lw_insert_before (BSD-safe raw insert, no sentinels) ---
-# Both overlay setup scripts inject their CLAUDE.md snippet through this.
-INS="$ROOT/insert.md"
-
-# Single-line content, before a matching line.
-printf 'alpha\nNEEDLE-LINE\nomega\n' > "$INS"
-lw_call "lw_insert_before '$INS' 'NEEDLE-LINE' 'INSERTED'" >/dev/null 2>&1
-assert_contains "insert_before: content present" "$INS" 'INSERTED'
-assert "insert_before: content precedes the needle line" \
-    "awk '/INSERTED/{s=NR} /NEEDLE-LINE/{m=NR} END{exit !(s>0 && s<m)}' '$INS'"
-
-# Multi-line content ($'...' carries the newline through eval).
-printf 'alpha\nNEEDLE-LINE\nomega\n' > "$INS"
-lw_call "lw_insert_before '$INS' 'NEEDLE-LINE' \$'L1\nL2'" >/dev/null 2>&1
-assert_contains "insert_before: multi-line first line present"  "$INS" '^L1$'
-assert_contains "insert_before: multi-line second line present" "$INS" '^L2$'
-assert "insert_before: multi-line block precedes the needle" \
-    "awk '/^L2\$/{s=NR} /NEEDLE-LINE/{m=NR} END{exit !(s>0 && s<m)}' '$INS'"
-
-# Needle absent: nothing inserted, file otherwise unchanged.
-printf 'alpha\nbeta\ngamma\n' > "$INS"
-lw_call "lw_insert_before '$INS' 'NO-SUCH-NEEDLE' 'SHOULD-NOT-APPEAR'" >/dev/null 2>&1
-assert "insert_before: needle absent leaves content uninserted" \
-    "! grep -qF 'SHOULD-NOT-APPEAR' '$INS'"
-assert_eq "insert_before: needle absent preserves line count" "3" \
-    "$(wc -l < "$INS" | tr -d ' ')"
-
 # --- text.sh: lw_sed_inplace (portable in-place edit; init-wiki relies on it) ---
 SEDF="$ROOT/sed.md"
 
@@ -200,39 +159,6 @@ assert "append_after: lands directly under the heading" \
 assert_contains "append_after: pre-existing entry preserved" "$APPF" '^- \[\[existing\]\] — old$'
 assert_contains "append_after: content below the heading preserved" "$APPF" '^footer$'
 
-# --- text.sh: lw_replace_block (update body between an existing sentinel) ---
-RB="$ROOT/replace.md"
-printf 'top\n<!-- lw:demo -->\nOLD-BODY\n<!-- /lw:demo -->\nbottom\n' > "$RB"
-lw_call "lw_replace_block '$RB' demo 'NEW-BODY'" >/dev/null 2>&1
-assert_contains "replace_block: new body present"        "$RB" '^NEW-BODY$'
-assert "replace_block: old body replaced"                "! grep -qF 'OLD-BODY' '$RB'"
-assert_contains "replace_block: text above the block intact" "$RB" '^top$'
-assert_contains "replace_block: text below the block intact" "$RB" '^bottom$'
-assert_contains "replace_block: closing sentinel kept"   "$RB" '<!-- /lw:demo -->'
-# Absent sentinel: no-op, nonzero, file untouched.
-printf 'alpha\nbeta\n' > "$RB"
-lw_call "lw_replace_block '$RB' demo 'X'" >/dev/null 2>&1; RC=$?
-assert "replace_block: absent sentinel returns non-zero"   "[ $RC -ne 0 ]"
-assert "replace_block: absent sentinel leaves file unchanged" "! grep -qF 'X' '$RB'"
-
-# --- text.sh: lw_wrap_section (migrate a legacy prose section to sentinels) ---
-WS="$ROOT/wrap.md"
-printf '# Doc\n\n### Memory boundary\n\nbody line\n\n### Next\n\ntail\n' > "$WS"
-lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
-assert "wrap_section: wraps an existing section (exit 0)" "[ $RC -eq 0 ]"
-assert_contains "wrap_section: opening sentinel added" "$WS" '<!-- lw:memory-boundary -->'
-assert_contains "wrap_section: closing sentinel added" "$WS" '<!-- /lw:memory-boundary -->'
-assert_contains "wrap_section: section body preserved" "$WS" '^body line$'
-assert "wrap_section: opening sentinel precedes the heading" \
-    "awk '/<!-- lw:memory-boundary -->/{s=NR} /^### Memory boundary\$/{h=NR} END{exit !(s>0 && s<h)}' '$WS'"
-assert "wrap_section: closing sentinel precedes the next heading" \
-    "awk '/<!-- \\/lw:memory-boundary -->/{c=NR} /^### Next\$/{n=NR} END{exit !(c>0 && c<n)}' '$WS'"
-# Idempotent: re-run is a no-op because the sentinel now exists.
-lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
-assert "wrap_section: re-run with sentinel present returns non-zero" "[ $RC -ne 0 ]"
-assert_eq "wrap_section: still exactly one opening sentinel after re-run" "1" \
-    "$(grep -cF '<!-- lw:memory-boundary -->' "$WS")"
-# Heading absent: nothing to wrap.
-printf 'no heading here\n' > "$WS"
-lw_call "lw_wrap_section '$WS' memory-boundary '### Memory boundary'" >/dev/null 2>&1; RC=$?
-assert "wrap_section: absent heading returns non-zero" "[ $RC -ne 0 ]"
+# The paired-sentinel helpers (lw_inject_block, lw_replace_block,
+# lw_wrap_section, lw_insert_before) are retired along with the CLAUDE.md
+# writers that consumed them; their tests went with them.

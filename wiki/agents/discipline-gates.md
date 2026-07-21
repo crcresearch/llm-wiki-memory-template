@@ -1,6 +1,6 @@
 # Discipline Gates (agent-agnostic)
 
-Cross-skill enforcement patterns for any agent that writes to this project's wiki. The rationalizations and gate definitions here apply equally to Claude Code, Cursor, and any other agent: only the *injection mechanism* (CLAUDE.md, `.cursor/rules`, etc.) differs by overlay. Each overlay should reference this file rather than copy its content.
+Cross-skill enforcement patterns for any agent that writes to this project's wiki. The rationalizations and gate definitions here apply equally to Claude Code, Cursor, and any other agent: only the *injection mechanism* (`.claude/rules`, `.cursor/rules`, etc.) differs by overlay. Each overlay should reference this file rather than copy its content.
 
 The rationale: a wiki-as-memory pattern that is purely declarative (lint catches mistakes post-hoc) admits failure modes that an agent rationalizes into the wiki between lint passes. Discipline gates flip that — they enumerate the rationalizations the agent might use to justify a bad write, and the right counter to apply *before* the write commits.
 
@@ -72,7 +72,7 @@ When skill X runs, the listed downstream skill / procedure MUST also run before 
 
 Each overlay should reference this file in its native injection mechanism rather than copying its content:
 
-- **Claude Code overlay:** the `## Wiki maintenance behavior` subsection installed into `CLAUDE.md` should reference `wiki/agents/discipline-gates.md` and instruct the agent to consult it before writes. The skill files at `.claude/skills/wiki-*.md` should reference the Verification Gate row of the Skill Dependency Chain table above.
+- **Claude Code overlay:** the rule file at `.claude/rules/wiki-as-memory.md` should reference `wiki/agents/discipline-gates.md` and instruct the agent to consult it before writes. The skill files at `.claude/skills/wiki-*/SKILL.md` should reference the Verification Gate row of the Skill Dependency Chain table above.
 - **Cursor overlay:** the relevant rule under `.cursor/rules/wiki-as-memory.mdc` should reference this file. Per-skill rules (`wiki-experiment.mdc`, `wiki-source.mdc`) should reference the Verification Gate procedure.
 - **Other overlays:** install whatever pointer mechanism the agent supports. Minimum bar: the agent should encounter a reference to this file as part of its proactive wiki-maintenance behavior.
 

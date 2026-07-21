@@ -21,13 +21,13 @@ assert "instantiate.sh --features=agent-comms exited 0" \
 
 REPO_NAME=$(basename "$T")  # template-comms
 
-# --- Base bootstrap happened ---
-assert "instantiate.sh produced CLAUDE.md" \
-    "[ -f '$T/CLAUDE.md' ]"
-assert_contains "CLAUDE.md has project name substituted" \
-    "$T/CLAUDE.md" "Agent Comms Smoke Test"
-assert "CLAUDE.md has no {{PROJECT_NAME}} leak" \
-    "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
+# --- Base bootstrap happened (CLAUDE.md is host-owned; not rendered) ---
+assert "instantiate.sh did NOT create CLAUDE.md" \
+    "[ ! -f '$T/CLAUDE.md' ]"
+assert_contains "README.md has project name substituted" \
+    "$T/README.md" "Agent Comms Smoke Test"
+assert "README.md has no {{PROJECT_NAME}} leak" \
+    "! grep -q '{{PROJECT_NAME}}' '$T/README.md'"
 assert "wiki sub-repo created (init-wiki.sh ran)" \
     "[ -d '$T/wiki/${REPO_NAME}.wiki/.git' ]"
 assert "Home_${REPO_NAME}.md exists in the wiki sub-repo" \
@@ -55,15 +55,13 @@ assert ".features-enabled created" \
 assert ".features-enabled lists agent-comms" \
     "grep -qFx 'agent-comms' '$T/.features-enabled'"
 
-# --- CLAUDE.md patched with our section (between paired markers) ---
-assert "CLAUDE.md has opening marker for agent-comms" \
-    "grep -qF '<!-- feature:agent-comms -->' '$T/CLAUDE.md'"
-assert "CLAUDE.md has closing marker for agent-comms" \
-    "grep -qF '<!-- /feature:agent-comms -->' '$T/CLAUDE.md'"
-assert "CLAUDE.md mentions 'Cross-agent communication'" \
-    "grep -qF 'Cross-agent communication' '$T/CLAUDE.md'"
-assert "CLAUDE.md mentions enroll.sh next-step" \
-    "grep -qF 'scripts/agent-comms/enroll.sh' '$T/CLAUDE.md'"
+# --- Rule install skipped LOUDLY (no .claude/ under --agent=none) ---
+# install-feature installs .claude/rules/feature-agent-comms.md when the
+# project has a .claude/ directory (covered by the agent-comms-feature-install
+# unit test); with none, it must say so instead of silently dropping the
+# feature's usage notes.
+assert "install log reports the rule install was skipped" \
+    "grep -qF 'skipped installing the rule file' /tmp/instantiate-with-agent-comms.log"
 
 # --- CI workflow installed ---
 assert ".github/workflows/agent-comms.yml created" \

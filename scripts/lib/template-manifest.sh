@@ -23,6 +23,10 @@ _LW_MANIFEST_SOURCED=1
 TEMPLATE_SHARED_INFRA=(
     "llm-wiki.md"
     "wiki/init-wiki.sh"
+    # Ignores wiki/<repo>.wiki/ from inside wiki/. Shipping the rule as a
+    # template-owned file keeps the host's root .gitignore host-owned and
+    # untouched; it replaced the old .gitignore append-only grant.
+    "wiki/.gitignore"
     # Synced VERBATIM (deliberately not in TEMPLATE_SUBSTITUTE_FILES): its
     # {{REPO_NAME}} markers are stamped by init-wiki.sh's wiki/*.md.template
     # loop at wiki-init time, in the host. Substituting at sync time would
@@ -90,16 +94,32 @@ TEMPLATE_SYNC_TREES=(
 # --agent=claude-code, or when update/check detects an existing claude
 # overlay on the host (presence of .claude/ or wiki/agents/claude-code/).
 TEMPLATE_OVERLAY_CLAUDE=(
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
+    # Rule files are auto-discovered by Claude Code from .claude/rules/ and
+    # loaded with CLAUDE.md priority; they carry the template's behavioral
+    # instructions so nothing has to be injected into the host's CLAUDE.md.
+    # Deliberately name-agnostic (wiki/<repo>.wiki/ phrasing, no {{REPO_NAME}}
+    # marker): adopt's ADD copies files verbatim with no substitution pass, so
+    # a placeholder here would land unstamped on adopted hosts. Keep them out
+    # of TEMPLATE_SUBSTITUTE_FILES.
+    ".claude/rules/wiki-as-memory.md"
+    ".claude/rules/memory-boundary.md"
+    # Skills use the documented directory-per-skill layout; the directory
+    # name is the /invocation name (frontmatter name: is display-only).
+    # Flat .claude/skills/*.md files are not discovered (witnessed on
+    # Claude Code 2.1.210), and .claude/commands/ duplicates are retired:
+    # skills shadow same-named commands, so shipping both meant two
+    # diverging copies of each procedure.
+    ".claude/skills/wiki-experiment/SKILL.md"
+    ".claude/skills/wiki-source/SKILL.md"
+    ".claude/skills/wiki-lint/SKILL.md"
+    # /ask ships in upstream's command layout. A command is effectively a
+    # skill with user-invocable left at its default (true), so this is a
+    # layout choice, not a capability one: keeping the file byte-identical
+    # to upstream avoids re-diverging on every pull. The duplicate
+    # retirement above doesn't apply — /ask has no skill twin.
     ".claude/commands/ask.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
     "wiki/agents/claude-code/setup.sh"
     "wiki/agents/claude-code/README.md"
-    "wiki/agents/claude-code/templates/claude-md-snippet.md"
     "wiki/agents/claude-code/templates/memory-seed.md"
     "wiki/agents/claude-code/templates/session-start-hook.sh"
     "wiki/agents/claude-code/templates/posttooluse-hook.sh"
@@ -111,6 +131,9 @@ TEMPLATE_OVERLAY_CLAUDE=(
 # in update/check can sync them when the host has a .cursor/ overlay).
 TEMPLATE_OVERLAY_CURSOR=(
     ".cursor/rules/wiki-as-memory.mdc"
+    # Deliberately name-agnostic (no {{REPO_NAME}} marker), same rationale as
+    # the .claude/rules/ entries above: keep it out of TEMPLATE_SUBSTITUTE_FILES.
+    ".cursor/rules/memory-boundary.mdc"
     ".cursor/rules/wiki-experiment.mdc"
     ".cursor/rules/wiki-source.mdc"
     ".cursor/rules/wiki-lint.mdc"
@@ -131,17 +154,13 @@ TEMPLATE_OVERLAY_CURSOR=(
 #    setup.sh ships verbatim. Substituting it here would not reach the
 #    installed hook. Tracked as a separate issue; out of scope for this
 #    manifest.
-#  - wiki/agents/claude-code/templates/{claude-md-snippet.md,
-#    session-start-hook.sh, memory-seed.md}: scanned and confirmed to
-#    contain no {{REPO_NAME}} marker. Listing them would lie about the
-#    contract.
+#  - wiki/agents/claude-code/templates/{session-start-hook.sh,
+#    memory-seed.md}: scanned and confirmed to contain no {{REPO_NAME}}
+#    marker. Listing them would lie about the contract.
 TEMPLATE_SUBSTITUTE_FILES=(
-    ".claude/commands/wiki-experiment.md"
-    ".claude/commands/wiki-source.md"
-    ".claude/commands/wiki-lint.md"
-    ".claude/skills/wiki-experiment.md"
-    ".claude/skills/wiki-source.md"
-    ".claude/skills/wiki-lint.md"
+    ".claude/skills/wiki-experiment/SKILL.md"
+    ".claude/skills/wiki-source/SKILL.md"
+    ".claude/skills/wiki-lint/SKILL.md"
     ".cursor/rules/wiki-as-memory.mdc"
     ".cursor/rules/wiki-experiment.mdc"
     ".cursor/rules/wiki-source.mdc"
@@ -152,10 +171,11 @@ TEMPLATE_SUBSTITUTE_FILES=(
 # host owns the content. update-from-template ignores these entirely; adopt
 # uses them to seed DEFAULT_GRANTS when no .llm-wiki-adopt-grants.yml is
 # present. Format: "path|operation-type" where operation-type matches the
-# known_grant_type vocabulary (managed-block, append-only, merge).
+# known_grant_type vocabulary (merge).
+# CLAUDE.md is no longer listed: the managed-block grant is retired along
+# with every CLAUDE.md writer; the behavioral instructions ship as
+# .claude/rules/*.md overlay files instead.
 TEMPLATE_HOST_OWNED=(
-    "CLAUDE.md|managed-block"
-    ".gitignore|append-only"
     ".claude/settings.json|merge"
 )
 
@@ -166,10 +186,8 @@ TEMPLATE_HOST_OWNED=(
 # shellcheck disable=SC2034  # consumed by docs/tests, not by sync logic
 TEMPLATE_ONE_SHOT=(
     "scripts/instantiate.sh"
-    "CLAUDE.md.template"
     "README.md.template"
     ".claude/settings.json.template"
-    ".cursorrules.template"
 )
 
 # --- Accessors --------------------------------------------------------------
@@ -236,28 +254,4 @@ lw_manifest_known_grant_type() {
         [[ "${entry%%|*}" == "$p" ]] && { echo "${entry##*|}"; return 0; }
     done
     echo ""
-}
-
-# Echo the sentinel label for $1's append-only payload, or empty if none.
-# managed-block grants intentionally return empty: the overlay's setup.sh
-# injects two paired-sentinel blocks rather than a single wrapper, so adopt
-# does not own those names.
-lw_manifest_known_grant_sentinel() {
-    case "$1" in
-        .gitignore)  echo "lw:wiki-rules" ;;
-        *)           echo "" ;;
-    esac
-}
-
-# Echo the canonical payload for $1's append-only grant. Inserted between
-# paired lw_inject_block sentinels at the target's end-of-file.
-lw_manifest_known_grant_payload() {
-    case "$1" in
-        .gitignore)
-            cat <<'EOF'
-# wiki sub-repo: separate git remote, not part of the host's tracked tree
-wiki/*.wiki/
-EOF
-            ;;
-    esac
 }

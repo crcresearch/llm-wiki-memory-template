@@ -11,12 +11,12 @@
 #   - Removes the files copied by install (files.destination)
 #   - Removes the tests copied by install (tests.destination)
 #   - Removes the CI workflow file
-#   - Removes the CLAUDE.md section between the feature's paired markers
+#   - Removes the feature's rule file at .claude/rules/feature-<name>.md
 #   - Removes the feature name from .features-enabled
 #
 # Idempotent: removing a feature that is not enabled is a no-op success.
 #
-# Run from the project root (the directory containing CLAUDE.md).
+# Run from the project root (the directory containing llm-wiki.md).
 
 set -uo pipefail
 
@@ -52,8 +52,11 @@ fi
 
 # --- Sanity check: this looks like a template-derived project ---
 cd "$PROJECT_ROOT"
-if [[ ! -f "CLAUDE.md" ]]; then
-    echo "Error: no CLAUDE.md at $PROJECT_ROOT." >&2
+# llm-wiki.md is the template's always-present marker (SHARED_INFRA,
+# delivered by both instantiate and adopt). CLAUDE.md is NOT used here:
+# it is host-owned and a derived project may legitimately not have one.
+if [[ ! -f "llm-wiki.md" ]]; then
+    echo "Error: no llm-wiki.md at $PROJECT_ROOT." >&2
     echo "       disable-feature.sh expects to run from a project that was" >&2
     echo "       instantiated from crcresearch/llm-wiki-memory-template." >&2
     exit 1

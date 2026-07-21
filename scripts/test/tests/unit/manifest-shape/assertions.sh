@@ -20,8 +20,8 @@ LW_MANIFEST="$REPO_ROOT_LIB/scripts/lib/template-manifest.sh"
 # placeholders and pruned the unused overlays — there the invariants are
 # legitimately false (observed: 12 spurious fails in a derived project's
 # CI). Same discriminator as clone_template's issue-#15 guard: only the
-# template checkout carries CLAUDE.md.template.
-if [ ! -f "$REPO_ROOT_LIB/CLAUDE.md.template" ]; then
+# template checkout carries the one-shot scripts/instantiate.sh.
+if [ ! -f "$REPO_ROOT_LIB/scripts/instantiate.sh" ]; then
     skip "manifest-shape assertions" "not a template checkout (derived project; manifest tree-invariants do not apply)"
     return 0 2>/dev/null || true
 fi
@@ -49,8 +49,7 @@ assert_eq "double-source preserves shared-infra count" \
 
 # --- HOST_OWNED entries have well-formed grants ----------------------------
 # Each "path|type" must split into two non-empty halves and resolve to a
-# known_grant_type (managed-block, append-only, merge) recognised by the
-# accessor.
+# known_grant_type (merge) recognised by the accessor.
 HOST_OWNED_ENTRIES="$(lw_mcall 'printf "%s\n" "${TEMPLATE_HOST_OWNED[@]}"')"
 while IFS= read -r _entry; do
     [[ -n "$_entry" ]] || continue
@@ -59,7 +58,7 @@ while IFS= read -r _entry; do
     assert "HOST_OWNED entry has non-empty path  ($_entry)"  "[ -n '$_path' ]"
     assert "HOST_OWNED entry has non-empty type  ($_entry)"  "[ -n '$_type' ]"
     assert "HOST_OWNED entry has known op type   ($_entry)" \
-        "case '$_type' in managed-block|append-only|merge) true ;; *) false ;; esac"
+        "case '$_type' in merge) true ;; *) false ;; esac"
     _resolved="$(lw_mcall "lw_manifest_known_grant_type '$_path'")"
     assert_eq "lw_manifest_known_grant_type('$_path')" "$_type" "$_resolved"
 done <<< "$HOST_OWNED_ENTRIES"
@@ -159,16 +158,33 @@ assert_eq "assemble(detect) host-with-cursor/.cursor  = SHARED + OVERLAY_CURSOR"
 N_F="$(lw_mcall "lw_manifest_assemble_active_files '$ROOT/host-bare' ''" | wc -l | tr -d ' ')"
 assert_eq "assemble(detect) host-bare                 = SHARED only" "$N_SHARED" "$N_F"
 
-# --- Accessor: lw_manifest_known_grant_sentinel + _payload -----------------
-# .gitignore returns "lw:wiki-rules" and a payload mentioning wiki/*.wiki/.
-assert_eq "known_grant_sentinel(.gitignore) = lw:wiki-rules" "lw:wiki-rules" \
-    "$(lw_mcall "lw_manifest_known_grant_sentinel '.gitignore'")"
-assert "known_grant_payload(.gitignore) mentions wiki/*.wiki/" \
-    "lw_mcall \"lw_manifest_known_grant_payload '.gitignore'\" | grep -qF 'wiki/*.wiki/'"
-assert_eq "known_grant_sentinel(CLAUDE.md) is empty (managed-block delegates to overlay)" "" \
-    "$(lw_mcall "lw_manifest_known_grant_sentinel 'CLAUDE.md'")"
-assert_eq "known_grant_sentinel(unknown path) is empty" "" \
-    "$(lw_mcall "lw_manifest_known_grant_sentinel 'random/path.txt'")"
+# --- .gitignore is no longer a grant target --------------------------------
+# The wiki sub-repo ignore rule ships as wiki/.gitignore (SHARED_INFRA);
+# the host's root .gitignore must not resolve to any grant type.
+assert_eq "known_grant_type(.gitignore) is empty (rule moved to wiki/.gitignore)" "" \
+    "$(lw_mcall "lw_manifest_known_grant_type '.gitignore'")"
+
+# --- CLAUDE.md is no longer a grant target ----------------------------------
+# The managed-block grant is retired: the behavioral instructions ship as
+# .claude/rules/*.md overlay files and no script writes the host's CLAUDE.md.
+assert_eq "known_grant_type(CLAUDE.md) is empty (managed-block grant retired)" "" \
+    "$(lw_mcall "lw_manifest_known_grant_type 'CLAUDE.md'")"
+assert "CLAUDE.md.template is gone from the template tree" \
+    "[ ! -e '$REPO_ROOT_LIB/CLAUDE.md.template' ]"
+assert "CLAUDE.md.template is gone from TEMPLATE_ONE_SHOT" \
+    "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_ONE_SHOT[@]}\"' | grep -qxF 'CLAUDE.md.template'"
+
+# --- .cursorrules.template is retired ---------------------------------------
+# The single-file Cursor fallback is removed: Cursor reads .cursor/rules/*.mdc
+# since 0.45 and marks .cursorrules legacy, so the overlay ships only .mdc.
+assert ".cursorrules.template is gone from the template tree" \
+    "[ ! -e '$REPO_ROOT_LIB/.cursorrules.template' ]"
+assert ".cursorrules.template is gone from TEMPLATE_ONE_SHOT" \
+    "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_ONE_SHOT[@]}\"' | grep -qxF '.cursorrules.template'"
+assert "wiki/.gitignore is in TEMPLATE_SHARED_INFRA" \
+    "lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_SHARED_INFRA[@]}\"' | grep -qxF 'wiki/.gitignore'"
+assert "template's wiki/.gitignore carries the *.wiki/ rule" \
+    "grep -qxF '*.wiki/' '$REPO_ROOT_LIB/wiki/.gitignore'"
 
 # --- Sync trees (TEMPLATE_SYNC_TREES + lw_manifest_tree_files, #90) --------
 # Membership is resolved at run time, so the invariants here are about the
@@ -198,3 +214,17 @@ assert "tree_files dir-mode lists the harness runner" \
     "lw_mcall \"lw_manifest_tree_files dir '$REPO_ROOT_LIB'\" | grep -qx 'scripts/test/run.sh'"
 assert "tree_files dir-mode returns a substantial member set" \
     "[ \"$(lw_mcall "lw_manifest_tree_files dir '$REPO_ROOT_LIB'" | wc -l | tr -d ' ')\" -gt 50 ]"
+
+# --- Claude rule files ship in the overlay, name-agnostic -------------------
+# .claude/rules/*.md carry the template's behavioral instructions without
+# touching the host's CLAUDE.md. Adopt ADDs files verbatim (no substitution
+# pass), so a {{REPO_NAME}} marker in a rule would land unstamped on adopted
+# hosts; the name-agnostic contract below is what keeps them correct there.
+for _rule in .claude/rules/wiki-as-memory.md .claude/rules/memory-boundary.md; do
+    assert "rule is in TEMPLATE_OVERLAY_CLAUDE: $_rule" \
+        "lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_OVERLAY_CLAUDE[@]}\"' | grep -qxF '$_rule'"
+    assert "rule is NOT in TEMPLATE_SUBSTITUTE_FILES: $_rule" \
+        "! lw_mcall 'printf \"%s\n\" \"\${TEMPLATE_SUBSTITUTE_FILES[@]}\"' | grep -qxF '$_rule'"
+    assert "rule carries no {{REPO_NAME}} marker (name-agnostic): $_rule" \
+        "! grep -qF '{{REPO_NAME}}' '$REPO_ROOT_LIB/$_rule'"
+done

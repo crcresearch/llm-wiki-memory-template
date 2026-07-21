@@ -13,8 +13,7 @@ under `wiki/agents/`.
 
 | File | Purpose |
 |---|---|
-| `setup.sh` | Idempotent installer: patches `CLAUDE.md`, registers the SessionStart hook, seeds personal memory. |
-| `templates/claude-md-snippet.md` | The "Wiki maintenance behavior" subsection injected into `CLAUDE.md`. |
+| `setup.sh` | Idempotent installer: verifies the wiki, registers the SessionStart hook, seeds personal memory. |
 | `templates/memory-seed.md` | The personal-memory file written to `~/.claude/projects/<encoded>/memory/wiki-as-project-memory.md`. |
 | `templates/session-start-hook.sh` | Optional hook printed at every SessionStart, reinforcing the read-write-commit pattern. |
 
@@ -31,7 +30,7 @@ cd {{REPO_NAME}}
 
 After this, opening Claude Code in the project root will:
 
-1. Read `CLAUDE.md` (which now contains the "Wiki maintenance behavior" subsection).
+1. Read the shipped `.claude/rules/wiki-as-memory.md` and `.claude/rules/memory-boundary.md` (auto-discovered; they carry the wiki maintenance behavior).
 2. Read the personal memory at `~/.claude/projects/<encoded>/memory/wiki-as-project-memory.md`.
 3. Print a SessionStart reminder about the wiki and the commit step.
 
@@ -40,12 +39,9 @@ After this, opening Claude Code in the project root will:
 After `setup.sh --all`, confirm each artifact is in place:
 
 ```bash
-ls .claude/commands/    # wiki-experiment.md, wiki-lint.md, wiki-source.md
-ls .claude/skills/      # same three filenames
+ls .claude/skills/      # wiki-experiment/, wiki-lint/, wiki-source/ (each with a SKILL.md)
 ls .claude/hooks/       # session-start.sh (if --hook ran)
-
-# CLAUDE.md gained the Wiki maintenance behavior subsection?
-grep -n "Wiki maintenance behavior" CLAUDE.md
+ls .claude/rules/       # wiki-as-memory.md, memory-boundary.md (shipped with the repo)
 
 # Personal memory seeded?
 ENCODED=$(pwd | tr '/._' '---')
@@ -65,7 +61,7 @@ Open Claude Code from the project root:
 claude
 ```
 
-On the first turn you should see, in context: the project's `CLAUDE.md` (now carrying the "Wiki maintenance behavior" subsection), the personal memory file (if `--seed-memory` ran), and a one-line `<system-reminder>` from the SessionStart hook (if `--hook` ran).
+On the first turn you should see, in context: the shipped `.claude/rules/*.md` files (carrying the wiki maintenance behavior), the personal memory file (if `--seed-memory` ran), and a one-line `<system-reminder>` from the SessionStart hook (if `--hook` ran).
 
 The five exercises below double as smoke tests and as a tour of the four entry points to the wiki.
 
@@ -130,17 +126,16 @@ After the walkthrough you have three slash commands and one default behavior:
 The script is idempotent. It reports each item as applied or skipped, and
 exits without committing anything.
 
-1. **Verifies the wiki is present** at `wiki/<repo>.wiki/SCHEMA_<repo>.md`. Errors out with instructions if missing.
-2. **Patches `CLAUDE.md`** with the "Wiki maintenance behavior" subsection, if the marker is not already present. Injected immediately before "### Knowledge Graph" when that subsection exists.
-3. **Verifies the three slash commands** are present in `.claude/commands/` (`wiki-experiment.md`, `wiki-source.md`, `wiki-lint.md` — invoked as `/wiki-experiment`, `/wiki-source`, `/wiki-lint` in the Claude Code UI) **and the three model-side skills** at `.claude/skills/`. Both ship with the repository.
-4. **Installs the SessionStart hook** at `.claude/hooks/session-start.sh`, then registers it in `.claude/settings.json` (creating the file if missing, or merging via `jq` if it exists with other content).
-5. **Seeds personal memory** at `~/.claude/projects/<encoded-path>/memory/wiki-as-project-memory.md`. Also creates or appends to `MEMORY.md` in the same directory. Does not overwrite an existing file with different content.
+1. **Verifies the wiki is present** at `wiki/<repo>.wiki/SCHEMA_<repo>.md`. Errors out with instructions if missing. (It does not touch `CLAUDE.md`; the behavioral instructions ship as `.claude/rules/*.md` with the repository.)
+2. **Verifies the three skills** are present at `.claude/skills/wiki-{experiment,source,lint}/SKILL.md` (invoked as `/wiki-experiment`, `/wiki-source`, `/wiki-lint`, or pulled in by the model when the intent matches). They ship with the repository. The former `.claude/commands/` duplicates are retired: skills shadow same-named commands, and flat `.claude/skills/*.md` files are not discovered.
+3. **Installs the SessionStart hook** at `.claude/hooks/session-start.sh`, then registers it in `.claude/settings.json` (creating the file if missing, or merging via `jq` if it exists with other content).
+4. **Seeds personal memory** at `~/.claude/projects/<encoded-path>/memory/wiki-as-project-memory.md`. Also creates or appends to `MEMORY.md` in the same directory. Does not overwrite an existing file with different content.
 
 ## Flags
 
 | Flag | What it does |
 |---|---|
-| (none) | Base mode: wiki verification + `CLAUDE.md` patch + commands and skills check |
+| (none) | Base mode: wiki verification + skills check |
 | `--hook` | Adds SessionStart hook installation and `settings.json` registration |
 | `--seed-memory` | Adds personal memory seeding |
 | `--all` | Both `--hook` and `--seed-memory` |
@@ -170,14 +165,13 @@ options:
 # Reset the patched/seeded files
 rm .claude/hooks/session-start.sh
 rm ~/.claude/projects/<encoded>/memory/wiki-as-project-memory.md
-# Remove the "### Wiki maintenance behavior" subsection from CLAUDE.md by hand
 
 ./wiki/agents/claude-code/setup.sh --all
 ```
 
 **Option B — leave the existing artifacts alone**. The committed
-`CLAUDE.md` already reflects the latest wording (since the maintainers
-update it together with the template), so existing setups stay coherent.
+`.claude/rules/*.md` files already reflect the latest wording (they sync
+with `update-from-template.sh`), so existing setups stay coherent.
 Personal memory and the hook may lag behind the current template; they
 update on the next Option A reset.
 
@@ -185,7 +179,7 @@ update on the next Option A reset.
 
 - The wiki must exist at `wiki/<repo>.wiki/SCHEMA_<repo>.md`. If missing, `setup.sh` errors out and tells you to run `./wiki/init-wiki.sh` first (use `--github` to clone the wiki from a `<main-repo>.wiki.git` remote).
 - **GitHub Wiki backend, one-time UI step:** if you plan to back the wiki with the project's GitHub Wiki (passing `--github-wiki` to `scripts/instantiate.sh`, or `--github` to `wiki/init-wiki.sh` directly), GitHub requires the first Wiki page to be created through the UI before `<repo>.wiki.git` becomes a clonable/pushable repository. Open `https://github.com/<owner>/<repo>/wiki`, click *"Create the first page"* (title `Home`, any content), save. One-time per project. See the root `README.md` of the template, section "Path A", for the full bootstrap order.
-- Both the slash commands at `.claude/commands/wiki-*.md` and the model-side skills at `.claude/skills/wiki-*.md` ship with this repository on the overlay branch. If either set is missing, the bootstrap is incomplete; pull the latest changes.
+- The skills at `.claude/skills/wiki-*/SKILL.md` ship with this repository on the overlay branch. If they are missing, the bootstrap is incomplete; pull the latest changes.
 - `jq` is required to merge the SessionStart hook into an existing `.claude/settings.json`. Without `jq`, `setup.sh --hook` falls back to a manual-edit instruction.
 
 ## Design notes

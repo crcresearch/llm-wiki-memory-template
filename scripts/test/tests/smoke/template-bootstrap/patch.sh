@@ -44,8 +44,9 @@ fi
 if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"
-        # Only run instantiate if it hasn't already been run (CLAUDE.md absent)
-        if [ ! -f CLAUDE.md ]; then
+        # instantiate.sh self-deletes on success, so the -f check is the
+        # re-run guard; nothing else marks an instantiated tree.
+        if [ -f scripts/instantiate.sh ]; then
             # Use --agent=claude-code (the documented default) to exercise
             # the claude-code overlay. The --agent=none path is covered
             # separately by the instantiate-agent-none smoke test (issue #9

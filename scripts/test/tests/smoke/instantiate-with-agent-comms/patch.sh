@@ -65,8 +65,8 @@ else
 fi
 
 # Run instantiate.sh with --features=agent-comms. Guard: only if
-# CLAUDE.md doesn't already exist (instantiate.sh refuses otherwise).
-if [ -f "$T/scripts/instantiate.sh" ] && [ ! -f "$T/CLAUDE.md" ]; then
+# instantiate.sh is still present (it self-deletes on success).
+if [ -f "$T/scripts/instantiate.sh" ]; then
     (
         cd "$T"
         rc=0

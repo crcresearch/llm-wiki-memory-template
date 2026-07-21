@@ -4,7 +4,7 @@
 # Before the fix, instantiate.sh exited non-zero with
 #   "INIT_AGENT_ARGS[@]: unbound variable"
 # on bash 3.2 and init-wiki.sh never ran. After the fix, the script
-# completes and produces CLAUDE.md + the wiki sub-repo.
+# completes and produces the rendered README + the wiki sub-repo.
 
 T="$SANDBOX/template-none"
 
@@ -18,13 +18,14 @@ fi
 assert "instantiate.sh --agent=none exited 0" \
     "[ \"\$(cat '$T.instantiate-rc' 2>/dev/null)\" = '0' ]"
 
-# Bootstrap exit + CLAUDE.md substitution
-assert "instantiate.sh --agent=none produced CLAUDE.md" \
-    "[ -f '$T/CLAUDE.md' ]"
-assert_contains "CLAUDE.md has project name substituted" \
-    "$T/CLAUDE.md" "Agent None Project"
-assert "CLAUDE.md has no {{PROJECT_NAME}} leak" \
-    "! grep -q '{{PROJECT_NAME}}' '$T/CLAUDE.md'"
+# Bootstrap exit + README substitution (CLAUDE.md is host-owned and no
+# longer rendered by instantiate)
+assert "instantiate.sh --agent=none did NOT create CLAUDE.md" \
+    "[ ! -f '$T/CLAUDE.md' ]"
+assert_contains "README.md has project name substituted" \
+    "$T/README.md" "Agent None Project"
+assert "README.md has no {{PROJECT_NAME}} leak" \
+    "! grep -q '{{PROJECT_NAME}}' '$T/README.md'"
 
 # init-wiki.sh must have run (the regression killed it before it could fire)
 REPO_NAME=$(basename "$T")

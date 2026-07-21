@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# Patch: stage a host with TOUCH grants and run adopt.sh --apply (Phase 2A:
-# append-only TOUCH apply).
+# Patch: stage a host with the TOUCH grant and run adopt.sh --apply.
 #
 # Verifies:
-#  - .gitignore gets a sentinel-paired lw:wiki-rules block at the end,
-#    with the canonical wiki/*.wiki/ rule inside.
-#  - The host's prior .gitignore content is preserved verbatim above the
-#    new block.
-#  - managed-block and merge grants are classified but reported as
-#    deferred (Phase 2B / Phase 3) in the manifest.
-#  - Re-running --apply is idempotent: lw_inject_block detects the
-#    opening sentinel and returns 'already-present' instead of
-#    duplicating the block.
+#  - The host's .gitignore and CLAUDE.md are never modified: the wiki
+#    sub-repo ignore rule arrives as the ADDed wiki/.gitignore, and the
+#    behavioral instructions arrive as the ADDed .claude/rules/*.md.
+#  - The merge grant is classified and applied via the overlay
+#    setup.sh --hook (Phase 3).
+#  - Re-running --apply is idempotent: the host .gitignore and CLAUDE.md
+#    stay byte-identical across both runs.
 
 set -uo pipefail
 
@@ -38,8 +35,8 @@ __pycache__/
 .env
 EOF
 
-# Host CLAUDE.md so the managed-block grant is TOUCH (not MISSING) and the
-# manifest can report it as 'deferred -- Phase 2B' rather than skip it.
+# Host CLAUDE.md: purely host-authored. No grant covers it anymore; the
+# assertions prove adopt leaves it byte-identical.
 cat > "$HOST/CLAUDE.md" <<'EOF'
 # Touch Host
 Host-authored project guidance.
@@ -62,14 +59,17 @@ cp "$TEMPLATE_ROOT/llm-wiki.md" "$HOST/llm-wiki.md"
 mkdir -p "$HOST/wiki"
 cp "$TEMPLATE_ROOT/wiki/init-wiki.sh" "$HOST/wiki/init-wiki.sh"
 
-# Grants file covering all three TOUCH types so the test exercises each
-# branch of the apply-mode dispatch.
+# Grants file covering the one remaining TOUCH type so the test
+# exercises the apply-mode dispatch.
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 grants:
-  .gitignore:             append-only
-  CLAUDE.md:              managed-block
   .claude/settings.json:  merge
 EOF
+
+# Snapshot the host's .gitignore and CLAUDE.md: assertions prove both
+# survive BOTH --apply runs byte-identical (adopt must never modify them).
+cp "$HOST/.gitignore" "$STAGE/gitignore.before"
+cp "$HOST/CLAUDE.md" "$STAGE/claude-md.before"
 
 # Commit so the working tree is clean (adopt's safety guard refuses
 # --apply otherwise).
@@ -90,7 +90,7 @@ if ! bash "$ADOPT" --target="$HOST" --apply --force > "$OUT1" 2>&1; then
     sed 's/^/    /' "$OUT1" >&2
 fi
 
-# --- Second --apply run --force (idempotency on the lw_inject_block path) ---
+# --- Second --apply run --force (idempotency of the TOUCH + ADD paths) ---
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test add -A
 git -C "$HOST" -c user.email=test@x.invalid -c user.name=test commit -q -m "after first apply" \
     >/dev/null 2>&1 || true   # may be empty if first run had no effect

@@ -23,14 +23,14 @@ echo "*.pyc"            > "$HOST/.gitignore"
 
 # Malformed grants file:
 #   - garbage prefix
-#   - one well-formed entry (.gitignore: append-only)
+#   - one well-formed entry (.claude/settings.json: merge)
 #   - missing-value entries (key with no value)
 #   - random non-grants prose
 # adopt.sh's awk parser should pick up only the valid entry.
 cat > "$HOST/.llm-wiki-adopt-grants.yml" <<'EOF'
 this is not yaml at all
 grants:
-  .gitignore: append-only
+  .claude/settings.json: merge
   CLAUDE.md:
   malformed line with no colon
   : value-without-key

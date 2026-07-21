@@ -4,9 +4,9 @@
 # seed-push runs and either succeeds or fails with the 404 workaround,
 # independent of which agent is consuming the wiki. The overlay setup
 # (which IS agent-specific) skips with the --agent=none reason, and the
-# managed-block / merge TOUCH grants that delegate to the overlay also
-# skip. The append-only TOUCH grant on .gitignore still runs because it
-# does not depend on the overlay at all.
+# merge TOUCH grant that delegates to the overlay also
+# skips. The wiki ignore rule still lands because it ships as the ADDed
+# wiki/.gitignore, which does not depend on the overlay at all.
 
 STAGE="$SANDBOX/adopt-apply-github-wiki-agent-none"
 HOST="$STAGE/host"
@@ -34,28 +34,28 @@ assert "manifest reports init-wiki: applied" \
 assert "manifest reports overlay setup: skipped (--agent=none)" \
     "grep -qF -- '- overlay setup: skipped (--agent=none' '$HOST/.llm-wiki-adopt-log.md'"
 
-# managed-block and merge TOUCH grants skipped (they delegate to overlay).
-assert "TOUCH applied lists CLAUDE.md (managed-block): skipped" \
-    "grep -qF 'CLAUDE.md (managed-block): skipped' '$HOST/.llm-wiki-adopt-log.md'"
+# The merge TOUCH grant skipped (it delegates to overlay).
 assert "TOUCH applied lists .claude/settings.json (merge): skipped" \
     "grep -qF '.claude/settings.json (merge): skipped' '$HOST/.llm-wiki-adopt-log.md'"
 
-# append-only TOUCH on .gitignore still runs (no overlay dependency).
-assert "TOUCH applied lists .gitignore (append-only): created from canonical or applied" \
-    "grep -qE -- '- .gitignore \\(append-only\\): (created from canonical|applied)' '$HOST/.llm-wiki-adopt-log.md'"
+# .gitignore and CLAUDE.md are no longer TOUCH targets at all.
+assert "manifest does NOT list a .gitignore TOUCH (no such grant anymore)" \
+    "! grep -qF -- '- .gitignore (' '$HOST/.llm-wiki-adopt-log.md'"
+assert "manifest does NOT list a CLAUDE.md TOUCH (managed-block grant retired)" \
+    "! grep -qF -- '- CLAUDE.md (' '$HOST/.llm-wiki-adopt-log.md'"
 
 # Stderr surfaces the workaround block (github-wiki failure path).
 assert "stderr contains the 'Wiki bootstrap via direct push failed' header" \
     "grep -qF 'Wiki bootstrap via direct push failed' '$ERR'"
 
-# Host's preexisting *.pyc rule survives.
-assert "host .gitignore preserves preexisting *.pyc rule" \
-    "grep -qFx '*.pyc' '$HOST/.gitignore'"
-# Sentinel block from append-only TOUCH was added.
-assert "host .gitignore gained the wiki/*.wiki/ rule" \
-    "grep -qF 'wiki/*.wiki/' '$HOST/.gitignore'"
+# Host's preexisting *.pyc rule survives, and nothing was appended.
+assert "host .gitignore untouched (still only the host's own rule)" \
+    "[ \"\$(cat '$HOST/.gitignore')\" = '*.pyc' ]"
+# The wiki ignore rule landed as the ADDed wiki/.gitignore instead.
+assert "wiki/.gitignore was ADDed with the *.wiki/ rule" \
+    "grep -qFx '*.wiki/' '$HOST/wiki/.gitignore'"
 
-# Overlay-managed CLAUDE.md NOT created (init-wiki seeds it from template,
-# but no managed-block sentinels injected since overlay skipped).
-assert "host CLAUDE.md has NO lw:memory-boundary sentinel (overlay was skipped)" \
-    "! grep -qF '<!-- lw:memory-boundary -->' '$HOST/CLAUDE.md' 2>/dev/null || true"
+# CLAUDE.md NOT created at all: no writer remains (init-wiki no longer
+# seeds it; the instructions ship as overlay rule files).
+assert "host CLAUDE.md was NOT created" \
+    "[ ! -f '$HOST/CLAUDE.md' ]"
