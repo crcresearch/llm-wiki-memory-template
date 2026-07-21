@@ -5,7 +5,14 @@
 assert() {
     local desc="$1"
     local cmd="$2"
-    if eval "$cmd" >/dev/null 2>&1; then
+    local rc=0
+    # The predicate is the pipeline's last command; under run.sh's pipefail
+    # an early-exiting `grep -q` SIGPIPEs its producer (exit 141) and fails
+    # a pipeline whose predicate matched. Judge the predicate alone.
+    set +o pipefail
+    eval "$cmd" >/dev/null 2>&1 || rc=$?
+    set -o pipefail
+    if [ "$rc" -eq 0 ]; then
         echo "  PASS: $desc"
         PASS=$((PASS+1))
     else
